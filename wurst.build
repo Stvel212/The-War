@@ -4,23 +4,15 @@ dependencies:
 - https://github.com/wurstscript/wurstStdlib2
 - https://github.com/Frotty/wurst-table-layout
 buildMapData:
-  name: "|c00FF8000 The War Reborn |r 1.7"
+  name: '|c00FF8000 The War Reborn |r 1.7'
   fileName: TheWarReborn
-  author: Stvel, regint, LordofKodoes
+  author: "Stvel, regint, LordofKodoes"
   scenarioData:
-    description: "|c00FF8000Fight 4 vs 4 on your own lane against your opponent to ultimately defeat the enemy King!|r"
-    suggestedPlayers: "4vs4"
+    description: '|c00FF8000Fight 4 vs 4 on your own lane against your opponent to
+      ultimately defeat the enemy King!|r'
+    suggestedPlayers: 4vs4
     loadingScreen:
       model: ui\LoadingScreen.mdx
-      title: ""
-      subTitle: ""
-      text: ""
-  # Флаги карты (optionsFlags) не задаём: Wurst тогда оставляет их из war3map.w3i как есть (0xdc7a);
-  # если задать — он принудительно ставит бит «скрыть миникарту в превью».
-  # Слоты: 8 игроков (люди слева, ночные эльфы справа) + 2 компьютера-короля (id 8 и 9).
-  # Имена — ссылки на war3map.wts (Игрок 1..10): Wurst пишет строки w3i в ANSI, кириллица напрямую испортится.
-  # Команды (forces) намеренно не заданы: тогда Wurst оставляет их из карты как есть (Команда 1 = 0-3,8; Команда 2 = 4-7,9;
-  # союз + общая победа + обзор). Задавать их здесь нельзя: у Wurst другая раскладка битов обзора/контроля, чем у редактора.
   players:
   - id: 0
     name: TRIGSTR_001
@@ -72,5 +64,4 @@ buildMapData:
     race: NIGHT_ELF
     controller: COMPUTER
     fixedStartLoc: true
-scriptMode: JASS
 wc3Patch: v3.0
