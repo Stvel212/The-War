@@ -24,7 +24,10 @@ public function player.isLeftTeam() returns bool
 
 /** Приказ идти в атаку по своей линии на высоте y: левая команда — вправо (x = 2750), правая — влево (x = -3300) */
 public function unit.attackLane(real y)
-    this.issuePointOrder("attack", vec2(this.getOwner().isLeftTeam() ? 2750.0 : -3300.0, y))
+    let target = vec2(this.getOwner().isLeftTeam() ? 2750.0 : -3300.0, y)
+    // "attack" не принимается юнитом без атаки (или обезоруженным) — тогда хотя бы "move", чтобы не стоял
+    if not this.issuePointOrder("attack", target)
+        this.issuePointOrder("move", target)
 
 /** Приказ идти в атаку по своей линии (по своей высоте) */
 public function unit.attackLane()

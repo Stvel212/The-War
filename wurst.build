@@ -4,7 +4,7 @@ dependencies:
 - https://github.com/wurstscript/wurstStdlib2
 - https://github.com/Frotty/wurst-table-layout
 buildMapData:
-  name: '|c00FF8000 The War Reborn |r 1.7'
+  name: '|c00FF8000 The War Reborn |r 1.7b'
   fileName: TheWarReborn
   author: "Stvel, regint, LordofKodoes"
   scenarioData:

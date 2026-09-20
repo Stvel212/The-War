@@ -101,7 +101,10 @@ function passLane(unit u, player a, int food, bool leftPassed)
     if rock[a.getId()] or a == players[leftPassed ? 8 : 9]
         u.setHP(10.0)
         u.addAbility('A0GU')
-    u.attackLane(y.toReal())
+    // дальше — по середине (по новой высоте у ворот), а не обратно в свою линию: в оригинале приказ шёл на старый y,
+    // но через ≤3 с Tree всё равно перебивал его текущей высотой; если юнит успевал сползти ниже -500, он снова
+    // входил в Proxod вне нейтральной полосы — повторное золото и телепорт
+    u.attackLane()
     if not rock[a.getId()]
         a.setGold(a.getGold() + food * 2)
         DisplayTextToPlayer(a, 0.0, 0.0, "|cffff0000You received:|r |cffffff00+" + (food * 2) + " gold!|r")
@@ -125,7 +128,7 @@ function proxod()
         return
     if id == 12
         SetUnitPosition(u, 2950.0, GetRandomReal(-300.0, 850.0))
-        u.issuePointOrder("attack", vec2(-3300.0, y.toReal()))
+        u.issuePointOrder("attack", vec2(-3300.0, u.getY()))
     else if u.getTypeId() != 'e01Q'
         let food = GetFoodUsed(UnitId(GetAbilityEffectById(u.getTypeId(), EFFECT_TYPE_TARGET, 0)))
         if id > 3 and id != 8 and x < 0
@@ -259,21 +262,48 @@ function stop()
     u.attackLane()
 
 // ============================================================
-// Триггер: Tree — раз в 3 с бойцам, которые стоят без приказа, — приказ идти в атаку; срубленные деревья у баз отрастают
+// Триггер: Tree — раз в 3 с: метка 'A0BO' всем бойцам; помеченные (= не атаковавшие 3 с) получают новый attack-move
+// по своей текущей высоте; срубленные деревья у баз отрастают. Attack — атака снимает метку
 // ============================================================
 
-/** Раньше: всем юнитам метка 'A0BO', атака снимала её, и раз в 3 с все помеченные (= не атаковавшие 3 с) получали
-    новый attack-move — т.е. каждый боец на марше перестраивал путь каждые ~6 с. Теперь приказ получают только те,
-    у кого нет текущего приказа (стоят). */
+// Приказ по текущей высоте нужен именно каждые 3 с: после прохода через портал юнит выходит у своих ворот
+// (y от -300 до 850) и через 3 с идёт по середине, а не обратно в свою линию (иначе он снова входит в Proxod
+// вне «нейтральной» полосы — повторное золото и телепорт).
+// В оригинале условие было `… or (x > 0 and id == 12 and y > 1200 or y < -500)` — из-за приоритета and/or любой юнит
+// с y < -500 (нижние линии правой команды!) шёл к x = 2750, т.е. к своей базе, и там толпился. Исправлены скобки:
+// y > 1200 / y < -500 относятся только к нейтральным крипам (id 12) на правой половине.
+
+/** Точка attack-move по линии для юнита (по своей текущей высоте) */
+function unit.laneTarget() returns vec2
+    let id = this.getOwner().getId()
+    if id < 4 or id == 8 or (this.getX() > 0 and id == 12 and (this.getY() > 1200 or this.getY() < -500))
+        return vec2(2750.0, this.getY())
+    return vec2(-3300.0, this.getY())
+
+/** Приказ идти по линии; если "attack" не принят (нет атаки, обезоружен) — обычный "move", чтобы юнит не стоял */
+function unit.orderLane()
+    let target = this.laneTarget()
+    if not this.issuePointOrder("attack", target)
+        this.issuePointOrder("move", target)
+
 @noinline
 function tree()
     forUnitsAll() u ->
-        if u.getCurrentOrder() == 0 and not u.isDummy() and u.isFighter() and not u.isType(UNIT_TYPE_SAPPER)
-            let id = u.getOwner().getId()
-            if id < 4 or id == 8 or ((u.getX() > 0 and id == 12 and u.getY() > 1200) or u.getY() < -500)
-                u.issuePointOrder("attack", vec2(2750.0, u.getY()))
-            else
-                u.issuePointOrder("attack", vec2(-3300.0, u.getY()))
+        if u.isDummy() or not u.isFighter() or u.isType(UNIT_TYPE_SAPPER)
+            return
+        // стоит без приказа — сразу в путь, не дожидаясь метки (иначе после боя до 6 с простоя)
+        if u.getCurrentOrder() == 0
+            u.orderLane()
+        else if u.getAbilityLevel('A0BO') < 1
+            u.addAbility('A0BO')
+        else
+            u.orderLane()
+
+@noinline
+function attack()
+    let a = GetAttacker()
+    if a.getAbilityLevel('A0BO') > 0
+        a.removeAbility('A0BO')
 
 /** Деревья в 2500 от каждой базы (раньше им раз в 3 с чинили жизнь всем подряд) — отрастают по событию смерти */
 function watchTrees()
@@ -657,6 +687,8 @@ init
         stop()
     EventListener.add(EVENT_PLAYER_UNIT_ISSUED_TARGET_ORDER) ->
         stop()
+    onAnyAttack() ->
+        attack()
     doPeriodically(3.0) cb ->
         tree()
     // строители уже созданы (initGame идёт в init MapStart, до таймеров)
