@@ -14,7 +14,7 @@ function printAll(string msg)
 
 /** Имя игрока в его цвете */
 function player.coloredName() returns string
-    return "|c00" + Color[this.getId()] + this.getName() + "|r"
+    return "|c00" + colorCode[this.getId()] + this.getName() + "|r"
 
 // ============================================================
 // Команда: -up N — отдалить камеру на N (0..1200)
@@ -30,25 +30,25 @@ function cmdCamera(player p, string msg)
 // ============================================================
 
 function cmdGiveLumber(player p)
-    let left = ForceG[1].containsPlayer(p)
-    let gone = left ? ForceG[3] : ForceG[4]
-    let team = left ? ForceG[1] : ForceG[2]
+    let left = forceG[1].containsPlayer(p)
+    let gone = left ? forceG[3] : forceG[4]
+    let team = left ? forceG[1] : forceG[2]
     var total = 0
     for q in gone
         total += q.getLumber()
         q.setLumber(0)
-    let share = total div CountPlayer[left ? 1 : 2]
+    let share = total div countPlayer[left ? 1 : 2]
     for q in team
         q.setLumber(q.getLumber() + share)
     if team.containsPlayer(localPlayer)
-        DisplayTextToPlayer(localPlayer, 0.0, 0.0, "|cff80ff00You received |r|cff008000" + share.toString() + "|r|cff80ff00 lumber|r")
+        DisplayTextToPlayer(localPlayer, 0.0, 0.0, "|cff80ff00You received |r|cff008000" + share + "|r|cff80ff00 lumber|r")
 
 // ============================================================
 // Команда: -roll — случайное число 1..1000 всем
 // ============================================================
 
 function cmdRoll(player p)
-    printAll(p.coloredName() + "Lucky?) = " + GetRandomInt(1, 1000).toString())
+    printAll(p.coloredName() + "Lucky?) = " + GetRandomInt(1, 1000))
 
 // ============================================================
 // Команда: -control N — админу полный контроль над игроком N
@@ -68,7 +68,7 @@ function cmdGiveControl(player p, string msg)
 // ============================================================
 
 function cmdRob(player p)
-    DisplayTextToPlayer(p, 0.0, 0.0, "|cff80ffffStolen: |r|cffffff00" + rob[p.getId()].toString() + " gold!|r")
+    DisplayTextToPlayer(p, 0.0, 0.0, "|cff80ffffStolen: |r|cffffff00" + rob[p.getId()] + " gold!|r")
 
 // ============================================================
 // Команда: -tunR N — на 3 секунды показать кольцо радиуса N вокруг строителя (25 маркеров)
@@ -76,7 +76,7 @@ function cmdRob(player p)
 
 function cmdTunRadius(player p, string msg)
     let radius = msg.substring(6, 10).toInt().toReal()
-    let center = Builder[p.getId()].getPos()
+    let center = builders[p.getId()].getPos()
     for i = 0 to 24
         let pos = center.polarOffset((67.5 + i * 22.5).asAngleDegrees(), radius)
         CreateUnit(players[bj_PLAYER_NEUTRAL_EXTRA], 'e01Q', pos.x, pos.y, 0.0).setTimedLife(3.0, 'BHwe')
@@ -89,28 +89,28 @@ function cmdTunRadius(player p, string msg)
 function kickAfkCheck()
     for a = 0 to 8
         let p = players[a]
-        let b = Builder[a]
-        if KickX[a] == b.getX() and KickY[a] == b.getY()
-            KickT[a] += 10
-            if KickT[a] == 290 and isInGame(p) and p.getGold() >= 1200
-                let team = a < 4 ? ForceG[1] : ForceG[2]
+        let b = builders[a]
+        if kickX[a] == b.getX() and kickY[a] == b.getY()
+            kickT[a] += 10
+            if kickT[a] == 290 and isInGame(p) and p.getGold() >= 1200
+                let team = a < 4 ? forceG[1] : forceG[2]
                 if team.containsPlayer(localPlayer)
-                    localPlayer.print("Player " + p.coloredName() + " is AFK. Use the command |cffff8080-kickafk" + a.toString() + "|r", 10.0)
+                    localPlayer.print("Player " + p.coloredName() + " is AFK. Use the command |cffff8080-kickafk" + a + "|r", 10.0)
         else
-            KickT[a] = 0
-            KickX[a] = b.getX()
-            KickY[a] = b.getY()
+            kickT[a] = 0
+            kickX[a] = b.getX()
+            kickY[a] = b.getY()
 
 /** Кик игрока id: поражение, перевод в выбывшие, контроль над его юнитами — команде */
 function kickPlayer(int id)
     let victim = players[id]
     if bj_FORCE_ALL_PLAYERS.containsPlayer(localPlayer)
         localPlayer.print("Player " + victim.coloredName() + " has been kicked!", 15.0)
-    PlayerL[id] = true
+    playerL[id] = true
     CustomDefeatBJ(victim, "Defeat")
     let left = id < 4
-    ForceG[left ? 3 : 4].addPlayer(victim)
-    ForceG[left ? 1 : 2].removePlayer(victim)
+    forceG[left ? 3 : 4].addPlayer(victim)
+    forceG[left ? 1 : 2].removePlayer(victim)
     for a = (left ? 0 : 4) to (left ? 4 : 8)
         victim.setPlayerAlliance(players[a], ALLIANCE_SHARED_CONTROL, true)
         victim.setPlayerAlliance(players[a], ALLIANCE_SHARED_ADVANCED_CONTROL, true)
@@ -122,7 +122,7 @@ function kickPlayer(int id)
 
 function cmdKickAfk(string msg)
     let id = msg.substring(8, 9).toInt()
-    if KickT[id] >= 290 and isInGame(players[id])
+    if kickT[id] >= 290 and isInGame(players[id])
         kickPlayer(id)
 
 // ============================================================

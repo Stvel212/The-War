@@ -2,47 +2,47 @@ package MapGlobals
 
 // Глобальные переменные карты (бывшие udg_*, gg_trg_*), регионы из редактора и их инициализация (бывший InitGlobals).
 
-public group BuildUnit = null
-public real DamageEventAmount = 0
-public bool IsDamageSpell = false
-public int array Income
-public int array Force
-public group Naim = null
+public group buildUnits = null
+public real damageEventAmount = 0
+public bool isDamageSpell = false
+public int array income
+public int array power
+public group naimGroup = null
 public int round = 0
 public timer roundTimer = null
-public hashtable Hash = null
+public hashtable hash = null
 public int array multiboardId
 public int array multiboardIdR
-public bool array Boom
+public bool array boom
 public multiboard udg_Board = null
-public int array ForceItem
-public bool array PlayerL
-public string array Color
-public int array OneTear
-public int array TwoTear
-public int array ThreeTear
-public int array FourTear
-public int array FiveTear
-public int array SixTear
-public int array SevenTear
-public int array EightTear
-public int array NineTear
-public int array AllTear
-public int array Repick
-public timerdialog TimerD = null
-public bool array Hero
-public unit array King
-public unit array Builder
-public unit array Arthas
-public int array Wisp
-public bool array Rock
+public int array powerItem
+public bool array playerL
+public string array colorCode
+public int array tier1
+public int array tier2
+public int array tier3
+public int array tier4
+public int array tier5
+public int array tier6
+public int array tier7
+public int array tier8
+public int array tier9
+public int array allTiers
+public int array repickLast
+public timerdialog timerD = null
+public bool array hasHero
+public unit array kings
+public unit array builders
+public unit array arthas
+public int array wispCount
+public bool array rock
 public group P = null
 public int array rob
 public int array sinergia
-public int array SpecUnit
-public int array IncomeR
-public force array ForceG
-public int array Heal
+public int array specUnit
+public int array incomeR
+public force array forceG
+public int array heals
 public int array sinergia1
 public int array sinergia2
 public int array sinergia3
@@ -52,20 +52,20 @@ public int array sinergia6
 public int array sinergia7
 public int array sinergia8
 public int array sinergia9
-public int array UnitS
-public int array KingS
-public bool FirstBlood = false
+public int array unitS
+public int array kingS
+public bool firstBlood = false
 public sound LOL = null
-public sound KnightNoGold = null
-public int ProdajaUnit = 0
-public int ArtG = 0
-public unit array Magazin
-public int array CountPlayer
-public real array KickX
-public real array KickY
-public int array KickT
-public texttag array TextR
-public unit array Baza
+public sound knightNoGold = null
+public int prodajaUnit = 0
+public int artG = 0
+public unit array magazin
+public int array countPlayer
+public real array kickX
+public real array kickY
+public int array kickT
+public texttag array textR
+public unit array baza
 public int array sinergia10
 public int array sinergiaDE1
 public int array sinergiaDE2
@@ -73,20 +73,20 @@ public int array sinergiaDE3
 public int array sinergiaDE4
 public int array sinergiaDE5
 public int array sinergiaDE
-public int array Presens
-public bool array Prezens1
-public bool array Prezens2
-public bool array Prezens3
-public bool array Prezens4
-public int array ItemZapretD
-public int array ItemZapretS
-public int array LimitArt
+public int array presens
+public bool array prezens1
+public bool array prezens2
+public bool array prezens3
+public bool array prezens4
+public int array itemZapretD
+public int array itemZapretS
+public int array limitArt
 public int array sinergiaDE6
 public int array sinergia11
-public int array Dark
-public bool array DarkItem
-public int array TenTear
-public int Zamedlo = 0
+public int array dark
+public bool array darkItem
+public int array tier10
+public int zamedlo = 0
 public int array sinergiaH1
 public int array sinergiaH2
 public int array sinergiaH3
@@ -95,17 +95,17 @@ public int array sinergiaH5
 public int array sinergiaH6
 public int array sinergiaH7
 public int array sinergiaH8
-public int array ZapretCombo
-public int array ZapretActive
-public int array ZapretPassive
+public int array zapretCombo
+public int array zapretActive
+public int array zapretPassive
 // лимит элементалей: сколько ещё можно построить; индекс — elemLimit(вид 1..8, игрок) (см. Synergy)
-public int array ZapretElem
+public int array elemLeft
 public function elemLimit(int slot, int playerId) returns int
     return slot * 16 + playerId
-public string ModeString = null
+public string modeString = null
 public int array sinergia12
 
-// ключ в Hash для данных, которые раньше хранились в custom value юнита (custom value занят UnitIndexer из stdlib)
+// ключ в hash для данных, которые раньше хранились в custom value юнита (custom value занят UnitIndexer из stdlib)
 public constant KEY_KINGHP = 'KHP_'
 
 // регионы из редактора (дубли WE-объектов из war3map.j, чтобы были видны из Wurst)
@@ -141,15 +141,15 @@ public rect rct_PVE = Rect(-1024.0, -6144.0, 512.0, 6432.0)
 // бывший InitGlobals: оставлены только присваивания не-значений-по-умолчанию (handles, числа != 0) для используемых переменных
 
 public function initGlobals()
-    BuildUnit = CreateGroup()
-    Naim = CreateGroup()
+    buildUnits = CreateGroup()
+    naimGroup = CreateGroup()
     P = CreateGroup()
     roundTimer = CreateTimer()
     for i = 0 to 9
-        Boom[i] = true
-        Wisp[i] = 1
+        boom[i] = true
+        wispCount[i] = 1
     for i = 0 to 1
-        ForceG[i] = CreateForce()
+        forceG[i] = CreateForce()
 
 init
     initGlobals()

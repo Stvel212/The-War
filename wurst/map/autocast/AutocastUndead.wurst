@@ -313,7 +313,7 @@ function darkDragon()
             a.damageTarget(t, 300.0, true, false, ATTACK_TYPE_NORMAL, DAMAGE_TYPE_NORMAL, WEAPON_TYPE_WHOKNOWS)
             if t.getHP() <= 300
                 addEffect("Abilities\\Spells\\Other\\Doom\\DoomDeath.mdl", t.getPos()).destr()
-                // (в JASS-оригинале фильтр взрыва читал хозяина из Hash по таймеру; после перевода на doAfter там был null)
+                // (в JASS-оригинале фильтр взрыва читал хозяина из hash по таймеру; после перевода на doAfter там был null)
                 let p = a.getOwner()
                 forUnitsInRange(a.getPos(), 220.0) e ->
                     if e.isEnemyOf(p) and e.isAlive() and (e.isType(UNIT_TYPE_GIANT) or e.isType(UNIT_TYPE_TAUREN))

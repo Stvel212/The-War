@@ -137,7 +137,7 @@ function goldUkral()
     p.setGold(p.getGold() + gold)
     victim.setGold(victim.getGold() - gold)
     rob[p.getId()] += gold
-    DisplayTextToPlayer(p, 0.0, 0.0, "|cff80ff00Marauder: |r|cffffff00Boss, I swiped " + gold.toString() + " gold from the enemy!|r")
+    DisplayTextToPlayer(p, 0.0, 0.0, "|cff80ff00Marauder: |r|cffffff00Boss, I swiped " + gold + " gold from the enemy!|r")
 
 // ============================================================
 // Триггер: RedOrk — 'o004': уровень 'A03G' = потерянные HP в десятках процентов + 1; ниже 38% — берсерк
@@ -226,7 +226,7 @@ function tauren2()
 // ============================================================
 
 /** Огр-маг под «мультикастом» ('B010') сейчас кастует 'A03O' даммиком: раньше флаг висел на самом даммике
-    (custom value = 5, потом Hash), теперь даммик общий, а Multikast срабатывает прямо во время приказа — читает отсюда */
+    (custom value = 5, потом hash), теперь даммик общий, а Multikast срабатывает прямо во время приказа — читает отсюда */
 bool ogreMulticast = false
 
 @noinline
@@ -259,7 +259,7 @@ function multikast(unit caster)
         return
     let t = GetSpellTargetUnit()
     let times = GetRandomInt(1, 3)
-    text(t, "|cffFFff00X" + times.toString() + "|r", 12.0, 3.50, 50.0)
+    text(t, "|cffFFff00X" + times + "|r", 12.0, 3.50, 50.0)
     for i = 1 to times
         addEffect("Abilities\\Spells\\Other\\Incinerate\\FireLordDeathExplode.mdl", t.getPos()).destr()
         caster.damageTarget(t, 100.0, true, false, ATTACK_TYPE_NORMAL, DAMAGE_TYPE_MAGIC, WEAPON_TYPE_WHOKNOWS)

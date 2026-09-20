@@ -26,6 +26,5 @@ $G typecheck > "$S/tc.txt" 2>&1 || true
 echo "errors: $(grep -c '^Error in' "$S/tc.txt")"
 grep -A1 "^Error in" "$S/tc.txt" | grep -v "^--\|^Error in" | sed -E "s/[A-Za-z_0-9]+ (is|are|to|of|in|as|but)/@ \1/g" | sort | uniq -c | sort -rn | head -${1:-25}
 perl "$S/fix_zapretwater.pl" "$R/wurst/map/Main.wurst"
-bash "$S/fix_owncost.sh" "$R/wurst/map"
 perl "$S/fix_no_tournament.pl" "$R/wurst/map/Initialization.wurst"
 ~/.wurst/wurst-runtime/bin/java.exe -Dfile.encoding=UTF-8 -cp "$S" ArtifactRefactor "$R/wurst/map/Artifacts.wurst"

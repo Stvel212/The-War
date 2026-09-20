@@ -7,7 +7,7 @@ import ClosureTimers
 
 /** Сообщение всей команде a (1 — левая, 2 — правая) */
 function teamText(int a, string msg)
-    if ForceG[a].containsPlayer(localPlayer)
+    if forceG[a].containsPlayer(localPlayer)
         DisplayTextToPlayer(localPlayer, 0.0, 0.0, msg)
 
 // ============================================================
@@ -65,39 +65,39 @@ function statName(int stat) returns string
 /** Улучшение характеристики короля команды a игроком p: +inc за cost дерева (+income к инкому).
     Потолок 360 (после 50-го раунда 560) для шага 10 и на 40 меньше для шага 50; живучесть даёт ещё +35·inc HP */
 function upgradeKing(int a, player p, int stat, int inc)
-    let king = King[a]
+    let king = kings[a]
     let cost = inc == 10 ? 40 : 200
     let limit = (round < 50 ? 360 : 560) - (inc - 10)
     if king.getStat(stat) < limit and p.getLumber() >= cost
         king.addStat(stat, inc)
-        Income[p.getId()] += inc == 10 ? 2 : 10
+        income[p.getId()] += inc == 10 ? 2 : 10
         if stat == STAT_INT
             wDammiHP(king, 35 * inc)
         p.setLumber(p.getLumber() - cost)
-        teamText(a, "|cff80ff80|c00" + Color[p.getId()] + p.getName() + "|r |c00C0C0C0upgraded the King's " + statName(stat) + " to level: |r" + ((king.getStat(stat) - 60) div 10).toString())
+        teamText(a, "|cff80ff80|c00" + colorCode[p.getId()] + p.getName() + "|r |c00C0C0C0upgraded the King's " + statName(stat) + " to level: |r" + ((king.getStat(stat) - 60) div 10))
     else
-        StartSound(KnightNoGold)
+        StartSound(knightNoGold)
         DisplayTextToPlayer(p, 0.0, 0.0, inc == 10 ? "|c00FF8080No lumber or already at maximum!|r" : "|c00FF8080No lumber, already at maximum, or fewer than 5 upgrades required!|r")
 
 /** Особое умение короля (одно из трёх на команду): 10 вкладов по 300 дерева после 60-го раунда, потом abil + 'A0E3' */
 function upgradeKingSpecial(int a, player p, int which, int abil, string name)
-    let free = (which == 1 or not Prezens1[a]) and (which == 2 or not Prezens2[a]) and (which == 3 or not Prezens3[a]) and not Prezens4[a]
-    if Presens[a] < 10 and free and round > 60 and p.getLumber() >= 300
+    let free = (which == 1 or not prezens1[a]) and (which == 2 or not prezens2[a]) and (which == 3 or not prezens3[a]) and not prezens4[a]
+    if presens[a] < 10 and free and round > 60 and p.getLumber() >= 300
         if which == 1
-            Prezens1[a] = true
+            prezens1[a] = true
         else if which == 2
-            Prezens2[a] = true
+            prezens2[a] = true
         else
-            Prezens3[a] = true
-        Presens[a] += 1
-        Income[p.getId()] += 15
+            prezens3[a] = true
+        presens[a] += 1
+        income[p.getId()] += 15
         p.setLumber(p.getLumber() - 300)
-        teamText(a, "|cff80ff80|c00" + Color[p.getId()] + p.getName() + "|r |c00C0C0C0upgraded |c0000FFFF" + name + "|r by |r" + Presens[a].toString() + "/10")
-        if Presens[a] == 10
-            King[a]..addAbility(abil)..addAbility('A0E3')
+        teamText(a, "|cff80ff80|c00" + colorCode[p.getId()] + p.getName() + "|r |c00C0C0C0upgraded |c0000FFFF" + name + "|r by |r" + presens[a] + "/10")
+        if presens[a] == 10
+            kings[a]..addAbility(abil)..addAbility('A0E3')
             teamText(a, "Your King has received a Special Ability - |c0000FFFF" + name + "!|r")
     else
-        StartSound(KnightNoGold)
+        StartSound(knightNoGold)
         DisplayTextToPlayer(p, 0.0, 0.0, "|c00FF8080No lumber or already at maximum!|r")
 
 @noinline
@@ -130,7 +130,7 @@ function kingUpgreid(unit caster, int ab)
 @noinline
 function kingSpell()
     for a = 1 to 2
-        let king = King[a]
+        let king = kings[a]
         if round > 10
             king.addAbility('A02Y')
         if round > 20
@@ -157,11 +157,11 @@ function kingControl()
     let u = GetTriggerUnit()
     let p = GetTriggerPlayer()
     let a = p.isLeftTeam() ? 1 : 2
-    if u == King[a] and p.getId() < 8 and not IsUnitSelected(u, u.getOwner())
+    if u == kings[a] and p.getId() < 8 and not IsUnitSelected(u, u.getOwner())
         u.setOwner(p, true)
 
 // ============================================================
-// Триггер: KingMesage — при атаке на короля: сообщения о HP команде и автолечение из запаса Heal
+// Триггер: KingMesage — при атаке на короля: сообщения о HP команде и автолечение из запаса heals
 // ============================================================
 
 @noinline
@@ -169,19 +169,19 @@ function kingMesage()
     let king = GetTriggerUnit()
     let hp = king.getHP().toInt()
     let mhp = king.getMaxHP().toInt()
-    let a = king == King[1] ? 1 : 2
-    // последнее «объявленное» HP (раньше лежало в custom value; читалось оттуда же и после переезда в Hash — теперь из Hash)
-    let last = Hash.loadInt(king.getHandleId(), KEY_KINGHP)
+    let a = king == kings[1] ? 1 : 2
+    // последнее «объявленное» HP (раньше лежало в custom value; читалось оттуда же и после переезда в hash — теперь из hash)
+    let last = hash.loadInt(king.getHandleId(), KEY_KINGHP)
     if hp > last + 50
-        Hash.saveInt(king.getHandleId(), KEY_KINGHP, hp)
+        hash.saveInt(king.getHandleId(), KEY_KINGHP, hp)
     if hp < 0.4 * mhp and last - 200 > hp
-        Hash.saveInt(king.getHandleId(), KEY_KINGHP, hp)
+        hash.saveInt(king.getHandleId(), KEY_KINGHP, hp)
         let percent = (hp * 100) div mhp
         let fraction = (hp * 10000) div mhp - 100 * percent
-        teamText(a, "King's health remaining" + percent.toString() + "," + fraction.toString() + "%")
+        teamText(a, "King's health remaining" + percent + "," + fraction + "%")
     // левый король лечится ниже 8%, правый — ниже 10%
-    if hp < mhp * (a == 1 ? 0.08 : 0.1) and Heal[a] > 0
-        Heal[a] -= 1
+    if hp < mhp * (a == 1 ? 0.08 : 0.1) and heals[a] > 0
+        heals[a] -= 1
         king.setHP(king.getHP() + 10000)
         teamText(a, "|cffff80ff The King has been healed!|r")
 

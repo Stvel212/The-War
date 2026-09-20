@@ -1,22 +1,24 @@
 package MapStart
-import MapGlobals
-import Artifacts
-import AutocastHuman
-import AutocastNaga
-import AutocastNightElf
-import AutocastOrc
-import AutocastOther
-import AutocastUndead
-import Builder
-import Commands
-import DamageSystem
-import HeroSpells
+// import public: пакеты нужны только ради порядка инициализации (их init должен пройти до init MapStart),
+// а на «import is never used» компилятор при public не ругается.
+import public MapGlobals
+import public Artifacts
+import public AutocastHuman
+import public AutocastNaga
+import public AutocastNightElf
+import public AutocastOrc
+import public AutocastOther
+import public AutocastUndead
+import public Builder
+import public Commands
+import public DamageSystem
+import public HeroSpells
 import Initialization
-import King
-import MMD
-import Main
-import Scoreboard
-import Synergy
+import public King
+import public MMD
+import public Main
+import public Scoreboard
+import public Synergy
 
 // Бывшие триггеры с событием «Map initialization» (Zadania, Int) — запускаются после инициализации всех пакетов.
 init

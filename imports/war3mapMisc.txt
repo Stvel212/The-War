@@ -1,6 +1,8 @@
 [Misc]
 UpgradeRefundRate=1.0
 ConstructionRefundRate=1.0
+// Цена «Улучшить» = цена самого улучшения (классика). С патча 2.0.1 без этой строки Reforged считает разницу между зданиями
+RelativeUpgradeCost=1
 GlobalExperience=0
 HeroExpRange=0.0
 TradingIncLarge=0

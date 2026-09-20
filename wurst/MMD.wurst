@@ -281,7 +281,7 @@ function tick()
   
   //check for future message tampering
   for i = 0 to 9
-    if (not gc.hasInt(M_KEY_CHK + num_msg.toString(), num_msg.toString()))
+    if (not gc.hasInt(M_KEY_CHK + num_msg, num_msg.toString()))
       break
     raiseGuard("message insertion")
     emit("Blank")

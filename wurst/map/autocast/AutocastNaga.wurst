@@ -6,7 +6,7 @@ import UnitSearch
 
 /** Всплывающий текст урона над юнитом */
 function unit.showDamage(int dmg)
-    text(this, "|cffFF0000+" + dmg.toString() + "|r", 10.0, 3.50, 50.0)
+    text(this, "|cffFF0000+" + dmg + "|r", 10.0, 3.50, 50.0)
 
 // ============================================================
 // Триггер: DopDamage — 'n023'/'n029' добивают не-героев по недостающему HP
@@ -258,7 +258,7 @@ function magicDamage()
     let dmg = (a.getMana() * 5).toInt()
     a.setMana(0.0)
     a.damageTarget(GetTriggerUnit(), dmg.toReal(), true, false, ATTACK_TYPE_NORMAL, DAMAGE_TYPE_ENHANCED, WEAPON_TYPE_WHOKNOWS)
-    text(a, "|cff00FF00+" + dmg.toString() + "|r", 10.0, 3.50, 50.0)
+    text(a, "|cff00FF00+" + dmg + "|r", 10.0, 3.50, 50.0)
 
 init
     onAttackBy('n023', 'n029') ->

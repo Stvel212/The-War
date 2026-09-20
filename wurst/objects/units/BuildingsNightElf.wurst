@@ -61,7 +61,7 @@ import UnitStats
 	..setUpgradesUsed("")
 	..setSelectionScale(2.0)
 	..setNormalAbilities("Avul")
-	..setGoldCost(1550) // 900 + 650 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(900)
 	..setLumberCost(0)
 	..setRepairGoldCost(0)
 	..setRepairLumberCost(0)
@@ -104,7 +104,7 @@ import UnitStats
 	..setSelectionScale(2.0)
 	..setButtonPositionY(2)
 	..setNormalAbilities("A006,Avul")
-	..setGoldCost(450) // 250 + 200 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(250)
 	..setLumberCost(0)
 	..setRepairGoldCost(0)
 	..setRepairLumberCost(0)
@@ -174,7 +174,7 @@ import UnitStats
 	..setSelectionScale(2.0)
 	..setButtonPositionY(2)
 	..setNormalAbilities("A006,Avul")
-	..setGoldCost(200) // 130 + 70 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(130)
 	..setLumberCost(0)
 	..setRepairGoldCost(0)
 	..setRepairLumberCost(0)
@@ -247,7 +247,7 @@ import UnitStats
 	..setSelectionScale(2.0)
 	..setButtonPositionY(2)
 	..setNormalAbilities("A006,Avul")
-	..setGoldCost(260) // 135 + 125 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(135)
 	..setLumberCost(0)
 	..setRepairGoldCost(0)
 	..setRepairLumberCost(0)
@@ -286,7 +286,7 @@ import UnitStats
 	..setSelectionScale(2.0)
 	..setButtonPositionY(2)
 	..setNormalAbilities("A006,Avul")
-	..setGoldCost(460) // 200 + 260 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(200)
 	..setLumberCost(0)
 	..setRepairGoldCost(0)
 	..setRepairLumberCost(0)
@@ -358,7 +358,7 @@ import UnitStats
 	..setSelectionScale(2.0)
 	..setButtonPositionY(2)
 	..setNormalAbilities("A006,Avul")
-	..setGoldCost(750) // 465 + 285 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(465)
 	..setLumberCost(0)
 	..setRepairGoldCost(0)
 	..setRepairLumberCost(0)
@@ -429,7 +429,7 @@ import UnitStats
 	..setScalingValue(0.8)
 	..setButtonPositionY(2)
 	..setNormalAbilities("A006,Avul")
-	..setGoldCost(590) // 385 + 205 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(385)
 	..setLumberCost(0)
 	..setRepairGoldCost(0)
 	..setRepairLumberCost(0)
@@ -505,7 +505,7 @@ import UnitStats
 	..setSelectionScale(2.0)
 	..setButtonPositionY(2)
 	..setNormalAbilities("A006,Avul")
-	..setGoldCost(710) // 510 + 200 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(510)
 	..setLumberCost(0)
 	..setRepairGoldCost(0)
 	..setRepairLumberCost(0)
@@ -575,7 +575,7 @@ import UnitStats
 	..setSelectionScale(2.0)
 	..setButtonPositionY(2)
 	..setNormalAbilities("A006,Avul")
-	..setGoldCost(750) // 425 + 325 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(425)
 	..setLumberCost(0)
 	..setRepairGoldCost(0)
 	..setRepairLumberCost(0)
@@ -662,7 +662,7 @@ import UnitStats
 	..setTintingColorGreen(155)
 	..setTintingColorRed(155)
 	..setPointValue(216)
-	..setGoldCost(810) // 500 + 310 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(500)
 	..setArtTarget("custom_e006")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
 	..setMovementHeight(75.0)
@@ -688,7 +688,7 @@ import UnitStats
 	..setSelectionScale(2.0)
 	..setButtonPositionY(2)
 	..setNormalAbilities("A006,Avul")
-	..setGoldCost(690) // 380 + 310 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(380)
 	..setLumberCost(0)
 	..setRepairGoldCost(0)
 	..setRepairLumberCost(0)
@@ -728,7 +728,7 @@ import UnitStats
 	..setSelectionScale(2.0)
 	..setButtonPositionY(2)
 	..setNormalAbilities("A006,Avul")
-	..setGoldCost(510) // 305 + 205 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(305)
 	..setLumberCost(0)
 	..setRepairGoldCost(0)
 	..setRepairLumberCost(0)
@@ -765,7 +765,7 @@ import UnitStats
 	..setSelectionScale(2.0)
 	..setButtonPositionY(2)
 	..setNormalAbilities("A006,Avul")
-	..setGoldCost(570) // 310 + 260 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(310)
 	..setLumberCost(0)
 	..setRepairGoldCost(0)
 	..setRepairLumberCost(0)
@@ -802,7 +802,7 @@ import UnitStats
 	..setSelectionScale(2.0)
 	..setButtonPositionY(2)
 	..setNormalAbilities("A006,Avul")
-	..setGoldCost(545) // 260 + 285 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(260)
 	..setLumberCost(0)
 	..setRepairGoldCost(0)
 	..setRepairLumberCost(0)
@@ -841,7 +841,7 @@ import UnitStats
 	..setSelectionScale(2.0)
 	..setButtonPositionY(2)
 	..setNormalAbilities("A006,Avul")
-	..setGoldCost(700) // 500 + 200 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(500)
 	..setLumberCost(0)
 	..setRepairGoldCost(0)
 	..setRepairLumberCost(0)
@@ -879,7 +879,7 @@ import UnitStats
 	..setSelectionScale(2.0)
 	..setButtonPositionY(2)
 	..setNormalAbilities("A006,Avul")
-	..setGoldCost(540) // 340 + 200 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(340)
 	..setLumberCost(0)
 	..setRepairGoldCost(0)
 	..setRepairLumberCost(0)
@@ -916,7 +916,7 @@ import UnitStats
 	..setSelectionScale(2.0)
 	..setButtonPositionY(2)
 	..setNormalAbilities("Avul")
-	..setGoldCost(1100) // 640 + 460 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(640)
 	..setLumberCost(0)
 	..setRepairGoldCost(0)
 	..setRepairLumberCost(0)
@@ -988,7 +988,7 @@ import UnitStats
 	..setSelectionScale(2.0)
 	..setButtonPositionY(2)
 	..setNormalAbilities("A006,Avul")
-	..setGoldCost(290) // 220 + 70 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(220)
 	..setLumberCost(0)
 	..setRepairGoldCost(0)
 	..setRepairLumberCost(0)
@@ -1025,7 +1025,7 @@ import UnitStats
 	..setSelectionScale(2.0)
 	..setButtonPositionY(2)
 	..setNormalAbilities("A006,Avul")
-	..setGoldCost(540) // 250 + 290 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(250)
 	..setLumberCost(0)
 	..setRepairGoldCost(0)
 	..setRepairLumberCost(0)
@@ -1108,7 +1108,7 @@ import UnitStats
 	..setPointValue(423)
 	..setCategorizationCampaign(true)
 	..setName("|c00C0C0C0[Баррак]|r")
-	..setGoldCost(525) // 300 + 225 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(300)
 	..setButtonPositionY(2)
 	..setArtTarget("custom_e014")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
@@ -1145,7 +1145,7 @@ import UnitStats
 	..setPointValue(424)
 	..setCategorizationCampaign(true)
 	..setName("|c00C0C0C0[Баррак]|r")
-	..setGoldCost(770) // 545 + 225 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(545)
 	..setButtonPositionX(1)
 	..setScalingValue(1.4)
 	..setButtonPositionY(2)
@@ -1220,7 +1220,7 @@ import UnitStats
 	..setPointValue(524)
 	..setCategorizationCampaign(true)
 	..setName("|c00C0C0C0[Баррак]|r")
-	..setGoldCost(700) // 400 + 300 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(400)
 	..setArtTarget("custom_n022")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
 	..setUnitsTrained("n022")
@@ -1255,7 +1255,7 @@ import UnitStats
 	..setPointValue(525)
 	..setCategorizationCampaign(true)
 	..setName("|c00C0C0C0[Баррак]|r")
-	..setGoldCost(780) // 480 + 300 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(480)
 	..setButtonPositionX(1)
 	..setArtTarget("custom_n01X")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
@@ -1334,7 +1334,7 @@ import UnitStats
 	..setPointValue(527)
 	..setCategorizationCampaign(true)
 	..setName("|c00C0C0C0[Баррак]|r")
-	..setGoldCost(710) // 395 + 315 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(395)
 	..setButtonPositionY(2)
 	..setArtTarget("custom_e015")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
@@ -1372,7 +1372,7 @@ import UnitStats
 	..setCategorizationCampaign(true)
 	..setName("|c00C0C0C0[Баррак]|r")
 	..setButtonPositionX(1)
-	..setGoldCost(910) // 595 + 315 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(595)
 	..setButtonPositionY(2)
 	..setArtTarget("custom_e016")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
@@ -1480,7 +1480,7 @@ import UnitStats
 	..setPointValue(531)
 	..setCategorizationCampaign(true)
 	..setName("|c00C0C0C0[Баррак]|r")
-	..setGoldCost(470) // 250 + 220 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(250)
 	..setArtTarget("custom_n01Z")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
 	..setUnitsTrained("n01Z")
@@ -1518,7 +1518,7 @@ import UnitStats
 	..setCategorizationCampaign(true)
 	..setName("|c00C0C0C0[Баррак]|r")
 	..setButtonPositionX(1)
-	..setGoldCost(720) // 500 + 220 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(500)
 	..setArtTarget("custom_n01W")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
 	..setUnitsTrained("n01W")
@@ -1542,7 +1542,7 @@ import UnitStats
 	..setSelectionScale(2.0)
 	..setButtonPositionY(2)
 	..setNormalAbilities("A006,Avul")
-	..setGoldCost(625) // 300 + 325 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(300)
 	..setLumberCost(0)
 	..setRepairGoldCost(0)
 	..setRepairLumberCost(0)

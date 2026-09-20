@@ -57,7 +57,7 @@ build.cmd
 Весь скрипт карты (241 триггер, ~12k строк) переведён с JASS на Wurst:
 
 ```
-map/MapGlobals.wurst      глобальные переменные (бывшие udg_*, без префикса), регионы, Hash; бывший InitGlobals
+map/MapGlobals.wurst      глобальные переменные (бывшие udg_*, без префикса, в lowerCamel: Force → power, Hash → hash, King → kings…), регионы; бывший InitGlobals
 map/lib/SendResult, CjLib   библиотеки оригинала (статистика для ботов и т.п.), переведены как есть; MMD — wurst/MMD.wurst (готовая Wurst-версия)
 map/Initialization        Zadania, Int, Int2, Wave, Win
 map/DamageSystem          модификаторы урона (бывший DamageOne) — слушатель stdlib DamageEvent
@@ -191,3 +191,8 @@ Reforged (1.32+) умеет держать в карте строки для к�
 ## Известное
 
 - В карте изначально была битая ссылка на `war3mapImported\Christmas Tree.mdl` (файла нет) — оставлена как была.
+- Цена «Улучшить»: с патча 2.0.1 (build 22490) Reforged по умолчанию считает её как разницу между зданиями
+  (Gameplay Constants → «Use Relative Upgrade Costs» принудительно сброшен у всех карт), отсюда «−70 золота»
+  в подсказках. Лечится строкой `RelativeUpgradeCost=1` в `imports/war3mapMisc.txt` — цена улучшения = цена самого
+  улучшения, как в классике и в оригинале 1.6aa. Полная стоимость здания по цепочке лежит в его макс. HP
+  (продажа за `getMaxHP()` в `Builder`), суммировать цены в объектах не нужно.

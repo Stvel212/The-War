@@ -16,4 +16,4 @@ package TheWar
 
 	Скрипт в TheWar.w3x/war3map.j — только то, что генерирует World Editor (юниты на карте, регионы, config).
 */
-import MapStart
+import public MapStart

@@ -1,12 +1,11 @@
 package Synergy
-import UpgradeCosts
 import MapGlobals
 import ClosureEvents
 
 /*
     Синергии: счётчики sinergia*[игрок] растут, когда достроено (апгрейд завершён) здание нужного типа,
     и падают, когда его продают ('A006' — здание продаёт себя, 'A005' — строитель продаёт цель).
-    Элементали ('h0A0'…'h0AE'): лимит 2 на вид (ZapretElem[elemLimit(вид, игрок)]), продажа усиленного здания возвращает лимит. */
+    Элементали ('h0A0'…'h0AE'): лимит 2 на вид (elemLeft[elemLimit(вид, игрок)]), продажа усиленного здания возвращает лимит. */
 
 /** Сам элементаль (не здание-синергия) */
 function isElemental(int typeId) returns bool
@@ -120,10 +119,10 @@ function globalsAllFalse()
         adjustSynergy(caster.getTypeId(), id, true)
     let slot = elemSlot(target.getTypeId())
     if slot != 0
-        ZapretElem[elemLimit(slot, id)] += 1
+        elemLeft[elemLimit(slot, id)] += 1
     let casterSlot = elemSlot(caster.getTypeId())
     if casterSlot != 0 and caster.getTypeId() != target.getTypeId()
-        ZapretElem[elemLimit(casterSlot, id)] += 1
+        elemLeft[elemLimit(casterSlot, id)] += 1
 
 // ============================================================
 // Триггер: ZapretElem — начало стройки элементаля: если лимит исчерпан, стройка отменяется с возвратом золота
@@ -138,12 +137,12 @@ function zapretElem()
     let slot = elemSlot(typeId)
     let p = u.getOwner()
     let id = p.getId()
-    if ZapretElem[elemLimit(slot, id)] == 0
+    if elemLeft[elemLimit(slot, id)] == 0
         u.remove()
         DisplayTextToPlayer(p, 0.0, 0.0, "Limit - 2")
-        p.setGold(p.getGold() + unitOwnGoldCost(typeId))
+        p.setGold(p.getGold() + GetUnitGoldCost(typeId))
     else
-        ZapretElem[elemLimit(slot, id)] -= 1
+        elemLeft[elemLimit(slot, id)] -= 1
 
 init
     EventListener.add(EVENT_PLAYER_UNIT_UPGRADE_FINISH) ->

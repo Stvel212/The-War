@@ -5,7 +5,6 @@ import ClosureTimers
 import ClosureEvents
 import ClosureForGroups
 import HashMap
-import RegisterEvents
 import DummyCaster
 import InstantDummyCaster
 import Orders
@@ -56,15 +55,15 @@ public class Artifact
         if lifeMult > 0
             let same = u.itemInSlot(slotOf(u, itemId))
             same.setUserData(same.getUserData() + udStep)
-            ArtG = (i.getLife() * lifeMult).toInt() // глобал: читается в ArtefactUp-совместимых местах
-            paid = ArtG
-            value = ArtG
+            artG = (i.getLife() * lifeMult).toInt() // глобал: читается в ArtefactUp-совместимых местах
+            paid = artG
+            value = artG
         p.setGold(p.getGold() - paid)
         i.setCharges(i.getCharges() + 1)
         if abilId != 0
             u.incAbilityLevel(abilId)
         addEffect("Abilities\\Spells\\Items\\AIsm\\AIsmTarget.mdl", u.getPos()).destr()
-        ForceItem[p.getId()] = ForceItem[p.getId()] + value
+        powerItem[p.getId()] = powerItem[p.getId()] + value
 
     /** Улучшение по предмету: если предмет — артефакт из таблицы */
     static function upgradeItem(unit u, item i)
@@ -108,24 +107,24 @@ public class Artifact
 // Артефакт: BuyArtefacts — EVENT_PLAYER_UNIT_SELL_ITEM
 // ============================================================
 
-/** Артефакты «на урон» — их можно купить не больше LimitArt */
+/** Артефакты «на урон» — их можно купить не больше limitArt */
 function isDamageArtifact(int id) returns bool
     return id == 'I003' or id == 'I013' or id == 'I017' or id == 'I01B' or id == 'I01C' or id == 'I008' or id == 'I01J' or id == 'I01H' or id == 'I01E' or id == 'I01D'
 
-/** Артефакты «на стан» — их можно купить не больше LimitArt */
+/** Артефакты «на стан» — их можно купить не больше limitArt */
 function isStunArtifact(int id) returns bool
     return id == 'I006' or id == 'I00E' or id == 'I00X' or id == 'I015' or id == 'I021' or id == 'I00J' or id == 'I00S'
 
 /** Магазин «Проданное» команды игрока */
 function player.soldShop() returns unit
-    return Magazin[ForceG[1].containsPlayer(this) ? 7 : 16]
+    return magazin[forceG[1].containsPlayer(this) ? 7 : 16]
 
 /** Лимит превышен: покупка отменяется, золото назад, предмет обратно в магазин команды */
 function refuseArtifact(unit seller, item i, player p, string kind)
     let id = i.getTypeId()
-    DisplayTextToPlayer(p, 0.0, 0.0, "Artifact limit for " + kind + " in the amount of " + LimitArt[p.getId()].toString() + " pcs")
+    DisplayTextToPlayer(p, 0.0, 0.0, "Artifact limit for " + kind + " in the amount of " + limitArt[p.getId()] + " pcs")
     p.setGold(p.getGold() + i.getLife().toInt())
-    ForceItem[p.getId()] -= i.getLife().toInt()
+    powerItem[p.getId()] -= i.getLife().toInt()
     let shop = p.soldShop()
     AddItemToStock(shop, id, 1, 1)
     if seller.getTypeId() == 'n03P'
@@ -143,18 +142,18 @@ function artBuyArtefacts()
     let idP = p.getId()
     let m = GetTriggerUnit()
     let id = i.getTypeId()
-    ForceItem[idP] += i.getLife().toInt()
+    powerItem[idP] += i.getLife().toInt()
     if m.getTypeId() == 'n03P'
         RemoveItemFromStock(m, id)
     if isDamageArtifact(id)
-        ItemZapretD[idP] += 1
-        if ItemZapretD[idP] > LimitArt[idP]
-            ItemZapretD[idP] = LimitArt[idP]
+        itemZapretD[idP] += 1
+        if itemZapretD[idP] > limitArt[idP]
+            itemZapretD[idP] = limitArt[idP]
             refuseArtifact(m, i, p, "damage")
     else if isStunArtifact(id)
-        ItemZapretS[idP] += 1
-        if ItemZapretS[idP] > LimitArt[idP]
-            ItemZapretS[idP] = LimitArt[idP]
+        itemZapretS[idP] += 1
+        if itemZapretS[idP] > limitArt[idP]
+            itemZapretS[idP] = limitArt[idP]
             refuseArtifact(m, i, p, "stun")
 
 // ============================================================
@@ -181,13 +180,13 @@ function artAddArtas(unit caster)
     // в первый свободный из четырёх слотов Артаса; заряды сбрасываются до 1
     var free = -1
     for slot = 0 to 3
-        if free < 0 and Arthas[id].itemInSlot(slot) == null
+        if free < 0 and arthas[id].itemInSlot(slot) == null
             free = slot
     if free >= 0
-        Arthas[id].addItemHandle(i)
+        arthas[id].addItemHandle(i)
         if i.getCharges() >= 1
             i.setCharges(1)
-        Builder[id].removeItem(i)
+        builders[id].removeItem(i)
         return
     DisplayTextToPlayer(caster.getOwner(), 0.0, 0.0, "Impossible")
     caster.issueImmediateOrder("stop")
@@ -380,7 +379,7 @@ function artArtDopGoldaA(unit caster)
     p.setGold(p.getGold() + gold)
     if t.getHP() <= 500
         t.remove()
-    text(t, "|cffFFFF00+" + gold.toString() + "|r", 10.0, 3.50, 50.0)
+    text(t, "|cffFFFF00+" + gold + "|r", 10.0, 3.50, 50.0)
 
 // ============================================================
 // Артефакт: DopHealA — способность 'A0B4'
@@ -405,18 +404,18 @@ function artDopHealA(unit caster)
 
 function artFullSellA(unit caster)
     let p = caster.getOwner()
-    ProdajaUnit = 0
+    prodajaUnit = 0
     // сначала собираем группу, потом удаляем — не удаляем юнитов прямо во время перебора
     let g = unitsInRange(vec2(GetSpellTargetX(), GetSpellTargetY()), 250.0, (u) -> u.getOwner() == p and u.isAlive() and (u.isType(UNIT_TYPE_TAUREN) or u.isType(UNIT_TYPE_GIANT)) and not u.isType(UNIT_TYPE_HERO))
     g.forEachFrom() u ->
         var a = 2 * GetFoodUsed(UnitId(GetAbilityEffectById(u.getTypeId(), EFFECT_TYPE_TARGET, 0)))
         if a == 0
             a = getUnitFood(caster.getTypeId())
-        ProdajaUnit = ProdajaUnit + 1
-        if ProdajaUnit < 15
+        prodajaUnit = prodajaUnit + 1
+        if prodajaUnit < 15
             addEffect("Abilities\\Spells\\Other\\Transmute\\PileofGold.mdl", u.getPos()).destr()
             p.setGold(p.getGold() + a)
-            text(u, "|cffFFFF00+" + a.toString() + "|r", 10.0, 3.50, 50.0)
+            text(u, "|cffFFFF00+" + a + "|r", 10.0, 3.50, 50.0)
             u.remove()
     g.release()
 
@@ -587,7 +586,7 @@ function artSpeedA(unit caster)
 function hasBombArtifact(int id) returns bool
     var found = false
     for c = 0 to 5
-        if Builder[id].itemInSlot(c).getTypeId() == 'I01A' or Arthas[id].itemInSlot(c).getTypeId() == 'I01A'
+        if builders[id].itemInSlot(c).getTypeId() == 'I01A' or arthas[id].itemInSlot(c).getTypeId() == 'I01A'
             found = true
     return found
 
@@ -742,7 +741,7 @@ function artGolemA()
 function artDarkBuy()
     let i = GetSoldItem()
     if i.getTypeId() == 'I02A'
-        DarkItem[GetBuyingUnit().getOwner().getId()] = true
+        darkItem[GetBuyingUnit().getOwner().getId()] = true
 
 // ============================================================
 // Артефакт: DarkSell — EVENT_PLAYER_UNIT_DROP_ITEM
@@ -752,7 +751,7 @@ function artDarkBuy()
 function artDarkSell()
     let i = GetManipulatedItem()
     if i.getTypeId() == 'I02A'
-        DarkItem[GetTriggerUnit().getOwner().getId()] = false
+        darkItem[GetTriggerUnit().getOwner().getId()] = false
 
 // ============================================================
 // Артефакт: DarkA — EVENT_PLAYER_UNIT_DEATH
@@ -765,13 +764,13 @@ function artDarkA()
         return
     let d = GetTriggerUnit()
     let id = d.getOwner().getId()
-    if not DarkItem[id]
+    if not darkItem[id]
         return
     // каждый третий убитый встаёт тенью на 4 / 7 / 10 секунд (по баффу убитого)
-    Dark[id] += 1
-    if Dark[id] < 3
+    dark[id] += 1
+    if dark[id] < 3
         return
-    Dark[id] = 0
+    dark[id] = 0
     addEffect("Abilities\\Spells\\Undead\\AnimateDead\\AnimateDeadTarget.mdl", d, "origin").destr()
     let u = CreateUnit(d.getOwner(), d.getTypeId(), d.getX(), d.getY(), 0.0)
         ..addAbility('Aloc')

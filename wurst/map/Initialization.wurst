@@ -58,7 +58,7 @@ public function text(unit c, string s, real size, real time, real z)
 
 /** Всплывающее «+N» золота над юнитом, видное только игроку p (у остальных пустой текст, как в оригинале) */
 public function goldText(unit at, player p, int gold)
-    text(at, localPlayer == p ? "|cffFFFF00+" + gold.toString() + "|r" : "", 10.0, 3.50, 50.0)
+    text(at, localPlayer == p ? "|cffFFFF00+" + gold + "|r" : "", 10.0, 3.50, 50.0)
 
 /** Цена юнита в «еде» ×2 (по базовому типу из EFFECT_TYPE_TARGET), а если нет — из таблицы getUnitFood по типу t */
 public function unitGold(unit u, int t) returns int
@@ -125,43 +125,43 @@ function tierSize(int tier) returns int
 /** Тип здания № i тира tier */
 function tierType(int tier, int i) returns int
     if tier == 1
-        return OneTear[i]
+        return tier1[i]
     else if tier == 2
-        return TwoTear[i]
+        return tier2[i]
     else if tier == 3
-        return ThreeTear[i]
+        return tier3[i]
     else if tier == 4
-        return FourTear[i]
+        return tier4[i]
     else if tier == 5
-        return FiveTear[i]
+        return tier5[i]
     else if tier == 6
-        return SixTear[i]
+        return tier6[i]
     else if tier == 7
-        return SevenTear[i]
+        return tier7[i]
     else if tier == 8
-        return EightTear[i]
+        return tier8[i]
     else if tier == 9
-        return NineTear[i]
-    return TenTear[i]
+        return tier9[i]
+    return tier10[i]
 
-/** Случайный вариант тира, не совпадающий с прошлым (Repick), разрешается игроку с лимитом limit */
+/** Случайный вариант тира, не совпадающий с прошлым (repickLast), разрешается игроку с лимитом limit */
 function pickTier(player p, int tier, int limit)
     let size = tierSize(tier)
-    let last = Repick[tier + 10 * p.getId()]
+    let last = repickLast[tier + 10 * p.getId()]
     var r = GetRandomInt(1, size)
     if r == last
         r = r == size ? size - 1 : r + 1
-    Repick[tier + 10 * p.getId()] = r
+    repickLast[tier + 10 * p.getId()] = r
     SetPlayerTechMaxAllowed(p, tierType(tier, r), limit)
 
 /** Замена набора зданий игрока: всё запретить, потом по одному случайному из каждого тира (герои 8-9 — если героя ещё нет) */
 public function random(player p)
     DisplayTextToPlayer(p, 0.0, 0.0, "|c0000FF80Replacement complete!|r")
     for i = 1 to 95
-        SetPlayerTechMaxAllowed(p, AllTear[i], 0)
+        SetPlayerTechMaxAllowed(p, allTiers[i], 0)
     for tier = 1 to 7
         pickTier(p, tier, 999)
-    if not Hero[p.getId()]
+    if not hasHero[p.getId()]
         pickTier(p, 8, 1)
         pickTier(p, 9, 1)
     pickTier(p, 10, 999)
@@ -180,218 +180,218 @@ public function zadania()
 
 @noinline
 function fillTiers()
-    OneTear[1] = 'h011'
-    OneTear[2] = 'h02V'
-    OneTear[3] = 'h02S'
-    OneTear[4] = 'h04G'
-    OneTear[5] = 'h062'
-    OneTear[6] = 'h057'
-    OneTear[7] = 'h06Y'
-    OneTear[8] = 'h074'
-    OneTear[9] = 'h07X'
-    TwoTear[1] = 'h00U'
-    TwoTear[2] = 'h02X'
-    TwoTear[3] = 'h03V'
-    TwoTear[4] = 'h060'
-    TwoTear[5] = 'h06M'
-    TwoTear[6] = 'h075'
-    TwoTear[7] = 'h05A'
-    TwoTear[8] = 'h095'
-    ThreeTear[1] = 'h00T'
-    ThreeTear[2] = 'h031'
-    ThreeTear[3] = 'h03Y'
-    ThreeTear[4] = 'h05V'
-    ThreeTear[5] = 'h065'
-    ThreeTear[6] = 'h081'
-    ThreeTear[7] = 'h05G'
-    ThreeTear[8] = 'h078'
-    ThreeTear[9] = 'h08L'
-    ThreeTear[10] = 'h092'
-    FourTear[1] = 'h014'
-    FourTear[2] = 'h032'
-    FourTear[3] = 'h040'
-    FourTear[4] = 'h04N'
-    FourTear[5] = 'h05F'
-    FourTear[6] = 'h067'
-    FourTear[7] = 'h07A'
-    FourTear[8] = 'h080'
-    FiveTear[1] = 'h03I'
-    FiveTear[2] = 'h035'
-    FiveTear[3] = 'h051'
-    FiveTear[4] = 'h042'
-    FiveTear[5] = 'h084'
-    FiveTear[6] = 'h04P'
-    FiveTear[7] = 'h05J'
-    FiveTear[8] = 'h069'
-    FiveTear[9] = 'h06P'
-    FiveTear[10] = 'h07C'
-    SixTear[1] = 'h037'
-    SixTear[2] = 'h044'
-    SixTear[3] = 'h05K'
-    SixTear[4] = 'h06B'
-    SixTear[5] = 'h04R'
-    SixTear[6] = 'h06S'
-    SixTear[7] = 'h07E'
-    SixTear[8] = 'h01E'
-    SixTear[9] = 'h086'
-    SevenTear[1] = 'h03J'
-    SevenTear[2] = 'h039'
-    SevenTear[3] = 'h046'
-    SevenTear[4] = 'h05M'
-    SevenTear[5] = 'h04T'
-    SevenTear[6] = 'h06V'
-    SevenTear[7] = 'h07G'
-    SevenTear[8] = 'h06D'
-    SevenTear[9] = 'h08I'
-    SevenTear[10] = 'h088'
-    EightTear[1] = 'h02P'
-    EightTear[2] = 'h025'
-    EightTear[3] = 'h027'
-    EightTear[4] = 'h02F'
-    EightTear[5] = 'h01S'
-    EightTear[6] = 'h021'
-    EightTear[7] = 'h02H'
-    EightTear[8] = 'h099'
-    EightTear[9] = 'h09W'
-    NineTear[1] = 'h02O'
-    NineTear[2] = 'h01X'
-    NineTear[3] = 'h01Z'
-    NineTear[4] = 'h02B'
-    NineTear[5] = 'h023'
-    NineTear[6] = 'h029'
-    NineTear[7] = 'h01T'
-    NineTear[8] = 'h09J'
-    NineTear[9] = 'h0AG'
-    TenTear[1] = 'h0A0'
-    TenTear[2] = 'h0A2'
-    TenTear[3] = 'h0A4'
-    TenTear[4] = 'h0A6'
-    TenTear[5] = 'h0A8'
-    TenTear[6] = 'h0AA'
-    TenTear[7] = 'h0AC'
-    TenTear[8] = 'h0AE'
-    AllTear[1] = 'h011'
-    AllTear[2] = 'h02V'
-    AllTear[3] = 'h00T'
-    AllTear[4] = 'h031'
-    AllTear[5] = 'h00U'
-    AllTear[6] = 'h02X'
-    AllTear[7] = 'h014'
-    AllTear[8] = 'h032'
-    AllTear[9] = 'h03I'
-    AllTear[10] = 'h035'
-    AllTear[11] = 'h037'
-    AllTear[12] = 'h01E'
-    AllTear[13] = 'h03J'
-    AllTear[14] = 'h039'
-    AllTear[15] = 'h034'
-    AllTear[16] = 'h02P'
-    AllTear[17] = 'h025'
-    AllTear[18] = 'h02F'
-    AllTear[19] = 'h08L'
-    AllTear[20] = 'h027'
-    AllTear[21] = 'h021'
-    AllTear[22] = 'h02O'
-    AllTear[23] = 'h01X'
-    AllTear[24] = 'h01Z'
-    AllTear[25] = 'h01S'
-    AllTear[26] = 'h023'
-    AllTear[27] = 'h029'
-    AllTear[28] = 'h02B'
-    AllTear[29] = 'h03V'
-    AllTear[30] = 'h02S'
-    AllTear[31] = 'h044'
-    AllTear[32] = 'h046'
-    AllTear[33] = 'h042'
-    AllTear[34] = 'h04G'
-    AllTear[35] = 'h09J'
-    AllTear[36] = 'h05V'
-    AllTear[37] = 'h04N'
-    AllTear[38] = 'h02T'
-    AllTear[39] = 'h04P'
-    AllTear[40] = 'h04E'
-    AllTear[41] = 'h051'
-    AllTear[42] = 'h04R'
-    AllTear[43] = 'h057'
-    AllTear[44] = 'h05A'
-    AllTear[45] = 'h05G'
-    AllTear[46] = 'h05F'
-    AllTear[47] = 'h05J'
-    AllTear[48] = 'h05K'
-    AllTear[49] = 'h05M'
-    AllTear[50] = 'h062'
-    AllTear[51] = 'h060'
-    AllTear[52] = 'h065'
-    AllTear[53] = 'h067'
-    AllTear[54] = 'h069'
-    AllTear[55] = 'h06B'
-    AllTear[56] = 'h06D'
-    AllTear[57] = 'h06M'
-    AllTear[58] = 'h06P'
-    AllTear[59] = 'h06S'
-    AllTear[60] = 'h06V'
-    AllTear[61] = 'h06Y'
-    AllTear[62] = 'h084'
-    AllTear[63] = 'h07C'
-    AllTear[64] = 'h074'
-    AllTear[65] = 'h075'
-    AllTear[66] = 'h078'
-    AllTear[67] = 'h07A'
-    AllTear[68] = 'h07E'
-    AllTear[69] = 'h07G'
-    AllTear[70] = 'h07X'
-    AllTear[71] = 'h080'
-    AllTear[72] = 'h081'
-    AllTear[73] = 'n08L'
-    AllTear[74] = 'h08I'
-    AllTear[75] = 'h087'
-    AllTear[76] = 'h088'
-    AllTear[77] = 'h086'
-    AllTear[78] = 'h04T'
-    AllTear[79] = 'h040'
-    AllTear[80] = 'h03Y'
-    AllTear[81] = 'h01T'
-    AllTear[82] = 'h02H'
-    AllTear[83] = 'h092'
-    AllTear[84] = 'h095'
-    AllTear[85] = 'h099'
-    AllTear[86] = 'h09W'
-    AllTear[87] = 'h0A0'
-    AllTear[88] = 'h0A2'
-    AllTear[89] = 'h0A4'
-    AllTear[90] = 'h0A6'
-    AllTear[91] = 'h0A8'
-    AllTear[92] = 'h0AA'
-    AllTear[93] = 'h0AC'
-    AllTear[94] = 'h0AE'
-    AllTear[95] = 'h0AG'
+    tier1[1] = 'h011'
+    tier1[2] = 'h02V'
+    tier1[3] = 'h02S'
+    tier1[4] = 'h04G'
+    tier1[5] = 'h062'
+    tier1[6] = 'h057'
+    tier1[7] = 'h06Y'
+    tier1[8] = 'h074'
+    tier1[9] = 'h07X'
+    tier2[1] = 'h00U'
+    tier2[2] = 'h02X'
+    tier2[3] = 'h03V'
+    tier2[4] = 'h060'
+    tier2[5] = 'h06M'
+    tier2[6] = 'h075'
+    tier2[7] = 'h05A'
+    tier2[8] = 'h095'
+    tier3[1] = 'h00T'
+    tier3[2] = 'h031'
+    tier3[3] = 'h03Y'
+    tier3[4] = 'h05V'
+    tier3[5] = 'h065'
+    tier3[6] = 'h081'
+    tier3[7] = 'h05G'
+    tier3[8] = 'h078'
+    tier3[9] = 'h08L'
+    tier3[10] = 'h092'
+    tier4[1] = 'h014'
+    tier4[2] = 'h032'
+    tier4[3] = 'h040'
+    tier4[4] = 'h04N'
+    tier4[5] = 'h05F'
+    tier4[6] = 'h067'
+    tier4[7] = 'h07A'
+    tier4[8] = 'h080'
+    tier5[1] = 'h03I'
+    tier5[2] = 'h035'
+    tier5[3] = 'h051'
+    tier5[4] = 'h042'
+    tier5[5] = 'h084'
+    tier5[6] = 'h04P'
+    tier5[7] = 'h05J'
+    tier5[8] = 'h069'
+    tier5[9] = 'h06P'
+    tier5[10] = 'h07C'
+    tier6[1] = 'h037'
+    tier6[2] = 'h044'
+    tier6[3] = 'h05K'
+    tier6[4] = 'h06B'
+    tier6[5] = 'h04R'
+    tier6[6] = 'h06S'
+    tier6[7] = 'h07E'
+    tier6[8] = 'h01E'
+    tier6[9] = 'h086'
+    tier7[1] = 'h03J'
+    tier7[2] = 'h039'
+    tier7[3] = 'h046'
+    tier7[4] = 'h05M'
+    tier7[5] = 'h04T'
+    tier7[6] = 'h06V'
+    tier7[7] = 'h07G'
+    tier7[8] = 'h06D'
+    tier7[9] = 'h08I'
+    tier7[10] = 'h088'
+    tier8[1] = 'h02P'
+    tier8[2] = 'h025'
+    tier8[3] = 'h027'
+    tier8[4] = 'h02F'
+    tier8[5] = 'h01S'
+    tier8[6] = 'h021'
+    tier8[7] = 'h02H'
+    tier8[8] = 'h099'
+    tier8[9] = 'h09W'
+    tier9[1] = 'h02O'
+    tier9[2] = 'h01X'
+    tier9[3] = 'h01Z'
+    tier9[4] = 'h02B'
+    tier9[5] = 'h023'
+    tier9[6] = 'h029'
+    tier9[7] = 'h01T'
+    tier9[8] = 'h09J'
+    tier9[9] = 'h0AG'
+    tier10[1] = 'h0A0'
+    tier10[2] = 'h0A2'
+    tier10[3] = 'h0A4'
+    tier10[4] = 'h0A6'
+    tier10[5] = 'h0A8'
+    tier10[6] = 'h0AA'
+    tier10[7] = 'h0AC'
+    tier10[8] = 'h0AE'
+    allTiers[1] = 'h011'
+    allTiers[2] = 'h02V'
+    allTiers[3] = 'h00T'
+    allTiers[4] = 'h031'
+    allTiers[5] = 'h00U'
+    allTiers[6] = 'h02X'
+    allTiers[7] = 'h014'
+    allTiers[8] = 'h032'
+    allTiers[9] = 'h03I'
+    allTiers[10] = 'h035'
+    allTiers[11] = 'h037'
+    allTiers[12] = 'h01E'
+    allTiers[13] = 'h03J'
+    allTiers[14] = 'h039'
+    allTiers[15] = 'h034'
+    allTiers[16] = 'h02P'
+    allTiers[17] = 'h025'
+    allTiers[18] = 'h02F'
+    allTiers[19] = 'h08L'
+    allTiers[20] = 'h027'
+    allTiers[21] = 'h021'
+    allTiers[22] = 'h02O'
+    allTiers[23] = 'h01X'
+    allTiers[24] = 'h01Z'
+    allTiers[25] = 'h01S'
+    allTiers[26] = 'h023'
+    allTiers[27] = 'h029'
+    allTiers[28] = 'h02B'
+    allTiers[29] = 'h03V'
+    allTiers[30] = 'h02S'
+    allTiers[31] = 'h044'
+    allTiers[32] = 'h046'
+    allTiers[33] = 'h042'
+    allTiers[34] = 'h04G'
+    allTiers[35] = 'h09J'
+    allTiers[36] = 'h05V'
+    allTiers[37] = 'h04N'
+    allTiers[38] = 'h02T'
+    allTiers[39] = 'h04P'
+    allTiers[40] = 'h04E'
+    allTiers[41] = 'h051'
+    allTiers[42] = 'h04R'
+    allTiers[43] = 'h057'
+    allTiers[44] = 'h05A'
+    allTiers[45] = 'h05G'
+    allTiers[46] = 'h05F'
+    allTiers[47] = 'h05J'
+    allTiers[48] = 'h05K'
+    allTiers[49] = 'h05M'
+    allTiers[50] = 'h062'
+    allTiers[51] = 'h060'
+    allTiers[52] = 'h065'
+    allTiers[53] = 'h067'
+    allTiers[54] = 'h069'
+    allTiers[55] = 'h06B'
+    allTiers[56] = 'h06D'
+    allTiers[57] = 'h06M'
+    allTiers[58] = 'h06P'
+    allTiers[59] = 'h06S'
+    allTiers[60] = 'h06V'
+    allTiers[61] = 'h06Y'
+    allTiers[62] = 'h084'
+    allTiers[63] = 'h07C'
+    allTiers[64] = 'h074'
+    allTiers[65] = 'h075'
+    allTiers[66] = 'h078'
+    allTiers[67] = 'h07A'
+    allTiers[68] = 'h07E'
+    allTiers[69] = 'h07G'
+    allTiers[70] = 'h07X'
+    allTiers[71] = 'h080'
+    allTiers[72] = 'h081'
+    allTiers[73] = 'n08L'
+    allTiers[74] = 'h08I'
+    allTiers[75] = 'h087'
+    allTiers[76] = 'h088'
+    allTiers[77] = 'h086'
+    allTiers[78] = 'h04T'
+    allTiers[79] = 'h040'
+    allTiers[80] = 'h03Y'
+    allTiers[81] = 'h01T'
+    allTiers[82] = 'h02H'
+    allTiers[83] = 'h092'
+    allTiers[84] = 'h095'
+    allTiers[85] = 'h099'
+    allTiers[86] = 'h09W'
+    allTiers[87] = 'h0A0'
+    allTiers[88] = 'h0A2'
+    allTiers[89] = 'h0A4'
+    allTiers[90] = 'h0A6'
+    allTiers[91] = 'h0A8'
+    allTiers[92] = 'h0AA'
+    allTiers[93] = 'h0AC'
+    allTiers[94] = 'h0AE'
+    allTiers[95] = 'h0AG'
 
 public function initGame()
-    Hash = InitHashtable()
+    hash = InitHashtable()
     for i = 1 to 5
-        ForceG[i] = CreateForce()
+        forceG[i] = CreateForce()
     LOL = CreateSound("sounds\\LOLfb.mp3", false, false, false, 10, 10, "")
         ..setDuration(3579)
         ..setChannel(0)
         ..setVolume(127)
         ..setPitch(1.0)
-    KnightNoGold = CreateSound("Sound\\Interface\\Warning\\Human\\KnightNoGold1.wav", false, false, false, 10, 10, "")
-    SetSoundParamsFromLabel(KnightNoGold, "NoGoldHuman")
-    KnightNoGold.setDuration(1486)
-    Color[0] = "FF0000"
-    Color[1] = "0000FF"
-    Color[2] = "00FFFF"
-    Color[3] = "800080"
-    Color[4] = "FFFF00"
-    Color[5] = "FFA500"
-    Color[6] = "00FF00"
-    Color[7] = "FF00FF"
+    knightNoGold = CreateSound("Sound\\Interface\\Warning\\Human\\KnightNoGold1.wav", false, false, false, 10, 10, "")
+    SetSoundParamsFromLabel(knightNoGold, "NoGoldHuman")
+    knightNoGold.setDuration(1486)
+    colorCode[0] = "FF0000"
+    colorCode[1] = "0000FF"
+    colorCode[2] = "00FFFF"
+    colorCode[3] = "800080"
+    colorCode[4] = "FFFF00"
+    colorCode[5] = "FFA500"
+    colorCode[6] = "00FF00"
+    colorCode[7] = "FF00FF"
     for a = 0 to 7
-        LimitArt[a] = 2
-    King[1] = CreateUnit(players[8], 'H003', -3070.0, 250.0, 0.0)
-    King[2] = CreateUnit(players[9], 'H003', 2550.0, 250.0, 180.0)
+        limitArt[a] = 2
+    kings[1] = CreateUnit(players[8], 'H003', -3070.0, 250.0, 0.0)
+    kings[2] = CreateUnit(players[9], 'H003', 2550.0, 250.0, 180.0)
     for a = 1 to 2
-        King[a]..issuePointOrder("root", King[a].getPos())
+        kings[a]..issuePointOrder("root", kings[a].getPos())
             ..removeAbility('A0BQ')
     // базы: левые у x = -3070 (здание базы -3672), правые у x = 2550 (3138); по 4 высоты
     for a = 0 to 7
@@ -400,29 +400,29 @@ public function initGame()
         let y = lane == 0 ? -4990.0 : (lane == 1 ? -2400.0 : (lane == 2 ? 3050.0 : 5620.0))
         let x = left ? -3070.0 : 2550.0
         let facing = left ? 180.0 : 270.0
-        Arthas[a] = CreateUnit(players[a], 'h02T', x, y, facing)
-        Builder[a] = CreateUnit(players[a], 'H01Y', x, y, facing)
-        Baza[a] = CreateUnit(players[a], 'h000', left ? -3672.0 : 3138.0, y, 270.0)
-        ForceG[left ? 1 : 2].addPlayer(players[a])
+        arthas[a] = CreateUnit(players[a], 'h02T', x, y, facing)
+        builders[a] = CreateUnit(players[a], 'H01Y', x, y, facing)
+        baza[a] = CreateUnit(players[a], 'h000', left ? -3672.0 : 3138.0, y, 270.0)
+        forceG[left ? 1 : 2].addPlayer(players[a])
         SetCameraFieldForPlayer(players[a], CAMERA_FIELD_TARGET_DISTANCE, 2400.0, 0.0)
-    Magazin[0] = CreateUnit(players[8], 'n012', -3968.0, 723.0, 270.0)
-    Magazin[1] = CreateUnit(players[8], 'n02H', -3775.0, 736.0, 270.0)
-    Magazin[2] = CreateUnit(players[8], 'n030', -3965.0, 491.0, 270.0)
-    Magazin[3] = CreateUnit(players[8], 'n031', -3775.0, 479.0, 270.0)
-    Magazin[4] = CreateUnit(players[8], 'n032', -3968.0, 231.0, 270.0)
-    Magazin[5] = CreateUnit(players[8], 'n033', -3775.0, 244.0, 270.0)
-    Magazin[6] = CreateUnit(players[8], 'n03N', -3968.0, -40.0, 270.0)
-    Magazin[7] = CreateUnit(players[8], 'n03P', -3900.0, -315.0, 270.0)
-    Magazin[8] = CreateUnit(players[8], 'n03O', -3775.0, -40.0, 270.0)
-    Magazin[9] = CreateUnit(players[9], 'n012', 3262.0, 736.0, 270.0)
-    Magazin[10] = CreateUnit(players[9], 'n02H', 3469.0, 732.0, 270.0)
-    Magazin[11] = CreateUnit(players[9], 'n030', 3262.0, 483.0, 270.0)
-    Magazin[12] = CreateUnit(players[9], 'n031', 3469.0, 481.0, 270.0)
-    Magazin[13] = CreateUnit(players[9], 'n032', 3262.0, 248.0, 270.0)
-    Magazin[14] = CreateUnit(players[9], 'n033', 3469.0, 235.0, 270.0)
-    Magazin[15] = CreateUnit(players[9], 'n03N', 3262.0, -31.0, 270.0)
-    Magazin[16] = CreateUnit(players[9], 'n03P', 3362.0, -330.0, 270.0)
-    Magazin[17] = CreateUnit(players[9], 'n03O', 3460.0, -31.0, 270.0)
+    magazin[0] = CreateUnit(players[8], 'n012', -3968.0, 723.0, 270.0)
+    magazin[1] = CreateUnit(players[8], 'n02H', -3775.0, 736.0, 270.0)
+    magazin[2] = CreateUnit(players[8], 'n030', -3965.0, 491.0, 270.0)
+    magazin[3] = CreateUnit(players[8], 'n031', -3775.0, 479.0, 270.0)
+    magazin[4] = CreateUnit(players[8], 'n032', -3968.0, 231.0, 270.0)
+    magazin[5] = CreateUnit(players[8], 'n033', -3775.0, 244.0, 270.0)
+    magazin[6] = CreateUnit(players[8], 'n03N', -3968.0, -40.0, 270.0)
+    magazin[7] = CreateUnit(players[8], 'n03P', -3900.0, -315.0, 270.0)
+    magazin[8] = CreateUnit(players[8], 'n03O', -3775.0, -40.0, 270.0)
+    magazin[9] = CreateUnit(players[9], 'n012', 3262.0, 736.0, 270.0)
+    magazin[10] = CreateUnit(players[9], 'n02H', 3469.0, 732.0, 270.0)
+    magazin[11] = CreateUnit(players[9], 'n030', 3262.0, 483.0, 270.0)
+    magazin[12] = CreateUnit(players[9], 'n031', 3469.0, 481.0, 270.0)
+    magazin[13] = CreateUnit(players[9], 'n032', 3262.0, 248.0, 270.0)
+    magazin[14] = CreateUnit(players[9], 'n033', 3469.0, 235.0, 270.0)
+    magazin[15] = CreateUnit(players[9], 'n03N', 3262.0, -31.0, 270.0)
+    magazin[16] = CreateUnit(players[9], 'n03P', 3362.0, -330.0, 270.0)
+    magazin[17] = CreateUnit(players[9], 'n03O', 3460.0, -31.0, 270.0)
     roundTimer.start(3.0, null)
     fillTiers()
 
@@ -433,22 +433,22 @@ public function initGame()
 /** Заменить строителя/базу/Артаса игрока a на особые типы и выдать рабочего wispId; вернуть рабочего */
 function applySkin(int a, int wispId, int builderId, int bazaId, int arthasId) returns unit
     let p = players[a]
-    let wisp = CreateUnit(p, wispId, Builder[a].getX(), Builder[a].getY(), 0.0)
+    let wisp = CreateUnit(p, wispId, builders[a].getX(), builders[a].getY(), 0.0)
     wisp.setPathing(true)
-    let builder = CreateUnit(p, builderId, Builder[a].getX(), Builder[a].getY(), 0.0)
-    Builder[a].remove()
-    Builder[a] = builder
-    let bazaPos = Baza[a].getPos()
-    Baza[a].remove()
-    Baza[a] = CreateUnit(p, bazaId, bazaPos.x, bazaPos.y, 270.0)
-    let arthas = CreateUnit(p, arthasId, Arthas[a].getX(), Arthas[a].getY(), 0.0)
-    Arthas[a].remove()
-    Arthas[a] = arthas
+    let builder = CreateUnit(p, builderId, builders[a].getX(), builders[a].getY(), 0.0)
+    builders[a].remove()
+    builders[a] = builder
+    let bazaPos = baza[a].getPos()
+    baza[a].remove()
+    baza[a] = CreateUnit(p, bazaId, bazaPos.x, bazaPos.y, 270.0)
+    let u = CreateUnit(p, arthasId, arthas[a].getX(), arthas[a].getY(), 0.0)
+    arthas[a].remove()
+    arthas[a] = u
     return wisp
 
 /** Вокруг базы игрока a деревья 'LTlt' заменяются на treeId, а земля 'Yhdg' перед базой — на terrainId */
 function decorateBase(int a, int treeId, int terrainId)
-    let base = Baza[a].getPos()
+    let base = baza[a].getPos()
     let d = a < 4 ? 1 : -1
     let r = Rect(base.x - 1000, base.y - 1000, base.x + 1000, base.y + 1000)
     forDestructablesInRect(r) dest ->
@@ -498,7 +498,7 @@ function createWorker(int a) returns unit
         return skin(a, 'e01E', 'H0AO', 'h0AN', 'h0AM', 'WTst', 'Idki')
     else if name == "raknakrabe" or name == "Fear"
         return skin(a, 'e01Z', 'H09T', 'h09U', 'h09Q', 'FTtw', 'Fgrd')
-    let w = CreateUnit(players[a], 'e003', Builder[a].getX(), Builder[a].getY(), 0.0)
+    let w = CreateUnit(players[a], 'e003', builders[a].getX(), builders[a].getY(), 0.0)
     w.setPathing(true)
     return w
 
@@ -534,13 +534,13 @@ function initPlayers()
     for a = 0 to 7
         let p = players[a]
         let wisp = createWorker(a)
-        Baza[a].setVertexColor(255, 255, 255, 180)
+        baza[a].setVertexColor(255, 255, 255, 180)
         // текст ресурсов над базой — виден только своей команде
-        TextR[a] = CreateTextTag()
+        textR[a] = CreateTextTag()
             ..setText("", 10)
-            ..setPos(Baza[a].getX() - 50, Baza[a].getY(), 0.0)
-        if (ForceG[1].containsPlayer(localPlayer) and a > 3) or (ForceG[2].containsPlayer(localPlayer) and a < 4)
-            TextR[a].setVisibility(false)
+            ..setPos(baza[a].getX() - 50, baza[a].getY(), 0.0)
+        if (forceG[1].containsPlayer(localPlayer) and a > 3) or (forceG[2].containsPlayer(localPlayer) and a < 4)
+            textR[a].setVisibility(false)
         // рабочий сразу идёт рубить ближайшее дерево
         let r = Rect(wisp.getX() - 1000, wisp.getY() - 1000, wisp.getX() + 1000, wisp.getY() + 1000)
         forDestructablesInRect(r) dest ->
@@ -557,7 +557,7 @@ function initPlayers()
 
 /** Случайные (25%) улучшения от исследований строителя владельца */
 function applyBuilderUpgrades(unit s)
-    let b = Builder[s.getOwner().getId()]
+    let b = builders[s.getOwner().getId()]
     if b.getAbilityLevel('B02S') >= 1 and GetRandomInt(1, 100) <= 25
         s.addAbility('A0BI')
         addEffect("Abilities\\Weapons\\AvengerMissile\\AvengerMissile.mdl", s, "chest")
@@ -674,11 +674,8 @@ function applyElementalSynergies(unit s)
         if (h5 or h6) and combo != 2 and active != 1
             s..addAbility('A0G4')..setVertexColor(0, 0, 255, 255)
             combo++
-            active++
         if (h7 or h8) and combo != 2 and passive != 1
             s..addAbility('A0G8')..addAbility('A0GC')
-            combo++
-            passive++
             addEffect("models\\Windwalk.mdl", s, "chest")
     else if t == 'n04S'
         if h1 and h2 and combo != 2 and active != 1
@@ -693,11 +690,9 @@ function applyElementalSynergies(unit s)
         if h5 and h6 and combo != 2 and active != 1
             s..addAbility('A0G4')..setAbilityLevel('A0G4', 2)..setVertexColor(0, 0, 255, 255)
             combo++
-            active++
         if h7 and h8 and combo != 2 and passive != 1
             s..addAbility('A0G8')..setAbilityLevel('A0G8', 2)..addAbility('A0GC')..setAbilityLevel('A0GC', 2)
             combo++
-            passive++
             addEffect("models\\Windwalk.mdl", s, "chest")
         if ((h1 and h2) or (h5 and h6)) and combo != 3
             s.addAbility('A0G9')
@@ -707,10 +702,8 @@ function applyElementalSynergies(unit s)
             combo++
         if h1 and h2 and h3 and h4 and combo != 4
             s.addAbility('A0GR')
-            combo++
         else if h5 and h6 and h7 and h8 and combo != 4
             s.addAbility('A0GS')
-            combo++
     if h7 and h5 and (t == 'n04E' or t == 'n04M')
         wDammiHP(s, 100)
         wDammiAtt(s, 15)
@@ -758,7 +751,7 @@ function spawnFrom(unit u)
 @noinline
 function naimAttack(unit u)
     let p = u.getOwner()
-    Naim.remove(u)
+    naimGroup.remove(u)
     u.setPathing(true)
     SetUnitPosition(u, u.getX() + (u.getX() < 0 ? 900 : -900), u.getY() + 700)
     u.attackLane()
@@ -770,7 +763,7 @@ function naimAttack(unit u)
 
 /** Стража короля a на раунд: 10 пехотинцев с бонусами от характеристик короля */
 function kingGuards(int a)
-    let king = King[a]
+    let king = kings[a]
     let dmg = (king.getAgi(false) - 60) div 10 + (king.getStr(false) - 60) div 20
     let hp = ((king.getInt(false) - 60) * 3.5 + (king.getStr(false) - 60) * 1.5).toInt()
     for i = 0 to 9
@@ -791,7 +784,7 @@ function firstRound()
     for a = 0 to 7
         let p = players[a]
         for slot = 1 to 8
-            ZapretElem[elemLimit(slot, a)] = 2
+            elemLeft[elemLimit(slot, a)] = 2
         p.setGold(700)
         // лимиты построек: рабочие и особые здания
         p..limit(8, 'e003')..limit(8, 'e01S')..limit(8, 'e01R')..limit(8, 'e01T')..limit(8, 'e01X')..limit(8, 'e01U')
@@ -802,29 +795,29 @@ function firstRound()
             ..limit(1, 'h05X')..limit(1, 'h06L')..limit(1, 'h08E')..limit(1, 'h09Z')
         random(p)
         for i = 1 to 6
-            Builder[a].addItemHandle(CreateItem('I000', Builder[a].getX(), Builder[a].getY()))
+            builders[a].addItemHandle(CreateItem('I000', builders[a].getX(), builders[a].getY()))
         for i = 1 to 4
-            Arthas[a].addItemHandle(CreateItem('I000', Arthas[a].getX(), Arthas[a].getY()))
+            arthas[a].addItemHandle(CreateItem('I000', arthas[a].getX(), arthas[a].getY()))
 
 @noinline
 function wave()
-    DestroyTimerDialog(TimerD)
+    DestroyTimerDialog(timerD)
     round++
     if round >= 105
-        Zamedlo = 12
+        zamedlo = 12
     else if round >= 90
-        Zamedlo = 10
+        zamedlo = 10
     else if round >= 75
-        Zamedlo = 8
+        zamedlo = 8
     else if round >= 60
-        Zamedlo = 6
+        zamedlo = 6
     else if round >= 45
-        Zamedlo = 4
+        zamedlo = 4
     else if round >= 30
-        Zamedlo = 2
-    roundTimer.start((38 + Zamedlo).toReal(), null)
-    TimerD = CreateTimerDialog(roundTimer)
-        ..setTitle("Round " + round.toString())
+        zamedlo = 2
+    roundTimer.start((38 + zamedlo).toReal(), null)
+    timerD = CreateTimerDialog(roundTimer)
+        ..setTitle("Round " + round)
         ..display(true)
     if round == 1
         firstRound()
@@ -832,14 +825,14 @@ function wave()
     kingGuards(1)
     kingGuards(2)
     for a = 0 to 7
-        IncomeR[a] += 3
-        players[a].setGold(players[a].getGold() + Income[a] + (100 + IncomeR[a]))
-        wDammiAtt(Arthas[a], 1)
-        DisplayTextToPlayer(players[a], 0.0, 0.0, "|cffFFD700Round " + round.toString() + "|r\nRound reward: |cffffff00" + (100 + IncomeR[a]).toString() + " gold!|r \nYour income: |cffffff00" + Income[a].toString() + " gold!|r")
-    BuildUnit.forEachIn() u ->
+        incomeR[a] += 3
+        players[a].setGold(players[a].getGold() + income[a] + (100 + incomeR[a]))
+        wDammiAtt(arthas[a], 1)
+        DisplayTextToPlayer(players[a], 0.0, 0.0, "|cffFFD700Round " + round + "|r\nRound reward: |cffffff00" + (100 + incomeR[a]) + " gold!|r \nYour income: |cffffff00" + income[a] + " gold!|r")
+    buildUnits.forEachIn() u ->
         spawnFrom(u)
     doAfter(1.0) ->
-        Naim.forEachIn() u ->
+        naimGroup.forEachIn() u ->
             naimAttack(u)
 
 // ============================================================
@@ -849,11 +842,11 @@ function wave()
 @noinline
 function win()
     let d = GetDyingUnit()
-    if d != King[1] and d != King[2]
+    if d != kings[1] and d != kings[2]
         return
     SetCameraPosition(d.getX(), d.getY())
-    let losers = d == King[1] ? 0 : 4
-    let winners = d == King[1] ? 4 : 0
+    let losers = d == kings[1] ? 0 : 4
+    let winners = d == kings[1] ? 4 : 0
     doAfter(3.0) ->
         for i = 0 to 3
             MMD.flagPlayer(players[winners + i], PlayerFlag.Winner)

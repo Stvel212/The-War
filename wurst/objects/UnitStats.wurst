@@ -30,12 +30,12 @@ public class Stats
 
 	/** Награда: +n золота за убийство */
 	function bounty(int n) returns thistype
-		bountyLine = "|c00FFFF00Награда:|r " + (n > 0 ? "+" + n.toString() : n.toString())
+		bountyLine = "|c00FFFF00Награда:|r " + (n > 0 ? "+" + n : n.toString())
 		return this
 
 	/** [Инком] +n — юнит даёт доход, а не награду */
 	function income(int n) returns thistype
-		bountyLine = "|c0000FF00[Инком]|r +" + n.toString()
+		bountyLine = "|c0000FF00[Инком]|r +" + n
 		return this
 
 	function melee() returns thistype
@@ -43,15 +43,15 @@ public class Stats
 		return this
 
 	function melee(int range) returns thistype
-		this.range = "(Ближний бой/" + range.toString() + ")"
+		this.range = "(Ближний бой/" + range + ")"
 		return this
 
 	function ranged(int range) returns thistype
-		this.range = "(Дальний бой/" + range.toString() + ")"
+		this.range = "(Дальний бой/" + range + ")"
 		return this
 
 	function attack(int min, int max, real cooldown, AttackType kind) returns thistype
-		attackText = min.toString() + "-" + max.toString()
+		attackText = min + "-" + max
 		speedText = fmt(cooldown)
 		attackTypeText = attackTypeName(kind)
 		return this
@@ -92,8 +92,8 @@ function fmt(real r) returns string
 	if cents == 0
 		return whole.toString()
 	if cents mod 10 == 0
-		return whole.toString() + "." + (cents div 10).toString()
-	return whole.toString() + "." + (cents < 10 ? "0" : "") + cents.toString()
+		return whole + "." + (cents div 10)
+	return whole + "." + (cents < 10 ? "0" : "") + cents
 
 function attackTypeName(AttackType t) returns string
 	switch t

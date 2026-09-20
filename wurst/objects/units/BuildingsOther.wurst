@@ -169,7 +169,7 @@ import UnitStats
 	..setSelectionScale(2.0)
 	..setPointValue(518)
 	..setDisplayasNeutralHostile(true)
-	..setGoldCost(1510) // 900 + 610 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(900)
 	..setArtTarget("custom_n008")
 	..setRequirements("e101")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
@@ -206,7 +206,7 @@ import UnitStats
 	..setSelectionScale(2.0)
 	..setPointValue(515)
 	..setDisplayasNeutralHostile(true)
-	..setGoldCost(600) // 340 + 260 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(340)
 	..setArtTarget("custom_n038")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
 	..setUnitsTrained("n038")
@@ -244,7 +244,7 @@ import UnitStats
 	..setSelectionScale(2.0)
 	..setPointValue(516)
 	..setDisplayasNeutralHostile(true)
-	..setGoldCost(800) // 540 + 260 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(540)
 	..setButtonPositionX(1)
 	..setArtTarget("custom_n035")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
@@ -319,7 +319,7 @@ import UnitStats
 	..setSelectionScale(2.0)
 	..setPointValue(534)
 	..setDisplayasNeutralHostile(true)
-	..setGoldCost(675) // 350 + 325 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(350)
 	..setScalingValue(0.75)
 	..setButtonPositionY(2)
 	..setAnimationCastBackswing(0.0)
@@ -358,7 +358,7 @@ import UnitStats
 	..setSelectionScale(2.0)
 	..setPointValue(535)
 	..setDisplayasNeutralHostile(true)
-	..setGoldCost(925) // 600 + 325 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(600)
 	..setButtonPositionX(1)
 	..setButtonPositionY(2)
 	..setAnimationCastBackswing(0.0)
@@ -763,7 +763,7 @@ import UnitStats
 	..setUpgradesUsed("")
 	..setSelectionScale(2.0)
 	..setNormalAbilities("A006,Avul")
-	..setGoldCost(270) // 200 + 70 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(200)
 	..setLumberCost(0)
 	..setRepairGoldCost(0)
 	..setRepairLumberCost(0)
@@ -804,7 +804,7 @@ import UnitStats
 	..setUpgradesUsed("")
 	..setSelectionScale(2.0)
 	..setNormalAbilities("A006,Avul")
-	..setGoldCost(370) // 100 + 270 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(100)
 	..setLumberCost(0)
 	..setRepairGoldCost(0)
 	..setRepairLumberCost(0)
@@ -842,7 +842,7 @@ import UnitStats
 	..setUpgradesUsed("")
 	..setSelectionScale(2.0)
 	..setNormalAbilities("A006,Avul")
-	..setGoldCost(700) // 430 + 270 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(430)
 	..setLumberCost(0)
 	..setRepairGoldCost(0)
 	..setRepairLumberCost(0)
@@ -1064,7 +1064,7 @@ import UnitStats
 	..setSelectionScale(2.0)
 	..setPointValue(514)
 	..setDisplayasNeutralHostile(true)
-	..setGoldCost(700) // 400 + 300 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(400)
 	..setArtTarget("custom_n04A")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
 	..setUnitsTrained("n04A")
@@ -1146,7 +1146,7 @@ import UnitStats
 	..setSelectionScale(2.0)
 	..setPointValue(514)
 	..setDisplayasNeutralHostile(true)
-	..setGoldCost(700) // 400 + 300 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(400)
 	..setArtTarget("custom_n04E")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
 	..setUnitsTrained("n04E")
@@ -1226,7 +1226,7 @@ import UnitStats
 	..setSelectionScale(2.0)
 	..setPointValue(514)
 	..setDisplayasNeutralHostile(true)
-	..setGoldCost(700) // 400 + 300 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(400)
 	..setArtTarget("custom_n04G")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
 	..setUnitsTrained("n04G")
@@ -1304,7 +1304,7 @@ import UnitStats
 	..setSelectionScale(2.0)
 	..setPointValue(514)
 	..setDisplayasNeutralHostile(true)
-	..setGoldCost(700) // 400 + 300 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(400)
 	..setArtTarget("custom_n04K")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
 	..setUnitsTrained("n04K")
@@ -1380,7 +1380,7 @@ import UnitStats
 	..setSelectionScale(2.0)
 	..setPointValue(514)
 	..setDisplayasNeutralHostile(true)
-	..setGoldCost(700) // 400 + 300 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(400)
 	..setArtTarget("custom_n04D")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
 	..setUnitsTrained("n04D")
@@ -1457,7 +1457,7 @@ import UnitStats
 	..setSelectionScale(2.0)
 	..setPointValue(514)
 	..setDisplayasNeutralHostile(true)
-	..setGoldCost(700) // 400 + 300 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(400)
 	..setArtTarget("custom_n04O")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
 	..setUnitsTrained("n04O")
@@ -1533,7 +1533,7 @@ import UnitStats
 	..setSelectionScale(2.0)
 	..setPointValue(514)
 	..setDisplayasNeutralHostile(true)
-	..setGoldCost(700) // 400 + 300 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(400)
 	..setArtTarget("custom_n04M")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
 	..setUnitsTrained("n04M")
@@ -1612,7 +1612,7 @@ import UnitStats
 	..setSelectionScale(2.0)
 	..setPointValue(514)
 	..setDisplayasNeutralHostile(true)
-	..setGoldCost(700) // 400 + 300 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(400)
 	..setArtTarget("custom_n04I")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
 	..setUnitsTrained("n04I")
@@ -1689,7 +1689,7 @@ import UnitStats
 	..setSelectionScale(2.0)
 	..setPointValue(514)
 	..setDisplayasNeutralHostile(true)
-	..setGoldCost(1400) // 900 + 500 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(900)
 	..setArtTarget("custom_n04S")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
 	..setUnitsTrained("n04S")

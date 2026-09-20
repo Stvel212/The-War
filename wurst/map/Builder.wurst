@@ -81,12 +81,12 @@ function flag()
 // Триггер: Sell — продажа юнита ('A006' себя, 'A005' цель) или артефакта ('A00H')
 // ============================================================
 
-/** Продать юнита u игроку p за gold золота (из «силы» Force вычитается полный максимум HP) */
+/** Продать юнита u игроку p за gold золота (из «силы» power вычитается полный максимум HP) */
 function sellUnit(unit u, player p, int gold)
-    DisplayTextToPlayer(p, 0.0, 0.0, "|cffffff00You sold a unit for: " + gold.toString() + " gold|r")
+    DisplayTextToPlayer(p, 0.0, 0.0, "|cffffff00You sold a unit for: " + gold + " gold|r")
     p.setGold(p.getGold() + gold)
-    Force[p.getId()] -= u.getMaxHP().toInt()
-    BuildUnit.remove(u)
+    power[p.getId()] -= u.getMaxHP().toInt()
+    buildUnits.remove(u)
     u.remove()
     addEffect("Abilities\\Spells\\Other\\Transmute\\PileofGold.mdl", u.getPos()).destr()
 
@@ -95,15 +95,15 @@ function sellArtifact(item s, player p)
     let id = p.getId()
     let sid = s.getTypeId()
     if sid == 'I003' or sid == 'I013' or sid == 'I017' or sid == 'I01B' or sid == 'I01C' or sid == 'I008' or sid == 'I01J' or sid == 'I01H' or sid == 'I01E' or sid == 'I01D'
-        ItemZapretD[id] -= 1
+        itemZapretD[id] -= 1
     if sid == 'I006' or sid == 'I00E' or sid == 'I00X' or sid == 'I015' or sid == 'I021' or sid == 'I00J' or sid == 'I00S'
-        ItemZapretS[id] -= 1
-    AddItemToStock(Magazin[id < 4 ? 7 : 16], sid, 1, 1)
+        itemZapretS[id] -= 1
+    AddItemToStock(magazin[id < 4 ? 7 : 16], sid, 1, 1)
     let charges = max(1, s.getCharges())
     let gold = (charges * s.getLife()).toInt() + s.getUserData()
     p.setGold(p.getGold() + gold)
-    DisplayTextToPlayer(p, 0.0, 0.0, "|cffffff00You sold an artifact for: " + gold.toString() + " gold|r")
-    ForceItem[id] -= gold
+    DisplayTextToPlayer(p, 0.0, 0.0, "|cffffff00You sold an artifact for: " + gold + " gold|r")
+    powerItem[id] -= gold
     s.remove()
 
 @noinline
@@ -149,11 +149,11 @@ function zaminaVzryva()
         if u.isEnemyOf(p) and u.getAbilityLevel('Avul') != 1 and not u.isType(UNIT_TYPE_HERO)
             addEffect("Abilities\\Spells\\Demon\\DemonBoltImpact\\DemonBoltImpact.mdl", u.getPos()).destr()
             c.damageTarget(u, 100000.0, true, false, ATTACK_TYPE_NORMAL, DAMAGE_TYPE_NORMAL, WEAPON_TYPE_WHOKNOWS)
-    Boom[p.getId()] = false
+    boom[p.getId()] = false
     c.removeAbility('A003')
     c.addAbility('A004')
     if bj_FORCE_ALL_PLAYERS.containsPlayer(localPlayer)
-        DisplayTextToPlayer(localPlayer, 0.0, 0.0, "|c00" + Color[p.getId()] + p.getName() + "|r|cffff80ff used \"Blast\"!|r")
+        DisplayTextToPlayer(localPlayer, 0.0, 0.0, "|c00" + colorCode[p.getId()] + p.getName() + "|r|cffff80ff used \"Blast\"!|r")
 
 // ============================================================
 // Триггер: SpeedBuild — 'A002': на 2 секунды носитель предмета 'I01Q' (ускорение стройки)

@@ -26,11 +26,6 @@
   Текущий `TheWar.w3x` (только ландшафт) собран так: из `backup/TheWar.w3x-folder` взяты 15 файлов
   (w3e, shd, wpm, mmp, doo, Units.doo, w3r, w3c, w3i, wts, w3b, w3d, war3map.j, war3mapMap.blp, war3mapPreview.tga),
   остальное ушло в `imports/`.
-- `UpgradeCosts.java` — Reforged показывает/списывает цену «Улучшить» как (цель − текущее здание), классика — цену
-  самого улучшения. Инструмент прибавляет к цене цели цену здания-источника (накопительно по цепочке) и пишет
-  `wurst/map/UpgradeCosts.wurst` с обратной таблицей (`unitOwnGoldCost()`), `fix_owncost.sh` переключает скрипт на неё.
-  `--apply` применяется ОДИН раз к исходному экспорту (уже применён); `--table-only` только пересоздаёт
-  `wurst/UpgradeCosts.wurst` по текущим объектам (таблица лежит в `wurst/`, а не в `wurst/map`, чтобы её не сносила регенерация).
 - `ArtifactRefactor.java` — переписывает `wurst/map/Artifacts.wurst` вокруг класса `Artifact`: цепочка
   `ArtefactUp` → таблица `new Artifact(item, abil, maxCharges, gold[, lifeMult, udStep])`, триггеры-касты →
   `Artifact.onCast(abil)`, циклы «заряды предмета в инвентаре» → `Artifact.charges()`, даммик-касты → `Artifact.dummy()`.

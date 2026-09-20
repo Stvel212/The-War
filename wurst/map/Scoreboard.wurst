@@ -13,19 +13,19 @@ function leaveGame()
     let p = GetTriggerPlayer()
     if p.getId() > 7
         return
-    PlayerL[p.getId()] = true
-    let left = ForceG[1].containsPlayer(p)
-    let team = left ? ForceG[1] : ForceG[2]
+    playerL[p.getId()] = true
+    let left = forceG[1].containsPlayer(p)
+    let team = left ? forceG[1] : forceG[2]
     for a = 0 to 7
         if team.containsPlayer(players[a])
             p.setPlayerAlliance(players[a], ALLIANCE_SHARED_CONTROL, true)
             p.setPlayerAlliance(players[a], ALLIANCE_SHARED_ADVANCED_CONTROL, true)
             p.setPlayerAlliance(players[a], ALLIANCE_SHARED_SPELLS, true)
     udg_Board.display(true)
-    ForceG[5].removePlayer(p)
-    CountPlayer[left ? 1 : 2] -= 1
+    forceG[5].removePlayer(p)
+    countPlayer[left ? 1 : 2] -= 1
     team.removePlayer(p)
-    ForceG[left ? 3 : 4].addPlayer(p)
+    forceG[left ? 3 : 4].addPlayer(p)
 
 // ============================================================
 // Триггер: Multiboard2 — раз в 0.5 с обновляет таблицу, текст ресурсов и юниты-маркеры «силы»
@@ -56,7 +56,7 @@ function multiboardIcon(int row, int col, string icon)
 /*
     Всё, что показывается, кешируется: ячейки и текст переписываются только когда значение изменилось. Иначе каждые
     0.5 с для 8 игроков склеивались бы новые строки — в JASS строки интернируются и не освобождаются, таблица строк
-    росла бы всю игру; а слоты/маркеры силы пересчитываются только при изменении Force. */
+    росла бы всю игру; а слоты/маркеры силы пересчитываются только при изменении power. */
 int array lastForce
 int array lastGrades
 int array lastIncome
@@ -78,62 +78,62 @@ int array lastInt
 int array lastStr
 
 /** Сила изменилась: освобождаются слоты строителя и обновляются юниты-маркеры */
-function onForceChanged(int a, int power)
+function onForceChanged(int a, int value)
     let p = players[a]
-    if power > 799
-        Builder[a].freeSlot(0)
-    if power > 3999
-        Builder[a].freeSlot(1)
-    if power > 5999
-        Builder[a].freeSlot(2)
-    if power > 7999
-        Builder[a].freeSlot(3)
-    if power > 9999
-        Builder[a].freeSlot(4)
-    if power > 11999
-        Builder[a].freeSlot(5)
+    if value > 799
+        builders[a].freeSlot(0)
+    if value > 3999
+        builders[a].freeSlot(1)
+    if value > 5999
+        builders[a].freeSlot(2)
+    if value > 7999
+        builders[a].freeSlot(3)
+    if value > 9999
+        builders[a].freeSlot(4)
+    if value > 11999
+        builders[a].freeSlot(5)
     // юниты-маркеры силы: есть, пока сила не ниже порога
     for tier = 0 to MARKER_TIERS - 1
         let i = tier * 16 + a
-        if power >= markerForce[tier] and forceMarker[i] == null
+        if value >= markerForce[tier] and forceMarker[i] == null
             forceMarker[i] = CreateUnit(p, markerType[tier], 0.0, 0.0, 0.0)
-        else if power < markerForce[tier] and forceMarker[i] != null
+        else if value < markerForce[tier] and forceMarker[i] != null
             forceMarker[i].remove()
             forceMarker[i] = null
 
 function updatePlayerRow(int a)
     let p = players[a]
     let row = multiboardId[a + 1]
-    let power = Force[a]
-    let forceChanged = power != lastForce[a]
+    let cur = power[a]
+    let forceChanged = cur != lastForce[a]
     if forceChanged
-        lastForce[a] = power
-        onForceChanged(a, power)
+        lastForce[a] = cur
+        onForceChanged(a, cur)
     let grades = GetPlayerTechCount(p, 'R003', true)
     if grades != lastGrades[a]
         lastGrades[a] = grades
         if grades == 3
-            Arthas[a].freeSlot(0)
+            arthas[a].freeSlot(0)
         if grades == 4
-            Arthas[a].freeSlot(1)
-    if power > 1000
-        if Income[a] != lastIncome[a]
-            lastIncome[a] = Income[a]
-            multiboardItem(row, 1, "|cff33FF33+" + Income[a].toString() + "|r")
-        if forceChanged or ForceItem[a] != lastForceItem[a]
-            lastForceItem[a] = ForceItem[a]
-            multiboardItem(row, 2, power.toString() + "/|cffF00080" + ForceItem[a].toString() + "|r")
+            arthas[a].freeSlot(1)
+    if cur > 1000
+        if income[a] != lastIncome[a]
+            lastIncome[a] = income[a]
+            multiboardItem(row, 1, "|cff33FF33+" + income[a] + "|r")
+        if forceChanged or powerItem[a] != lastForceItem[a]
+            lastForceItem[a] = powerItem[a]
+            multiboardItem(row, 2, cur + "/|cffF00080" + powerItem[a] + "|r")
         let r000 = GetPlayerTechCount(p, 'R000', false)
-        if Wisp[a] != lastWisp[a] or r000 != lastR000[a]
-            lastWisp[a] = Wisp[a]
+        if wispCount[a] != lastWisp[a] or r000 != lastR000[a]
+            lastWisp[a] = wispCount[a]
             lastR000[a] = r000
-            multiboardItem(row, 3, "|cff00FFFF" + Wisp[a].toString() + "|r/|cffFFA500" + r000.toString() + "|r")
+            multiboardItem(row, 3, "|cff00FFFF" + wispCount[a] + "|r/|cffFFA500" + r000 + "|r")
     let r001 = GetPlayerTechCount(p, 'R001', false)
     let r002 = GetPlayerTechCount(p, 'R002', false)
     if r001 != lastR001[a] or r002 != lastR002[a]
         lastR001[a] = r001
         lastR002[a] = r002
-        multiboardItem(row, 4, "|cffFFA500" + r002.toString() + "|r/|cff00FF00" + r001.toString() + "|r")
+        multiboardItem(row, 4, "|cffFFA500" + r002 + "|r/|cff00FF00" + r001 + "|r")
 
 function updateResourceText(int a)
     let p = players[a]
@@ -147,8 +147,8 @@ function updateResourceText(int a)
     lastLumber[a] = lumber
     lastFoodUsed[a] = foodUsed
     lastFoodCap[a] = foodCap
-    TextR[a].setText("|cffFFFF00 Gold: " + gold.toString() + "|r|n|cff00FF00 Lumber: " + lumber.toString()
-        + "|r|n|cffD2691E Food: " + foodUsed.toString() + "/" + foodCap.toString() + "|r", 10)
+    textR[a].setText("|cffFFFF00 Gold: " + gold + "|r|n|cff00FF00 Lumber: " + lumber
+        + "|r|n|cffD2691E Food: " + foodUsed + "/" + foodCap + "|r", 10)
 
 @noinline
 function multiboardUpdate()
@@ -156,34 +156,34 @@ function multiboardUpdate()
         let row = multiboardId[a + 1]
         if row != 0
             updatePlayerRow(a)
-        if Boom[a] != lastBoom[a]
-            lastBoom[a] = Boom[a]
-            multiboardIcon(row, 5, Boom[a] ? "icons\\BTNY.blp" : "ReplaceableTextures\\CommandButtons\\BTNCancel.blp")
-        if Rock[a] != lastRock[a]
-            lastRock[a] = Rock[a]
-            multiboardIcon(row, 6, Rock[a] ? "icons\\BTNY.blp" : "ReplaceableTextures\\CommandButtons\\BTNCancel.blp")
+        if boom[a] != lastBoom[a]
+            lastBoom[a] = boom[a]
+            multiboardIcon(row, 5, boom[a] ? "icons\\BTNY.blp" : "ReplaceableTextures\\CommandButtons\\BTNCancel.blp")
+        if rock[a] != lastRock[a]
+            lastRock[a] = rock[a]
+            multiboardIcon(row, 6, rock[a] ? "icons\\BTNY.blp" : "ReplaceableTextures\\CommandButtons\\BTNCancel.blp")
         updateResourceText(a)
     for a = 1 to 2
-        let king = King[a]
+        let king = kings[a]
         let hp = king.getHP().toInt()
         if hp != lastKingHP[a]
             lastKingHP[a] = hp
-            multiboardItem(KingS[a], 1, "|c0000FF00Health: " + hp.toString() + "|r")
-        if Heal[a] != lastHeal[a]
-            lastHeal[a] = Heal[a]
-            multiboardItem(KingS[a], 2, "|cffFFff00Heals: " + Heal[a].toString() + "|r")
+            multiboardItem(kingS[a], 1, "|c0000FF00Health: " + hp + "|r")
+        if heals[a] != lastHeal[a]
+            lastHeal[a] = heals[a]
+            multiboardItem(kingS[a], 2, "|cffFFff00Heals: " + heals[a] + "|r")
         let agi = (king.getAgi(true) - 60) div 10
         if agi != lastAgi[a]
             lastAgi[a] = agi
-            multiboardItem(KingS[a + 2], 2, "|cffFF0000" + agi.toString() + "|r")
+            multiboardItem(kingS[a + 2], 2, "|cffFF0000" + agi + "|r")
         let intel = (king.getInt(true) - 60) div 10
         if intel != lastInt[a]
             lastInt[a] = intel
-            multiboardItem(KingS[a + 2], 4, "|cff00FF00" + intel.toString() + "|r")
+            multiboardItem(kingS[a + 2], 4, "|cff00FF00" + intel + "|r")
         let str = (king.getStr(true) - 60) div 10
         if str != lastStr[a]
             lastStr[a] = str
-            multiboardItem(KingS[a + 2], 6, "|cff0000FF" + str.toString() + "|r")
+            multiboardItem(kingS[a + 2], 6, "|cff0000FF" + str + "|r")
 
 // ============================================================
 // Триггер: MultiboardClassic — через секунду после старта строит таблицу и включает обновление
@@ -216,21 +216,21 @@ function multiboardCreate()
     var b = 1
     for a = 1 to 8
         if a == 5
-            KingS[1] = b
-            KingS[3] = b + 1
+            kingS[1] = b
+            kingS[3] = b + 1
             b += 2
         if isInGame(players[a - 1])
             multiboardId[a] = b
             multiboardIdR[b] = a
             b++
         if a == 8
-            KingS[2] = b
-            KingS[4] = b + 1
+            kingS[2] = b
+            kingS[4] = b + 1
             b += 2
     udg_Board = CreateMultiboard()
         ..setRowCount(b)
         ..setColumnCount(7)
-        ..setTitle("The War Reborn " + ModeString)
+        ..setTitle("The War Reborn " + modeString)
     bj_lastCreatedMultiboard = CreateMultiboard()
     headerCell(0, "Player", 0.07)
     headerCell(1, "Income", 0.05)
@@ -243,32 +243,32 @@ function multiboardCreate()
         let row = multiboardId[a]
         if row != 0
             let p = players[a - 1]
-            wDammiHP(King[1], 1050)
-            wDammiHP(King[2], 1050)
-            ForceG[5].addPlayer(p)
+            wDammiHP(kings[1], 1050)
+            wDammiHP(kings[2], 1050)
+            forceG[5].addPlayer(p)
             let team = a <= 4 ? 1 : 2
-            Heal[team] += 1
-            CountPlayer[team] += 1
-            textCell(row, 0, "|c00" + Color[a - 1] + p.getName() + "|r", 0.07)
-            textCell(row, 1, "|cff33FF33+" + Income[a - 1].toString() + "|r", 0.05)
-            textCell(row, 2, Force[a - 1].toString() + "/" + ForceItem[a - 1].toString(), 0.05)
-            textCell(row, 3, Wisp[a - 1].toString() + "/" + GetPlayerTechCount(players[a], 'R000', false).toString(), 0.05)
+            heals[team] += 1
+            countPlayer[team] += 1
+            textCell(row, 0, "|c00" + colorCode[a - 1] + p.getName() + "|r", 0.07)
+            textCell(row, 1, "|cff33FF33+" + income[a - 1] + "|r", 0.05)
+            textCell(row, 2, power[a - 1] + "/" + powerItem[a - 1], 0.05)
+            textCell(row, 3, wispCount[a - 1] + "/" + GetPlayerTechCount(players[a], 'R000', false), 0.05)
             textCell(row, 4, "", 0.04)
-            iconCell(row, 5, Boom[a] ? "" : "ReplaceableTextures\\CommandButtons\\BTNCancel.blp", 0.04)
-            iconCell(row, 6, Rock[a] ? "" : "ReplaceableTextures\\CommandButtons\\BTNCancel.blp", 0.04)
+            iconCell(row, 5, boom[a] ? "" : "ReplaceableTextures\\CommandButtons\\BTNCancel.blp", 0.04)
+            iconCell(row, 6, rock[a] ? "" : "ReplaceableTextures\\CommandButtons\\BTNCancel.blp", 0.04)
     for a = 1 to 2
-        textCell(KingS[a], 0, "|cffFFD700King " + a.toString() + " |r", 0.08)
-        textCell(KingS[a], 1, "|c0000FF00Health: " + King[a].getHP().toInt().toString() + "|r", 0.08)
-        textCell(KingS[a], 2, "|cffFFff00Heals:" + Heal[a].toString() + "|r", 0.06)
+        textCell(kingS[a], 0, "|cffFFD700King " + a + " |r", 0.08)
+        textCell(kingS[a], 1, "|c0000FF00Health: " + kings[a].getHP().toInt() + "|r", 0.08)
+        textCell(kingS[a], 2, "|cffFFff00Heals:" + heals[a] + "|r", 0.06)
         for col = 3 to 6
-            textCell(KingS[a], col, "", 0.02)
-        textCell(KingS[a + 2], 0, "|cffFFA500Upgrades: |r", 0.06)
-        iconCell(KingS[a + 2], 1, "ReplaceableTextures\\CommandButtons\\BTNAttack.blp", 0.02)
-        textCell(KingS[a + 2], 2, "0", 0.03)
-        iconCell(KingS[a + 2], 3, "ReplaceableTextures\\CommandButtons\\BTNAnimalWarTraining.blp", 0.02)
-        textCell(KingS[a + 2], 4, "0", 0.03)
-        iconCell(KingS[a + 2], 5, "ReplaceableTextures\\CommandButtons\\BTNHealOff.blp", 0.02)
-        textCell(KingS[a + 2], 6, "0", 0.03)
+            textCell(kingS[a], col, "", 0.02)
+        textCell(kingS[a + 2], 0, "|cffFFA500Upgrades: |r", 0.06)
+        iconCell(kingS[a + 2], 1, "ReplaceableTextures\\CommandButtons\\BTNAttack.blp", 0.02)
+        textCell(kingS[a + 2], 2, "0", 0.03)
+        iconCell(kingS[a + 2], 3, "ReplaceableTextures\\CommandButtons\\BTNAnimalWarTraining.blp", 0.02)
+        textCell(kingS[a + 2], 4, "0", 0.03)
+        iconCell(kingS[a + 2], 5, "ReplaceableTextures\\CommandButtons\\BTNHealOff.blp", 0.02)
+        textCell(kingS[a + 2], 6, "0", 0.03)
     udg_Board.display(false)
     udg_Board.display(true)
     MultiboardMinimize(udg_Board, true)
@@ -284,8 +284,8 @@ function multiboardCreate()
         lastR001[a] = -1
         lastR002[a] = -1
         lastGold[a] = -1
-        lastBoom[a] = not Boom[a]
-        lastRock[a] = not Rock[a]
+        lastBoom[a] = not boom[a]
+        lastRock[a] = not rock[a]
     for a = 1 to 2
         lastKingHP[a] = -1
         lastHeal[a] = -1

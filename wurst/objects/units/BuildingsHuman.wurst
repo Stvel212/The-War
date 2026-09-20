@@ -92,7 +92,7 @@ import UnitStats
 	..setSelectionScale(2.0)
 	..setButtonPositionY(2)
 	..setNormalAbilities("A006,Avul")
-	..setGoldCost(700) // 495 + 205 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(495)
 	..setLumberCost(0)
 	..setRepairGoldCost(0)
 	..setRepairLumberCost(0)
@@ -130,7 +130,7 @@ import UnitStats
 	..setSelectionScale(2.0)
 	..setButtonPositionY(2)
 	..setNormalAbilities("A006,Avul")
-	..setGoldCost(825) // 600 + 225 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(600)
 	..setLumberCost(0)
 	..setRepairGoldCost(0)
 	..setRepairLumberCost(0)
@@ -164,7 +164,7 @@ import UnitStats
 	..setUpgradesUsed("")
 	..setSelectionScale(2.0)
 	..setNormalAbilities("A006,Avul")
-	..setGoldCost(560) // 260 + 300 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(260)
 	..setLumberCost(0)
 	..setRepairGoldCost(0)
 	..setRepairLumberCost(0)
@@ -202,7 +202,7 @@ import UnitStats
 	..setScalingValue(0.6)
 	..setSelectionScale(2.0)
 	..setNormalAbilities("Avul,A006")
-	..setGoldCost(300) // 185 + 115 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(185)
 	..setLumberCost(0)
 	..setRepairGoldCost(0)
 	..setRepairLumberCost(0)
@@ -237,7 +237,7 @@ import UnitStats
 	..setSelectionScale(1.5)
 	..setButtonPositionY(2)
 	..setNormalAbilities("A006,Avul")
-	..setGoldCost(610) // 260 + 350 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(260)
 	..setLumberCost(0)
 	..setRepairGoldCost(0)
 	..setRepairLumberCost(0)
@@ -271,7 +271,7 @@ import UnitStats
 	..setSelectionScale(1.5)
 	..setButtonPositionY(2)
 	..setNormalAbilities("A006,Avul")
-	..setGoldCost(350) // 240 + 110 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(240)
 	..setLumberCost(0)
 	..setRepairGoldCost(0)
 	..setRepairLumberCost(0)
@@ -338,7 +338,7 @@ import UnitStats
 	..setUpgradesUsed("")
 	..setSelectionScale(2.0)
 	..setNormalAbilities("A006,Avul")
-	..setGoldCost(485) // 300 + 185 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(300)
 	..setLumberCost(0)
 	..setRepairGoldCost(0)
 	..setRepairLumberCost(0)
@@ -372,7 +372,7 @@ import UnitStats
 	..setSelectionScale(2.0)
 	..setButtonPositionY(2)
 	..setNormalAbilities("A006,Avul")
-	..setGoldCost(555) // 335 + 220 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(335)
 	..setLumberCost(0)
 	..setRepairGoldCost(0)
 	..setRepairLumberCost(0)
@@ -444,7 +444,7 @@ import UnitStats
 	..setUpgradesUsed("")
 	..setSelectionScale(2.0)
 	..setNormalAbilities("A006,Avul")
-	..setGoldCost(800) // 500 + 300 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(500)
 	..setLumberCost(0)
 	..setRepairGoldCost(0)
 	..setRepairLumberCost(0)
@@ -483,7 +483,7 @@ import UnitStats
 	..setScalingValue(1.3)
 	..setSelectionScale(2.0)
 	..setNormalAbilities("Avul")
-	..setGoldCost(1490) // 900 + 590 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(900)
 	..setLumberCost(0)
 	..setRepairGoldCost(0)
 	..setRepairLumberCost(0)
@@ -516,7 +516,7 @@ import UnitStats
 	..setSelectionScale(2.0)
 	..setButtonPositionY(2)
 	..setNormalAbilities("Avul")
-	..setGoldCost(1305) // 710 + 595 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(710)
 	..setLumberCost(0)
 	..setRepairGoldCost(0)
 	..setRepairLumberCost(0)
@@ -589,7 +589,7 @@ import UnitStats
 	..setScalingValue(0.9)
 	..setSelectionScale(2.0)
 	..setNormalAbilities("Avul")
-	..setGoldCost(1550) // 925 + 625 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(925)
 	..setLumberCost(0)
 	..setRepairGoldCost(0)
 	..setRepairLumberCost(0)
@@ -627,7 +627,7 @@ import UnitStats
 	..setScalingValue(0.9)
 	..setSelectionScale(2.0)
 	..setNormalAbilities("Avul,A0H2")
-	..setGoldCost(1500) // 900 + 600 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(900)
 	..setLumberCost(0)
 	..setRepairGoldCost(0)
 	..setRepairLumberCost(0)
@@ -744,7 +744,7 @@ import UnitStats
 	..setUpgradesUsed("")
 	..setSelectionScale(2.0)
 	..setNormalAbilities("Avul,A0GZ")
-	..setGoldCost(1510) // 900 + 610 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(900)
 	..setLumberCost(0)
 	..setRepairGoldCost(0)
 	..setRepairLumberCost(0)
@@ -783,7 +783,7 @@ import UnitStats
 	..setUpgradesUsed("")
 	..setSelectionScale(2.0)
 	..setNormalAbilities("Avul")
-	..setGoldCost(1500) // 920 + 580 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(920)
 	..setLumberCost(0)
 	..setRepairGoldCost(0)
 	..setRepairLumberCost(0)
@@ -1050,7 +1050,7 @@ import UnitStats
 	..setSelectionScale(0.9)
 	..setButtonPositionY(2)
 	..setNormalAbilities("A006,Avul,A0GV")
-	..setGoldCost(520) // 295 + 225 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(295)
 	..setLumberCost(0)
 	..setRepairGoldCost(0)
 	..setRepairLumberCost(0)
@@ -1084,7 +1084,7 @@ import UnitStats
 	..setSelectionScale(2.0)
 	..setButtonPositionY(2)
 	..setNormalAbilities("A006,Avul")
-	..setGoldCost(290) // 180 + 110 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(180)
 	..setLumberCost(0)
 	..setRepairGoldCost(0)
 	..setRepairLumberCost(0)
@@ -1118,7 +1118,7 @@ import UnitStats
 	..setSelectionScale(2.0)
 	..setButtonPositionY(2)
 	..setNormalAbilities("A006,Avul")
-	..setGoldCost(580) // 290 + 290 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(290)
 	..setLumberCost(0)
 	..setRepairGoldCost(0)
 	..setRepairLumberCost(0)
@@ -1151,7 +1151,7 @@ import UnitStats
 	..setSelectionScale(2.0)
 	..setButtonPositionY(2)
 	..setNormalAbilities("A006,Avul")
-	..setGoldCost(595) // 375 + 220 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(375)
 	..setLumberCost(0)
 	..setRepairGoldCost(0)
 	..setRepairLumberCost(0)
@@ -1188,7 +1188,7 @@ import UnitStats
 	..setScalingValue(0.9)
 	..setSelectionScale(2.0)
 	..setNormalAbilities("A006,Avul")
-	..setGoldCost(615) // 500 + 115 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(500)
 	..setLumberCost(0)
 	..setRepairGoldCost(0)
 	..setRepairLumberCost(0)
@@ -1223,7 +1223,7 @@ import UnitStats
 	..setUpgradesUsed("")
 	..setSelectionScale(2.0)
 	..setNormalAbilities("A006,Avul")
-	..setGoldCost(560) // 375 + 185 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(375)
 	..setLumberCost(0)
 	..setRepairGoldCost(0)
 	..setRepairLumberCost(0)
@@ -1260,7 +1260,7 @@ import UnitStats
 	..setSelectionScale(2.0)
 	..setButtonPositionY(2)
 	..setNormalAbilities("A006,Avul")
-	..setGoldCost(550) // 345 + 205 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(345)
 	..setLumberCost(0)
 	..setRepairGoldCost(0)
 	..setRepairLumberCost(0)
@@ -1367,7 +1367,7 @@ import UnitStats
 	..setScalingValue(0.9)
 	..setSelectionScale(2.0)
 	..setNormalAbilities("Avul,A0H0")
-	..setGoldCost(1575) // 950 + 625 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(950)
 	..setLumberCost(0)
 	..setRepairGoldCost(0)
 	..setRepairLumberCost(0)
@@ -1467,7 +1467,7 @@ import UnitStats
 	..setSelectionScale(0.9)
 	..setButtonPositionY(2)
 	..setNormalAbilities("A006,Avul,A0GW")
-	..setGoldCost(300) // 225 + 75 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(225)
 	..setLumberCost(0)
 	..setRepairGoldCost(0)
 	..setRepairLumberCost(0)
@@ -1542,7 +1542,7 @@ import UnitStats
 	..setScalingValue(0.9)
 	..setSelectionScale(2.0)
 	..setNormalAbilities("Avul,A0HM,A0HN,A0HL")
-	..setGoldCost(1575) // 950 + 625 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(950)
 	..setLumberCost(0)
 	..setRepairGoldCost(0)
 	..setRepairLumberCost(0)
@@ -1617,7 +1617,7 @@ import UnitStats
 	..setScalingValue(0.9)
 	..setSelectionScale(2.0)
 	..setNormalAbilities("Avul,A0EE")
-	..setGoldCost(1535) // 925 + 610 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(925)
 	..setLumberCost(0)
 	..setRepairGoldCost(0)
 	..setRepairLumberCost(0)
@@ -1692,7 +1692,7 @@ import UnitStats
 	..setScalingValue(0.9)
 	..setSelectionScale(2.0)
 	..setNormalAbilities("Avul")
-	..setGoldCost(1300) // 725 + 575 (здание-источник): Reforged показывает разницу, см. UpgradeCosts
+	..setGoldCost(725)
 	..setLumberCost(0)
 	..setRepairGoldCost(0)
 	..setRepairLumberCost(0)

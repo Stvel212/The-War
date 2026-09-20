@@ -1,5 +1,4 @@
 package Main
-import UpgradeCosts
 import Initialization
 import MapGlobals
 import ClosureEvents
@@ -35,7 +34,7 @@ function player.forbid(int t)
     SetPlayerTechMaxAllowed(this, t, 0)
 
 function player.coloredName() returns string
-    return "|c00" + Color[this.getId()] + this.getName() + "|r"
+    return "|c00" + colorCode[this.getId()] + this.getName() + "|r"
 
 /** Боевой юнит: не герой, не рабочий, не здание, не древний, не 'o00P' */
 function unit.isFighter() returns bool
@@ -64,7 +63,7 @@ function deathGold()
     if k.getTypeId() == 'n02T'
         p.setLumber(p.getLumber() + gold)
         goldText(d, p, gold)
-        text(d, localPlayer == p ? "|cff00FF00+" + gold.toString() + "|r" : "", 10.0, 3.50, 50.0)
+        text(d, localPlayer == p ? "|cff00FF00+" + gold + "|r" : "", 10.0, 3.50, 50.0)
 
 // ============================================================
 // Триггер: Proxod — юнит прошёл через чужой портал: награда его игроку (и «камню» той линии), юнит идёт обратно
@@ -76,8 +75,8 @@ function passLane(unit u, player a, int food, bool leftPassed)
     let y = u.getY().toInt()
     let x = u.getX().toInt()
     // первая кровь: +28 золота каждому в команде прошедшего
-    if not FirstBlood
-        FirstBlood = true
+    if not firstBlood
+        firstBlood = true
         for i = (leftPassed ? 0 : 4) to (leftPassed ? 3 : 7)
             players[i].setGold(players[i].getGold() + 28)
         PingMinimapEx(x.toReal(), y.toReal(), 10.0, 100, 0, 0, false)
@@ -94,18 +93,18 @@ function passLane(unit u, player a, int food, bool leftPassed)
     else if y > -3300
         lane = 1
     let defender = players[leftPassed ? 4 + lane : lane]
-    if Rock[defender.getId()]
+    if rock[defender.getId()]
         defender.setGold(defender.getGold() + food * 2)
-        DisplayTextToPlayer(defender, 0.0, 0.0, "|cffff0000You received:|r |cffffff00+" + (food * 2).toString() + " gold!|r")
+        DisplayTextToPlayer(defender, 0.0, 0.0, "|cffff0000You received:|r |cffffff00+" + (food * 2) + " gold!|r")
     // юнит возвращается к своим воротам; при «камне» (или у короля) — с 10 HP и 'A0GU'
     SetUnitPosition(u, leftPassed ? -3500.0 : 2950.0, GetRandomReal(-300.0, 850.0))
-    if Rock[a.getId()] or a == players[leftPassed ? 8 : 9]
+    if rock[a.getId()] or a == players[leftPassed ? 8 : 9]
         u.setHP(10.0)
         u.addAbility('A0GU')
     u.attackLane(y.toReal())
-    if not Rock[a.getId()]
+    if not rock[a.getId()]
         a.setGold(a.getGold() + food * 2)
-        DisplayTextToPlayer(a, 0.0, 0.0, "|cffff0000You received:|r |cffffff00+" + (food * 2).toString() + " gold!|r")
+        DisplayTextToPlayer(a, 0.0, 0.0, "|cffff0000You received:|r |cffffff00+" + (food * 2) + " gold!|r")
         let r1 = GetPlayerTechCount(a, 'R001', true)
         if r1 > 0
             u.addAbility('A09T')
@@ -228,7 +227,7 @@ function castGlobal(unit u)
     let id = u.getOwner().getId()
     if u.isType(UNIT_TYPE_SAPPER) and sinergiaDE[id] == 1
         u.addAbility('A0DH')
-    let lvl = Builder[id].getAbilityLevel('A0CS')
+    let lvl = builders[id].getAbilityLevel('A0CS')
     if lvl == 1
         u.addAbility('A01E')
     else if lvl == 2
@@ -282,7 +281,7 @@ function watchTrees()
     let trg = CreateTrigger()
         ..addAction(function regrowTree)
     for a = 0 to 7
-        let b = Builder[a]
+        let b = builders[a]
         let r = Rect(b.getX() - 2500, b.getY() - 2500, b.getX() + 2500, b.getY() + 2500)
         forDestructablesInRect(r) d ->
             let id = d.getHandleId()
@@ -320,11 +319,11 @@ function build()
     let id = p.getId()
     let t = u.getTypeId()
     if t == 'h02Q'
-        Rock[id] = true
+        rock[id] = true
         printAll("|cffff00ff" + p.coloredName() + " |cffff00ff has placed a defensive stone and switches to defensive mode!|r")
         SetPlayerTechMaxAllowed(players[id < 4 ? id + 4 : id - 4], 'h02Q', 0)
-    Force[id] += unitOwnGoldCost(t)
-    BuildUnit.add(u)
+    power[id] += GetUnitGoldCost(t)
+    buildUnits.add(u)
 
 // ============================================================
 // Триггер: Wisp — обучен рабочий: счётчик и обычная проходимость
@@ -334,7 +333,7 @@ function build()
 function wisp()
     let t = GetTrainedUnit()
     if t.isType(UNIT_TYPE_PEON)
-        Wisp[t.getOwner().getId()] += 1
+        wispCount[t.getOwner().getId()] += 1
         t.setPathing(true)
 
 // ============================================================
@@ -344,7 +343,7 @@ function wisp()
 @noinline
 function upgreid()
     let u = GetTriggerUnit()
-    Force[u.getOwner().getId()] += unitOwnGoldCost(u.getTypeId())
+    power[u.getOwner().getId()] += GetUnitGoldCost(u.getTypeId())
 
 // ============================================================
 // Триггер: ZapretBaza — рабочих, героев и древних, вышедших с базы, подтягивает обратно
@@ -418,7 +417,7 @@ function zapretSummons()
         SetUnitPosition(GetTriggerUnit(), 0.0, 0.0)
 
 // ============================================================
-// Триггер: Naim — наёмник куплен: инком по типу, юнит ставится на линию (по заряду артефакта продавца) и в группу Naim
+// Триггер: Naim — наёмник куплен: инком по типу, юнит ставится на линию (по заряду артефакта продавца) и в группу naimGroup
 // ============================================================
 
 /** Прибавка к инкому за наёмника по типу; для прочих — по цене в дереве (1/20, при инкоме >= 300 — 1/30) */
@@ -446,7 +445,7 @@ function mercenaryIncome(unit u, int currentIncome) returns int
         return 30
     else if t == 'n03A'
         return 40
-    return unitOwnWoodCost(t) div (currentIncome < 300 ? 20 : 30)
+    return GetUnitWoodCost(t) div (currentIncome < 300 ? 20 : 30)
 
 /** Страж Короля: ко вратам своей команды и в атаку */
 function kingGuard(unit u)
@@ -476,9 +475,9 @@ function naim()
         y = GetRandomInt(2200, 2500)
     else if art == 4
         y = GetRandomInt(4800, 5100)
-    Income[id] += mercenaryIncome(u, Income[id])
+    income[id] += mercenaryIncome(u, income[id])
     SetUnitPosition(u, u.getX() + GetRandomInt(-50, 50), y.toReal())
-    Naim.add(u)
+    naimGroup.add(u)
 
 // ============================================================
 // Триггер: NaimMid — Страж Короля обучен в 'h001'
@@ -500,14 +499,14 @@ function isHeroBuilding(int t) returns bool
 function zapretHero()
     let u = GetTriggerUnit()
     let p = u.getOwner()
-    if not isHeroBuilding(u.getTypeId()) or Hero[p.getId()]
+    if not isHeroBuilding(u.getTypeId()) or hasHero[p.getId()]
         return
     p..forbid('h02P')..forbid('h02B')..forbid('h029')..forbid('h023')
         ..forbid('h01T')..forbid('h01Z')..forbid('h02O')..forbid('h021')
         ..forbid('h01S')..forbid('h02H')..forbid('h02F')..forbid('h027')
         ..forbid('h025')..forbid('h01X')..forbid('h099')..forbid('h09J')
         ..forbid('h09W')..forbid('h0AG')
-    Hero[p.getId()] = true
+    hasHero[p.getId()] = true
 
 // ============================================================
 // Триггер: Book — исследование 'R003': +30 к лимиту еды за первый уровень, +40 за 2-4
@@ -523,7 +522,7 @@ function book()
         p.setState(PLAYER_STATE_RESOURCE_FOOD_CAP, p.getState(PLAYER_STATE_RESOURCE_FOOD_CAP) + (lvl == 1 ? 30 : 40))
 
 // ============================================================
-// Триггер: AntiKamen — особые здания: каждое строится один раз, всего не больше UnitS + 1
+// Триггер: AntiKamen — особые здания: каждое строится один раз, всего не больше unitS + 1
 // ============================================================
 
 function isSpecialBuilding(int t) returns bool
@@ -536,9 +535,9 @@ function antiKamen()
         return
     let p = u.getOwner()
     let id = p.getId()
-    SpecUnit[id] += 1
+    specUnit[id] += 1
     p.forbid(u.getTypeId())
-    if SpecUnit[id] > UnitS[id] + 1
+    if specUnit[id] > unitS[id] + 1
         p..forbid('h017')..forbid('h04D')..forbid('h055')
             ..forbid('h05X')..forbid('h06L')..forbid('h08E')..forbid('h09Z')
 
@@ -567,7 +566,7 @@ function kamenMana(unit u)
         need = 20000
     if need == 0
         return
-    if Force[u.getOwner().getId()] >= need
+    if power[u.getOwner().getId()] >= need
         u.incAbilityLevel('A02S')
         addManaToUnits(u, lvl == 1 ? 1.0 : 2.0)
         e.destr()
@@ -604,7 +603,7 @@ function kamenSpell(unit u, int ab)
         u.upgradeStone('A037')
     else if ab == 'A0ET'
         if u.upgradeStone('A0EU') > 0
-            UnitS[id] += 1
+            unitS[id] += 1
     else if ab == 'A0EV'
         u.upgradeStone('S00Z')
     else if ab == 'A0EW'
@@ -612,11 +611,11 @@ function kamenSpell(unit u, int ab)
     else if ab == 'A0EY'
         let lvl = u.upgradeStone('A0EZ')
         if lvl == 1
-            Arthas[id].itemInSlot(2).remove()
+            arthas[id].itemInSlot(2).remove()
         else if lvl == 2
-            Arthas[id].itemInSlot(3).remove()
+            arthas[id].itemInSlot(3).remove()
         else if lvl == 3
-            LimitArt[id] += 1
+            limitArt[id] += 1
 
 // ============================================================
 // Триггер: KamenStavit — камень 'h02Q' можно ставить только на белый мрамор
@@ -628,9 +627,9 @@ function kamenStavit(unit u)
         return
     let p = u.getOwner()
     u.remove()
-    Rock[p.getId()] = false
+    rock[p.getId()] = false
     SetPlayerTechMaxAllowed(p, 'h02Q', 1)
-    Builder[p.getId()].issueImmediateOrder("stop")
+    builders[p.getId()].issueImmediateOrder("stop")
     DisplayTextToPlayer(p, 0.0, 0.0, "Can only be placed on white marble!!!")
 
 @noinline
