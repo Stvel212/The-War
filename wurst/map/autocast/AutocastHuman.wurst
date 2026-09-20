@@ -1,0 +1,109 @@
+package AutocastHuman
+import Initialization
+import UnitEvents
+import ClosureTimers
+
+// ============================================================
+// Триггер: PrizivPehov — призыв трёх пехотинцев ('A00X' снимается, одноразово)
+// ============================================================
+
+@noinline
+function prizivPehov()
+    let a = GetAttacker()
+    if a.getAbilityLevel('A00X') != 1
+        return
+    a.removeAbility('A00X')
+    let summonId = a.getTypeId() == 'h00R' ? 'h007' : 'h00L'
+    for i = 1 to 3
+        let u = CreateUnit(a.getOwner(), summonId, a.getX(), a.getY(), 0.0)
+        u.attackLane()
+        u.setTimedLife(360.0, 'BHwe')
+        addEffect("Abilities\\Spells\\Human\\MassTeleport\\MassTeleportCaster.mdl", u.getPos()).destr()
+
+// ============================================================
+// Триггер: Admiral — за каждое убийство уровень 'A019' до 5
+// ============================================================
+
+@noinline
+function admiral()
+    let k = GetKillingUnit()
+    if k.getAbilityLevel('A019') < 5
+        k.incAbilityLevel('A019')
+
+// ============================================================
+// Триггер: IceArcher — при полной мане стрела 'A01A' вместо 'A01B'
+// ============================================================
+
+@noinline
+function iceArcher()
+    let a = GetAttacker()
+    // способности переключаются только когда состояние изменилось — add/removeAbility на каждую атаку дороги
+    if a.getMana() == 60
+        a.removeAbility('A01B')
+        a.addAbility('A01A')
+        a.setMana(0.0)
+    else if not a.hasAbility('A01B')
+        a.removeAbility('A01A')
+        a.addAbility('A01B')
+
+// ============================================================
+// Триггер: Fenix — при полной мане 'A01G' второго уровня на 5 секунд
+// ============================================================
+
+@noinline
+function fenix()
+    let a = GetAttacker()
+    if a.getMana() != 60 or a.getAbilityLevel('A01G') == 2
+        return
+    a.setAbilityLevel('A01G', 2)
+    addEffect("Abilities\\Spells\\Human\\MarkOfChaos\\MarkOfChaosTarget.mdl", a, "overhead").destr()
+    doAfter(5.0) ->
+        a.setAbilityLevel('A01G', 1)
+        a.setMana(0.0)
+
+// ============================================================
+// Триггер: Knight — с шансом 30% 'A01M' + 'S007' на 2 секунды
+// ============================================================
+
+@noinline
+function knight()
+    let a = GetAttacker()
+    if a.hasAbility('A01M') or GetRandomInt(1, 10) > 3
+        return
+    addEffect("Abilities\\Spells\\Other\\Incinerate\\FireLordDeathExplode.mdl", a.getPos()).destr()
+    a.addAbility('A01M')
+    a.addAbility('S007')
+    doAfter(2.0) ->
+        addEffect("Abilities\\Spells\\Orc\\Bloodlust\\BloodlustTarget.mdl", a, "weapon").destr()
+        a.removeAbility('A01M')
+        a.removeAbility('S007')
+
+// ============================================================
+// Триггер: Mortira — за убийство +урон и уровень 'A0BN' (до 4 у 'h00F', до 7 у 'h00G')
+// ============================================================
+
+@noinline
+function mortira()
+    let k = GetKillingUnit()
+    let id = k.getTypeId()
+    let lvl = k.getAbilityLevel('A0BN')
+    if id == 'h00F' and lvl < 4
+        wDammiAtt(k, 15)
+        k.incAbilityLevel('A0BN')
+    else if id == 'h00G' and lvl < 7
+        wDammiAtt(k, 20)
+        k.incAbilityLevel('A0BN')
+
+init
+    onAttackBy('h00R', 'h00N') ->
+        prizivPehov()
+    onAttackBy('h00O') ->
+        iceArcher()
+    onAttackBy('h00J') ->
+        fenix()
+    onAttackBy('h00H') ->
+        knight()
+    onKillBy('h00Q') ->
+        admiral()
+    onKillBy('h00G', 'h00F') ->
+        mortira()

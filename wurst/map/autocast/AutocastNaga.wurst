@@ -1,0 +1,295 @@
+package AutocastNaga
+import Initialization
+import UnitEvents
+import ClosureTimers
+import UnitSearch
+
+/** Всплывающий текст урона над юнитом */
+function unit.showDamage(int dmg)
+    text(this, "|cffFF0000+" + dmg.toString() + "|r", 10.0, 3.50, 50.0)
+
+// ============================================================
+// Триггер: DopDamage — 'n023'/'n029' добивают не-героев по недостающему HP
+// ============================================================
+
+@noinline
+function dopDamage()
+    let a = GetAttacker()
+    let t = GetTriggerUnit()
+    let id = a.getTypeId()
+    if t.isType(UNIT_TYPE_HERO)
+        return
+    let missing = t.getMaxHP().toInt() - t.getHP().toInt()
+    let dmg = id == 'n029' ? min(40, missing div 25) : min(84, missing div 12)
+    a.damageTarget(t, dmg.toReal(), true, true, ATTACK_TYPE_MELEE, DAMAGE_TYPE_NORMAL, WEAPON_TYPE_WHOKNOWS)
+    addEffect("Abilities\\Spells\\Other\\CrushingWave\\CrushingWaveDamage.mdl", t.getPos()).destr()
+    a.showDamage(dmg)
+
+// ============================================================
+// Триггер: GydraOpalenna — 'A0GM' растёт с каждой атакой до 30, на 10-м уровне эффект
+// ============================================================
+
+@noinline
+function gydraOpalenna()
+    let a = GetAttacker()
+    let lvl = a.getAbilityLevel('A0GM')
+    if lvl >= 1 and lvl <= 30
+        a.incAbilityLevel('A0GM')
+        if lvl + 1 == 10
+            addEffect("Abilities\\Spells\\Orc\\TrollBerserk\\HeadhunterWEAPONSRight.mdl", a, "overhead")
+
+// ============================================================
+// Триггер: GydraMylti — при полной мане включается мультиатака, иначе снимается
+// ============================================================
+
+@noinline
+function gydraMylti()
+    let a = GetAttacker()
+    let abil = a.getTypeId() == 'n024' ? 'A06E' : 'A06D'
+    if a.getMana() == 60
+        a.addAbility(abil)
+        a.setMana(0.0)
+    else if a.hasAbility(abil)
+        a.removeAbility(abil)
+
+// ============================================================
+// Триггер: NagaHeal — каждая N-я атака лечит: 'n02N' — 7-я на 1/10 HP, 'n025' — 5-я на 1/13
+// ============================================================
+
+@noinline
+function nagaHeal()
+    let a = GetAttacker()
+    let id = a.getTypeId()
+    let every = id == 'n02N' ? 7 : 5
+    let part = id == 'n02N' ? 10 : 13
+    if a.getAbilityLevel('A06F') == every
+        addEffect("Abilities\\Spells\\Other\\CrushingWave\\CrushingWaveDamage.mdl", a.getPos()).destr()
+        a.setHP(a.getHP() + a.getMaxHP() / part)
+        a.setAbilityLevel('A06F', 1)
+    else
+        a.incAbilityLevel('A06F')
+
+// ============================================================
+// Триггер: DopDamage1 — 'n027'/'n02J' с шансом 25% бьют долей от максимума HP
+// ============================================================
+
+@noinline
+function dopDamage1()
+    let a = GetAttacker()
+    let t = GetTriggerUnit()
+    let id = a.getTypeId()
+    if t.isType(UNIT_TYPE_HERO) or GetRandomInt(1, 100) > 25
+        return
+    // 'n02J' всегда 1/20; 'n027' — 1/15 по наземным и 1/7 по летающим ('A00W')
+    var part = 20
+    if id == 'n027'
+        part = t.getAbilityLevel('A00W') == 0 ? 15 : 7
+    let dmg = t.getMaxHP().toInt() div part
+    a.damageTarget(t, dmg.toReal(), true, false, ATTACK_TYPE_PIERCE, DAMAGE_TYPE_NORMAL, WEAPON_TYPE_WHOKNOWS)
+    addEffect("Abilities\\Spells\\Other\\Cleave\\CleaveDamageTarget.mdl", t.getPos()).destr()
+    a.showDamage(dmg)
+
+// ============================================================
+// Триггер: AttackNaga — 'n028': каждая 6-я атака +100 магического урона
+// ============================================================
+
+@noinline
+function attackNaga()
+    let a = GetAttacker()
+    if a.getAbilityLevel('A06I') == 1
+        a.setAbilityLevel('A06I', 6)
+        a.damageTarget(GetTriggerUnit(), 100.0, true, false, ATTACK_TYPE_MAGIC, DAMAGE_TYPE_NORMAL, WEAPON_TYPE_WHOKNOWS)
+        addEffect("Abilities\\Spells\\Other\\Monsoon\\MonsoonBoltTarget.mdl", GetTriggerUnit().getPos()).destr()
+    DecUnitAbilityLevel(a, 'A06I')
+
+// ============================================================
+// Триггер: Murlock — из 'n02C' выходят два 'n02A', из 'n02A' — 'n02M' (не призванные)
+// ============================================================
+
+@noinline
+function murlock()
+    let d = GetDyingUnit()
+    let id = d.getTypeId()
+    if d.isType(UNIT_TYPE_SUMMONED)
+        return
+    let count = id == 'n02C' ? 2 : 1
+    let spawnId = id == 'n02C' ? 'n02A' : 'n02M'
+    for i = 1 to count
+        let u = CreateUnit(d.getOwner(), spawnId, d.getX(), d.getY(), 0.0)
+        addEffect("Objects\\Spawnmodels\\Naga\\NagaDeath\\NagaDeath.mdl", u.getPos()).destr()
+        u.attackLane(GetKillingUnit().getY())
+
+// ============================================================
+// Триггер: Sea Giant — 'n02B': растит 'A06O', при полной мане и HP < 50% лечится на 666
+// ============================================================
+
+@noinline
+function seaGiant()
+    let t = GetTriggerUnit()
+    if t.getAbilityLevel('A06O') == 1
+        t.incAbilityLevel('A06O')
+    if t.getMana() == 60 and t.getHP() / t.getMaxHP() < 0.5
+        t.setHP(t.getHP() + 666)
+        addEffect("Objects\\Spawnmodels\\Naga\\NagaDeath\\NagaDeath.mdl", t.getPos()).destr()
+        t.setMana(0.0)
+
+// ============================================================
+// Триггер: Water1 (Cloner) — 'n02I' с шансом 35% вешает 'S00V' на 10 секунд
+// ============================================================
+
+@noinline
+function cloner()
+    let t = GetTriggerUnit()
+    if t.getAbilityLevel('B038') == 1 or t.isType(UNIT_TYPE_HERO) or GetRandomInt(1, 100) > 35
+        return
+    t.addAbility('S00V')
+    doAfter(10.0) ->
+        t.removeAbility('S00V')
+
+// ============================================================
+// Триггер: Strelok — 'h07O'/'h07V' при HP >= 70% переключают усиление туда-обратно
+// ============================================================
+
+@noinline
+function strelok()
+    let a = GetAttacker()
+    let id = a.getTypeId()
+    if a.getHP() / a.getMaxHP() < 0.70
+        return
+    if id == 'h07V'
+        if a.getAbilityLevel('A04U') == 0
+            a.addAbility('A04U')
+        else if a.getAbilityLevel('A04U') == 1
+            a.removeAbility('A04U')
+    else if a.getAbilityLevel('A06X') == 0
+        a.addAbility('A06X')
+        a.addAbility('A06W')
+    else if a.getAbilityLevel('A06X') == 1
+        a.removeAbility('A06X')
+
+// ============================================================
+// Триггер: Ognemet — 'h07R': ниже 70% HP получает 'A06Y'+'A06Z', выше — теряет
+// ============================================================
+
+@noinline
+function ognemet()
+    let a = GetAttacker()
+    if a.getHP() / a.getMaxHP() >= 0.70
+        if a.getAbilityLevel('A06Y') == 1
+            a.removeAbility('A06Y')
+            a.removeAbility('A06Z')
+    else if a.getAbilityLevel('A06Y') == 0
+        a.addAbility('A06Z')
+        a.addAbility('A06Y')
+
+// ============================================================
+// Триггер: DopAC — 'h07P' по цели с HP <= 30% получает 'A04U' на 3 секунды
+// ============================================================
+
+@noinline
+function dopAC()
+    let a = GetAttacker()
+    if a.getAbilityLevel('A04U') != 0 or GetTriggerUnit().getHP() / GetTriggerUnit().getMaxHP() > 0.30
+        return
+    a.addAbility('A04U')
+    doAfter(3.0) ->
+        a.removeAbility('A04U')
+
+// ============================================================
+// Триггер: ClocwerkHeal — 'n02V'/'n02W': ниже 40% HP чинится по 22 HP каждые 0.6 с, пока не поднимется выше
+// ============================================================
+
+@noinline
+function clocwerkHeal()
+    let t = GetTriggerUnit()
+    let id = t.getTypeId()
+    let hp = t.getHP() / t.getMaxHP()
+    if hp <= 0.70 and id == 'n02V'
+        t.addAbility('A0DB')
+    else
+        t.removeAbility('A0DB')
+    if t.getAbilityLevel('A078') > 0 and hp <= 0.40
+        t.removeAbility('A078')
+        doPeriodically(0.6) cb ->
+            let part = t.getHP() / t.getMaxHP()
+            if part <= 0.40 and part > 0
+                t.setHP(t.getHP() + 22)
+                addEffect("Abilities\\Spells\\Human\\FlakCannons\\FlakTarget.mdl", t.getPos()).destr()
+            else
+                t.addAbility('A078')
+                destroy cb
+
+// ============================================================
+// Триггер: HealAlhemic — 'h07T' при полной мане лечит случайного раненого союзника на 16%
+// ============================================================
+
+@noinline
+function healAlhemic()
+    let a = GetAttacker()
+    if a.getMana() < 60
+        return
+    let p = a.getOwner()
+    let u = randomUnitInRange(a.getPos(), 500.0, (f) -> f.isAllyOf(p) and f.getTypeId() != 'n02J' and (f.getHP() / f.getMaxHP()) <= 0.84)
+    if u != null
+        CreateUnit(p, 'e002', a.getX(), a.getY(), 0.0)
+            ..issueTargetOrder("attack", u)
+            ..setTimedLife(1.0, 'BHwe')
+        u.setHP(u.getHP() + u.getMaxHP() * 0.16)
+        a.setMana(0.0)
+
+// ============================================================
+// Триггер: ManaAlhemic — 'h07T' за атаку получает 7-13 маны
+// ============================================================
+
+@noinline
+function manaAlhemic()
+    let a = GetAttacker()
+    a.setMana(a.getMana() + GetRandomInt(7, 13).toReal())
+
+// ============================================================
+// Триггер: MagicDamage — 'n00W' тратит всю ману на урон (5 за единицу)
+// ============================================================
+
+@noinline
+function magicDamage()
+    let a = GetAttacker()
+    if a.getMana() < 1
+        return
+    let dmg = (a.getMana() * 5).toInt()
+    a.setMana(0.0)
+    a.damageTarget(GetTriggerUnit(), dmg.toReal(), true, false, ATTACK_TYPE_NORMAL, DAMAGE_TYPE_ENHANCED, WEAPON_TYPE_WHOKNOWS)
+    text(a, "|cff00FF00+" + dmg.toString() + "|r", 10.0, 3.50, 50.0)
+
+init
+    onAttackBy('n023', 'n029') ->
+        dopDamage()
+    onAnyAttack() ->
+        gydraOpalenna()
+    onAttackBy('n024', 'n02F') ->
+        gydraMylti()
+    onAttackBy('n02N', 'n025') ->
+        nagaHeal()
+    onAttackBy('n027', 'n02J') ->
+        dopDamage1()
+    onAttackBy('n028') ->
+        attackNaga()
+    onAttacked('n02B') ->
+        seaGiant()
+    onAttackBy('n02I') ->
+        cloner()
+    onAttackBy('h07O', 'h07V') ->
+        strelok()
+    onAttackBy('h07R') ->
+        ognemet()
+    onAttackBy('h07P') ->
+        dopAC()
+    onAttacked('n02V', 'n02W') ->
+        clocwerkHeal()
+    onAttackBy('h07T') ->
+        healAlhemic()
+    onAttackBy('h07T') ->
+        manaAlhemic()
+    onAttackBy('n00W') ->
+        magicDamage()
+    onDeathOf('n02A', 'n02C') ->
+        murlock()

@@ -1,0 +1,196 @@
+package Builder
+import Initialization
+import MapGlobals
+import ClosureEvents
+import ClosureTimers
+import ClosureForGroups
+
+// ============================================================
+// Триггер: ControlAdd — выделил чужого юнита при общем контроле → полный контроль и заклинания; показать таблицу
+// ============================================================
+
+@noinline
+function controlAdd()
+    let owner = GetTriggerUnit().getOwner()
+    let p = GetTriggerPlayer()
+    if not owner.getPlayerAlliance(p, ALLIANCE_SHARED_CONTROL)
+        return
+    owner.setPlayerAlliance(p, ALLIANCE_SHARED_ADVANCED_CONTROL, true)
+    owner.setPlayerAlliance(p, ALLIANCE_SHARED_SPELLS, true)
+    udg_Board.display(true)
+
+// ============================================================
+// Триггер: Repick — 'A00I': замена расы за 100·(уровень-1) дерева, уровень растёт до 6
+// ============================================================
+
+@noinline
+function repick()
+    let u = GetTriggerUnit()
+    let p = u.getOwner()
+    let lvl = u.getAbilityLevel('A00I')
+    let cost = 100 * (lvl - 1)
+    if p.getLumber() < cost
+        DisplayTextToPlayer(p, 0.0, 0.0, "|c00FF8080Not enough resources for the replacement!|r")
+        return
+    addEffect("Abilities\\Spells\\Human\\MarkOfChaos\\MarkOfChaosTarget.mdl", u.getPos()).destr()
+    random(p)
+    p.setLumber(p.getLumber() - cost)
+    u.issueImmediateOrder("stop")
+    if lvl < 6
+        u.setAbilityLevel('A00I', lvl + 1)
+
+// ============================================================
+// Триггер: Flag — флаги 'e004' с разными способностями за золото/дерево; при нехватке — случайная реплика
+// ============================================================
+
+/** Ставит флаг со способностью abil за gold/lumber; если ресурсов нет — отменяет каст и ругается */
+function placeFlag(unit builder, int abil, int gold, int lumber, string joke)
+    let p = builder.getOwner()
+    if p.getLumber() >= lumber and p.getGold() >= gold
+        p.setGold(p.getGold() - gold)
+        p.setLumber(p.getLumber() - lumber)
+        CreateUnit(p, 'e004', GetSpellTargetX(), GetSpellTargetY(), 0.0)
+            ..addAbility(abil)
+            ..setTimedLife(10.0, 'BHwe')
+        return
+    builder.issueImmediateOrder("stop")
+    let roll = GetRandomInt(0, 5)
+    if roll < 3
+        DisplayTextToPlayer(p, 0.0, 0.0, "|c00FF8080Not enough resources to place a flag!|r")
+    else if roll < 5
+        DisplayTextToPlayer(p, 0.0, 0.0, "|c00FF8080You have no resources, you wreck!|r")
+    else
+        DisplayTextToPlayer(p, 0.0, 0.0, "|c00FF8080" + joke + "|r")
+
+@noinline
+function flag()
+    let abil = GetSpellAbilityId()
+    let u = GetTriggerUnit()
+    if abil == 'A00A'
+        placeFlag(u, 'S000', 0, 30, "Where are you poking?")
+    else if abil == 'A00C'
+        placeFlag(u, 'S001', 80, 30, "Doesn't stand up? Happens.")
+    else if abil == 'A00B'
+        placeFlag(u, 'S002', 300, 100, "Do you really need it?")
+    else if abil == 'A00D'
+        placeFlag(u, 'A00F', 500, 300, "Our flag burned down, the party's over!")
+    else if abil == 'A00E'
+        placeFlag(u, 'A00G', 1000, 500, "Did I ever tell you what the definition of insanity is?")
+
+// ============================================================
+// Триггер: Sell — продажа юнита ('A006' себя, 'A005' цель) или артефакта ('A00H')
+// ============================================================
+
+/** Продать юнита u игроку p за gold золота (из «силы» Force вычитается полный максимум HP) */
+function sellUnit(unit u, player p, int gold)
+    DisplayTextToPlayer(p, 0.0, 0.0, "|cffffff00You sold a unit for: " + gold.toString() + " gold|r")
+    p.setGold(p.getGold() + gold)
+    Force[p.getId()] -= u.getMaxHP().toInt()
+    BuildUnit.remove(u)
+    u.remove()
+    addEffect("Abilities\\Spells\\Other\\Transmute\\PileofGold.mdl", u.getPos()).destr()
+
+/** Продать артефакт s игроку p: обратно в магазин команды, золото = жизнь·заряды + userData */
+function sellArtifact(item s, player p)
+    let id = p.getId()
+    let sid = s.getTypeId()
+    if sid == 'I003' or sid == 'I013' or sid == 'I017' or sid == 'I01B' or sid == 'I01C' or sid == 'I008' or sid == 'I01J' or sid == 'I01H' or sid == 'I01E' or sid == 'I01D'
+        ItemZapretD[id] -= 1
+    if sid == 'I006' or sid == 'I00E' or sid == 'I00X' or sid == 'I015' or sid == 'I021' or sid == 'I00J' or sid == 'I00S'
+        ItemZapretS[id] -= 1
+    AddItemToStock(Magazin[id < 4 ? 7 : 16], sid, 1, 1)
+    let charges = max(1, s.getCharges())
+    let gold = (charges * s.getLife()).toInt() + s.getUserData()
+    p.setGold(p.getGold() + gold)
+    DisplayTextToPlayer(p, 0.0, 0.0, "|cffffff00You sold an artifact for: " + gold.toString() + " gold|r")
+    ForceItem[id] -= gold
+    s.remove()
+
+@noinline
+function sell()
+    let t = GetSpellTargetUnit()
+    let u = GetSpellAbilityUnit()
+    let s = GetSpellTargetItem()
+    let ab = GetSpellAbilityId()
+    let p = u.getOwner()
+    if not (t.isType(UNIT_TYPE_STRUCTURE) or u.isType(UNIT_TYPE_MECHANICAL) or ab == 'A00H')
+        return
+    if ab == 'A006'
+        if u.getAbilityLevel('A006') == 1
+            sellUnit(u, p, u.getMaxHP().toInt())
+        else if u.getAbilityLevel('A006') == 2
+            sellUnit(u, p, (u.getMaxHP() / 2).toInt())
+    else if ab == 'A005'
+        if t != null and t.getAbilityLevel('A006') == 2
+            doAfter(0.4) ->
+                sellUnit(t, p, t.getMaxHP().toInt())
+        else
+            u.issueImmediateOrder("stop")
+            DisplayTextToPlayer(p, 0.0, 0.0, "Impossible!")
+    else if ab == 'A00H'
+        if s != null and s.getTypeId() != 'I000'
+            doAfter(0.4) ->
+                sellArtifact(s, p)
+        else
+            u.issueImmediateOrder("stop")
+            DisplayTextToPlayer(p, 0.0, 0.0, "Impossible!")
+
+// ============================================================
+// Триггер: ZaminaVzryva — 'A003' «Взрыв»: смерть всем врагам (не героям) в радиусе 300 от точки
+// ============================================================
+
+@noinline
+function zaminaVzryva()
+    let c = GetTriggerUnit()
+    let p = c.getOwner()
+    let target = vec2(GetSpellTargetX(), GetSpellTargetY())
+    addEffect("Units\\NightElf\\Wisp\\WispExplode.mdl", target).destr()
+    forUnitsInRange(target, 300.0) u ->
+        if u.isEnemyOf(p) and u.getAbilityLevel('Avul') != 1 and not u.isType(UNIT_TYPE_HERO)
+            addEffect("Abilities\\Spells\\Demon\\DemonBoltImpact\\DemonBoltImpact.mdl", u.getPos()).destr()
+            c.damageTarget(u, 100000.0, true, false, ATTACK_TYPE_NORMAL, DAMAGE_TYPE_NORMAL, WEAPON_TYPE_WHOKNOWS)
+    Boom[p.getId()] = false
+    c.removeAbility('A003')
+    c.addAbility('A004')
+    if bj_FORCE_ALL_PLAYERS.containsPlayer(localPlayer)
+        DisplayTextToPlayer(localPlayer, 0.0, 0.0, "|c00" + Color[p.getId()] + p.getName() + "|r|cffff80ff used \"Blast\"!|r")
+
+// ============================================================
+// Триггер: SpeedBuild — 'A002': на 2 секунды носитель предмета 'I01Q' (ускорение стройки)
+// ============================================================
+
+@noinline
+function speedBuild()
+    let c = GetTriggerUnit()
+    let holder = CreateUnit(c.getOwner(), 'e00Y', c.getX(), c.getY(), 0.0)
+    holder.addItemHandle(CreateItem('I01Q', holder.getX(), holder.getY()))
+    holder.setTimedLife(2.0, 'BHwe')
+
+// ============================================================
+// Триггер: StopBuild — 'A001': союзные гиганты в радиусе 1000 стоят 5 секунд
+// ============================================================
+
+@noinline
+function stopBuild()
+    let c = GetTriggerUnit()
+    let p = c.getOwner()
+    forUnitsInRange(c.getPos(), 1000.0) u ->
+        if u.isAllyOf(p) and u.isType(UNIT_TYPE_GIANT)
+            u.setMoveSpeed(1.0)
+            doAfter(5.0) ->
+                u.setMoveSpeed(u.getDefaultMovespeed())
+
+init
+    EventListener.add(EVENT_PLAYER_UNIT_SELECTED) ->
+        controlAdd()
+    EventListener.add(EVENT_PLAYER_UNIT_SPELL_CAST) ->
+        flag()
+        sell()
+    EventListener.onCast('A00I') (_caster) ->
+        repick()
+    EventListener.onCast('A003') (_caster) ->
+        zaminaVzryva()
+    EventListener.onCast('A002') (_caster) ->
+        speedBuild()
+    EventListener.onCast('A001') (_caster) ->
+        stopBuild()

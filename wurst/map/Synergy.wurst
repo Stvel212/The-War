@@ -1,0 +1,154 @@
+package Synergy
+import UpgradeCosts
+import MapGlobals
+import ClosureEvents
+
+/*
+    Синергии: счётчики sinergia*[игрок] растут, когда достроено (апгрейд завершён) здание нужного типа,
+    и падают, когда его продают ('A006' — здание продаёт себя, 'A005' — строитель продаёт цель).
+    Элементали ('h0A0'…'h0AE'): лимит 2 на вид (ZapretElem[elemLimit(вид, игрок)]), продажа усиленного здания возвращает лимит. */
+
+/** Сам элементаль (не здание-синергия) */
+function isElemental(int typeId) returns bool
+    return typeId == 'h0A0' or typeId == 'h0A2' or typeId == 'h0A4' or typeId == 'h0A6' or typeId == 'h0A8' or typeId == 'h0AA' or typeId == 'h0AC' or typeId == 'h0AE'
+
+/** Вид элементаля (1..8) по типу здания-синергии (h0A1…) или самого элементаля (h0A0…); 0 — не элементаль */
+function elemSlot(int typeId) returns int
+    if typeId == 'h0A0' or typeId == 'h0A1'
+        return 1
+    else if typeId == 'h0A2' or typeId == 'h0A3'
+        return 2
+    else if typeId == 'h0A4' or typeId == 'h0A5'
+        return 3
+    else if typeId == 'h0A6' or typeId == 'h0A7'
+        return 4
+    else if typeId == 'h0A8' or typeId == 'h0A9'
+        return 5
+    else if typeId == 'h0AA' or typeId == 'h0AB'
+        return 6
+    else if typeId == 'h0AC' or typeId == 'h0AD'
+        return 7
+    else if typeId == 'h0AE' or typeId == 'h0AF'
+        return 8
+    return 0
+
+/** Счётчик синергии для здания typeId у игрока id: +1 при постройке (sell = false), -1 при продаже.
+    Особенности оригинала сохранены: 'h07L' переключает 0/1; 'h020', 'h02C' и 'h06L' считаются только при постройке */
+function adjustSynergy(int typeId, int id, bool sell)
+    let d = sell ? -1 : 1
+    if typeId == 'h033'
+        sinergia[id] += d
+    else if typeId == 'h047'
+        sinergia1[id] += d
+    else if typeId == 'h05S'
+        sinergia2[id] += d
+    else if typeId == 'h064' or (typeId == 'h06L' and not sell)
+        sinergia3[id] += d
+    else if typeId == 'h06X'
+        sinergia4[id] += d
+    else if typeId == 'h07J'
+        sinergia5[id] += d
+    else if typeId == 'h07L'
+        sinergia6[id] = sinergia6[id] == 1 ? 0 : 1
+    else if typeId == 'h08A'
+        sinergia7[id] += d
+    else if typeId == 'h08K'
+        sinergia8[id] += d
+    else if typeId == 'h08H'
+        sinergia9[id] += d
+    else if typeId == 'h06U'
+        sinergia10[id] += d
+    else if typeId == 'h04W'
+        sinergia11[id] += d
+    else if typeId == 'h04A'
+        sinergia12[id] += d
+    else if typeId == 'h020' and not sell
+        sinergiaDE[id] += d
+    else if typeId == 'h00V'
+        sinergiaDE1[id] += d
+    else if typeId == 'h04Z'
+        sinergiaDE2[id] += d
+    else if typeId == 'h02C' and not sell
+        sinergiaDE3[id] += d
+    else if typeId == 'h03G'
+        sinergiaDE4[id] += d
+    else if typeId == 'h055'
+        sinergiaDE5[id] += d
+    else if typeId == 'h03P'
+        sinergiaDE6[id] += d
+    else if typeId == 'h0A1'
+        sinergiaH1[id] += d
+    else if typeId == 'h0AF'
+        sinergiaH2[id] += d
+    else if typeId == 'h0A9'
+        sinergiaH3[id] += d
+    else if typeId == 'h0A5'
+        sinergiaH4[id] += d
+    else if typeId == 'h0AD'
+        sinergiaH5[id] += d
+    else if typeId == 'h0AB'
+        sinergiaH6[id] += d
+    else if typeId == 'h0A3'
+        sinergiaH7[id] += d
+    else if typeId == 'h0A7'
+        sinergiaH8[id] += d
+
+// ============================================================
+// Триггер: GlobalsAllTrue — апгрейд здания завершён: +1 к синергии
+// ============================================================
+
+@noinline
+function globalsAllTrue()
+    let u = GetTriggerUnit()
+    adjustSynergy(u.getTypeId(), u.getOwner().getId(), false)
+
+// ============================================================
+// Триггер: GlobalsAllFalse — продажа здания: -1 к синергии, элементалю возвращается лимит
+// ============================================================
+
+@noinline
+function globalsAllFalse()
+    let ab = GetSpellAbilityId()
+    if ab != 'A006' and ab != 'A005'
+        return
+    let target = GetSpellTargetUnit()
+    let caster = GetTriggerUnit()
+    // игрок — хозяин кастера: при 'A006' цели нет (здание продаёт себя), при 'A005' строитель продаёт своё же здание
+    let id = caster.getOwner().getId()
+    adjustSynergy(target.getTypeId(), id, true)
+    if caster.getTypeId() != target.getTypeId()
+        adjustSynergy(caster.getTypeId(), id, true)
+    let slot = elemSlot(target.getTypeId())
+    if slot != 0
+        ZapretElem[elemLimit(slot, id)] += 1
+    let casterSlot = elemSlot(caster.getTypeId())
+    if casterSlot != 0 and caster.getTypeId() != target.getTypeId()
+        ZapretElem[elemLimit(casterSlot, id)] += 1
+
+// ============================================================
+// Триггер: ZapretElem — начало стройки элементаля: если лимит исчерпан, стройка отменяется с возвратом золота
+// ============================================================
+
+@noinline
+function zapretElem()
+    let u = GetTriggerUnit()
+    let typeId = u.getTypeId()
+    if not isElemental(typeId)
+        return
+    let slot = elemSlot(typeId)
+    let p = u.getOwner()
+    let id = p.getId()
+    if ZapretElem[elemLimit(slot, id)] == 0
+        u.remove()
+        DisplayTextToPlayer(p, 0.0, 0.0, "Limit - 2")
+        p.setGold(p.getGold() + unitOwnGoldCost(typeId))
+    else
+        ZapretElem[elemLimit(slot, id)] -= 1
+
+init
+    EventListener.add(EVENT_PLAYER_UNIT_UPGRADE_FINISH) ->
+        globalsAllTrue()
+    EventListener.add(EVENT_PLAYER_UNIT_SPELL_CAST) ->
+        globalsAllFalse()
+    EventListener.add(EVENT_PLAYER_UNIT_CONSTRUCT_START) ->
+        zapretElem()

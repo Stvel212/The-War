@@ -1,0 +1,219 @@
+package King
+import Initialization
+import MapGlobals
+import ClosureEvents
+import UnitEvents
+import ClosureTimers
+
+/** Сообщение всей команде a (1 — левая, 2 — правая) */
+function teamText(int a, string msg)
+    if ForceG[a].containsPlayer(localPlayer)
+        DisplayTextToPlayer(localPlayer, 0.0, 0.0, msg)
+
+// ============================================================
+// Триггер: KingCast — особые умения короля: на 10 секунд меняют набор способностей
+// ============================================================
+
+@noinline
+function kingCast(unit u, int ab)
+    if ab == 'A0E2'
+        // Замедление Времени: вместо 'A02U' — 'A0E4' + 'S00C'
+        u..removeAbility('A02U')..addAbility('A0E4')..addAbility('S00C')
+        doAfter(10.0) ->
+            u..removeAbility('A0E4')..removeAbility('S00C')..addAbility('A02U')
+    else if ab == 'A0E6'
+        // Королевский Гнев: 'A0E7' + 'A0E8'
+        u..addAbility('A0E7')..addAbility('A0E8')
+        doAfter(10.0) ->
+            u..removeAbility('A0E7')..removeAbility('A0E8')
+    else if ab == 'A0EA'
+        // Святая Стойка: вместо 'A02U' и 'A0BP' — 'A0EB' + 'A0EC' + 'A0ED'
+        u..removeAbility('A02U')..removeAbility('A0BP')..addAbility('A0EB')..addAbility('A0EC')..addAbility('A0ED')
+        doAfter(10.0) ->
+            u..removeAbility('A0EB')..removeAbility('A0EC')..removeAbility('A0ED')..addAbility('A02U')..addAbility('A0BP')
+
+// ============================================================
+// Триггер: KingUpgreid — улучшения короля за дерево (атака = ловкость, живучесть = интеллект, регенерация = сила)
+// ============================================================
+
+constant STAT_AGI = 1
+constant STAT_INT = 2
+constant STAT_STR = 3
+
+function unit.getStat(int stat) returns int
+    if stat == STAT_AGI
+        return this.getAgi(false)
+    else if stat == STAT_INT
+        return this.getInt(false)
+    return this.getStr(false)
+
+function unit.addStat(int stat, int amount)
+    if stat == STAT_AGI
+        SetHeroAgi(this, this.getAgi(false) + amount, true)
+    else if stat == STAT_INT
+        SetHeroInt(this, this.getInt(false) + amount, true)
+    else
+        SetHeroStr(this, this.getStr(false) + amount, true)
+
+function statName(int stat) returns string
+    if stat == STAT_AGI
+        return "attack damage"
+    else if stat == STAT_INT
+        return "vitality"
+    return "regeneration"
+
+/** Улучшение характеристики короля команды a игроком p: +inc за cost дерева (+income к инкому).
+    Потолок 360 (после 50-го раунда 560) для шага 10 и на 40 меньше для шага 50; живучесть даёт ещё +35·inc HP */
+function upgradeKing(int a, player p, int stat, int inc)
+    let king = King[a]
+    let cost = inc == 10 ? 40 : 200
+    let limit = (round < 50 ? 360 : 560) - (inc - 10)
+    if king.getStat(stat) < limit and p.getLumber() >= cost
+        king.addStat(stat, inc)
+        Income[p.getId()] += inc == 10 ? 2 : 10
+        if stat == STAT_INT
+            wDammiHP(king, 35 * inc)
+        p.setLumber(p.getLumber() - cost)
+        teamText(a, "|cff80ff80|c00" + Color[p.getId()] + p.getName() + "|r |c00C0C0C0upgraded the King's " + statName(stat) + " to level: |r" + ((king.getStat(stat) - 60) div 10).toString())
+    else
+        StartSound(KnightNoGold)
+        DisplayTextToPlayer(p, 0.0, 0.0, inc == 10 ? "|c00FF8080No lumber or already at maximum!|r" : "|c00FF8080No lumber, already at maximum, or fewer than 5 upgrades required!|r")
+
+/** Особое умение короля (одно из трёх на команду): 10 вкладов по 300 дерева после 60-го раунда, потом abil + 'A0E3' */
+function upgradeKingSpecial(int a, player p, int which, int abil, string name)
+    let free = (which == 1 or not Prezens1[a]) and (which == 2 or not Prezens2[a]) and (which == 3 or not Prezens3[a]) and not Prezens4[a]
+    if Presens[a] < 10 and free and round > 60 and p.getLumber() >= 300
+        if which == 1
+            Prezens1[a] = true
+        else if which == 2
+            Prezens2[a] = true
+        else
+            Prezens3[a] = true
+        Presens[a] += 1
+        Income[p.getId()] += 15
+        p.setLumber(p.getLumber() - 300)
+        teamText(a, "|cff80ff80|c00" + Color[p.getId()] + p.getName() + "|r |c00C0C0C0upgraded |c0000FFFF" + name + "|r by |r" + Presens[a].toString() + "/10")
+        if Presens[a] == 10
+            King[a]..addAbility(abil)..addAbility('A0E3')
+            teamText(a, "Your King has received a Special Ability - |c0000FFFF" + name + "!|r")
+    else
+        StartSound(KnightNoGold)
+        DisplayTextToPlayer(p, 0.0, 0.0, "|c00FF8080No lumber or already at maximum!|r")
+
+@noinline
+function kingUpgreid(unit caster, int ab)
+    let p = caster.getOwner()
+    let a = p.isLeftTeam() ? 1 : 2
+    if ab == 'A03B'
+        upgradeKing(a, p, STAT_AGI, 10)
+    else if ab == 'A03D'
+        upgradeKing(a, p, STAT_INT, 10)
+    else if ab == 'A03E'
+        upgradeKing(a, p, STAT_STR, 10)
+    else if ab == 'A0DY'
+        upgradeKing(a, p, STAT_AGI, 50)
+    else if ab == 'A0DZ'
+        upgradeKing(a, p, STAT_INT, 50)
+    else if ab == 'A0E0'
+        upgradeKing(a, p, STAT_STR, 50)
+    else if ab == 'A0E1'
+        upgradeKingSpecial(a, p, 1, 'A0E2', "Time Slow")
+    else if ab == 'A0E5'
+        upgradeKingSpecial(a, p, 2, 'A0E6', "Royal Wrath")
+    else if ab == 'A0E9'
+        upgradeKingSpecial(a, p, 3, 'A0EA', "Holy Stance")
+
+// ============================================================
+// Триггер: KingSpell — по таймеру раунда короли получают способности по номеру раунда
+// ============================================================
+
+@noinline
+function kingSpell()
+    for a = 1 to 2
+        let king = King[a]
+        if round > 10
+            king.addAbility('A02Y')
+        if round > 20
+            king.addAbility('A032')
+        if round > 30
+            king.addAbility('A02Z')
+            king.setAbilityLevel('A02Y', 2)
+        if round > 40
+            king.addAbility('A02X')
+        if round > 50
+            king.addAbility('S008')
+            king.setAbilityLevel('A02Y', 3)
+        if round > 60
+            king.addAbility('A030')
+        if round > 70
+            king.addAbility('A031')
+
+// ============================================================
+// Триггер: KingControlTeam1 / KingControlTeam2 — король переходит к тому игроку команды, кто его выделил
+// ============================================================
+
+@noinline
+function kingControl()
+    let u = GetTriggerUnit()
+    let p = GetTriggerPlayer()
+    let a = p.isLeftTeam() ? 1 : 2
+    if u == King[a] and p.getId() < 8 and not IsUnitSelected(u, u.getOwner())
+        u.setOwner(p, true)
+
+// ============================================================
+// Триггер: KingMesage — при атаке на короля: сообщения о HP команде и автолечение из запаса Heal
+// ============================================================
+
+@noinline
+function kingMesage()
+    let king = GetTriggerUnit()
+    let hp = king.getHP().toInt()
+    let mhp = king.getMaxHP().toInt()
+    let a = king == King[1] ? 1 : 2
+    // последнее «объявленное» HP (раньше лежало в custom value; читалось оттуда же и после переезда в Hash — теперь из Hash)
+    let last = Hash.loadInt(king.getHandleId(), KEY_KINGHP)
+    if hp > last + 50
+        Hash.saveInt(king.getHandleId(), KEY_KINGHP, hp)
+    if hp < 0.4 * mhp and last - 200 > hp
+        Hash.saveInt(king.getHandleId(), KEY_KINGHP, hp)
+        let percent = (hp * 100) div mhp
+        let fraction = (hp * 10000) div mhp - 100 * percent
+        teamText(a, "King's health remaining" + percent.toString() + "," + fraction.toString() + "%")
+    // левый король лечится ниже 8%, правый — ниже 10%
+    if hp < mhp * (a == 1 ? 0.08 : 0.1) and Heal[a] > 0
+        Heal[a] -= 1
+        king.setHP(king.getHP() + 10000)
+        teamText(a, "|cffff80ff The King has been healed!|r")
+
+init
+    EventListener.onCast('A0E2') (caster) ->
+        kingCast(caster, 'A0E2')
+    EventListener.onCast('A0E6') (caster) ->
+        kingCast(caster, 'A0E6')
+    EventListener.onCast('A0EA') (caster) ->
+        kingCast(caster, 'A0EA')
+    EventListener.onCast('A03B') (caster) ->
+        kingUpgreid(caster, 'A03B')
+    EventListener.onCast('A03D') (caster) ->
+        kingUpgreid(caster, 'A03D')
+    EventListener.onCast('A03E') (caster) ->
+        kingUpgreid(caster, 'A03E')
+    EventListener.onCast('A0DY') (caster) ->
+        kingUpgreid(caster, 'A0DY')
+    EventListener.onCast('A0DZ') (caster) ->
+        kingUpgreid(caster, 'A0DZ')
+    EventListener.onCast('A0E0') (caster) ->
+        kingUpgreid(caster, 'A0E0')
+    EventListener.onCast('A0E1') (caster) ->
+        kingUpgreid(caster, 'A0E1')
+    EventListener.onCast('A0E5') (caster) ->
+        kingUpgreid(caster, 'A0E5')
+    EventListener.onCast('A0E9') (caster) ->
+        kingUpgreid(caster, 'A0E9')
+    EventListener.add(EVENT_PLAYER_UNIT_SELECTED) ->
+        kingControl()
+    onAttacked('H003') ->
+        kingMesage()
+    CreateTrigger()
+        ..registerTimerExpireEvent(roundTimer)
+        ..addAction(function kingSpell)

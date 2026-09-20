@@ -1,0 +1,23 @@
+package AbilitiesCritters
+import AbilityObjEditing
+
+@compiletime function create_w3a_A100()
+	new AbilityDefinitionInventory('A100')
+	..setItemCapacity(1, 4)
+	..setCanDropItems(1, false)
+	..setEditorSuffix("(Артас)")
+
+@compiletime function create_w3a_A038()
+	new AbilityDefinitionSpellBook('A038')
+	..setName("|cffffff00Baшa бaзa|r")
+	..setMaximumSpells(1, 2)
+	..setMinimumSpells(1, 2)
+	..setSpellList(1, "A039,A03A")
+	..setTooltipNormal(1, "|c0000FF00Baшa бaзa|r")
+	..setTooltipNormalExtended(1, "|c00FF8000B paдиyce 500 пoвышaeт aтaкy и зaщитy вcex вaшиx юнитoв нa 3 eд.|r")
+	..setTooltipTurnOffExtended(1, "|c00FF8000B paдиyce 500 пoвышaeт aтaкy и зaщитy вcex вaшиx юнитoв нa 3 eд.|r")
+	..setTooltipTurnOff(1, "|c0000FF00Baшa бaзa|r")
+	..setButtonPositionNormalX(3)
+	..setSharedSpellCooldown(1, false)
+	..setItemAbility(false)
+	..setIconNormal("ReplaceableTextures\\CommandButtons\\BTNOrcBattleStandard.blp")

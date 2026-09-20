@@ -1,0 +1,6 @@
+package UpgradesOriginal
+import ObjEditingNatives
+
+@compiletime function create_w3q_Rhgb()
+	createObjectDefinition("w3q", 'Rhgb', 'Rhgb')
+	..setLvlDataString("gef2", 0, 0, "radl")

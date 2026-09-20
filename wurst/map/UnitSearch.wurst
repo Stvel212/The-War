@@ -1,0 +1,78 @@
+package UnitSearch
+import ClosureForGroups
+import GroupUtils
+
+/*
+    Поиск юнитов в радиусе поверх ClosureForGroups из stdlib. Заменяет связку оригинала
+    «Group.enumUnitsInRange(pos, r, Condition(...)) + FirstOfGroup / getRandom / forGroup / GetRandomSubGroup»:
+    перебор через forUnitsInRange, условие — замыкание вместо отдельной функции-фильтра.
+    Замыкание не может менять захваченные локальные переменные, поэтому результат копится в глобалах
+    (со снятием/восстановлением — вызовы можно вкладывать друг в друга). */
+
+public interface UnitFilter
+    function check(unit u) returns bool
+
+unit found = null
+int foundCount = 0
+
+/** Первый (в порядке перебора, как FirstOfGroup) юнит в радиусе radius от pos, подходящий под условие; null, если нет */
+public function firstUnitInRange(vec2 pos, real radius, UnitFilter f) returns unit
+    let outer = found
+    found = null
+    forUnitsInRangeUntil(pos, radius) u ->
+        if f.check(u)
+            found = u
+        return found == null
+    let result = found
+    found = outer
+    destroy f
+    return result
+
+/** Случайный юнит в радиусе radius от pos, подходящий под условие (каждый равновероятно, как group.getRandom()); null, если нет */
+public function randomUnitInRange(vec2 pos, real radius, UnitFilter f) returns unit
+    let outerFound = found
+    let outerCount = foundCount
+    found = null
+    foundCount = 0
+    forUnitsInRange(pos, radius) u ->
+        if f.check(u)
+            foundCount++
+            if GetRandomInt(1, foundCount) == 1
+                found = u
+    let result = found
+    found = outerFound
+    foundCount = outerCount
+    destroy f
+    return result
+
+/** Сколько юнитов в радиусе radius от pos подходят под условие */
+public function countUnitsInRange(vec2 pos, real radius, UnitFilter f) returns int
+    let outer = foundCount
+    foundCount = 0
+    forUnitsInRange(pos, radius) u ->
+        if f.check(u)
+            foundCount++
+    let result = foundCount
+    foundCount = outer
+    destroy f
+    return result
+
+/** Новая группа из первых count (в порядке перебора) юнитов в радиусе radius от pos, подходящих под условие
+    (вернуть через g.release()) */
+public function firstUnitsInRange(vec2 pos, real radius, int count, UnitFilter f) returns group
+    let g = getGroup()
+    forUnitsInRangeUntil(pos, radius) u ->
+        if f.check(u)
+            g.add(u)
+        return g.size() < count
+    destroy f
+    return g
+
+/** Новая группа из юнитов в радиусе radius от pos, подходящих под условие (вернуть через g.release()) */
+public function unitsInRange(vec2 pos, real radius, UnitFilter f) returns group
+    let g = getGroup()
+    forUnitsInRange(pos, radius) u ->
+        if f.check(u)
+            g.add(u)
+    destroy f
+    return g

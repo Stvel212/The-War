@@ -1,0 +1,414 @@
+package HeroSpells
+import Initialization
+import ClosureEvents
+import UnitEvents
+import ClosureTimers
+import ClosureForGroups
+import DummyCaster
+import InstantDummyCaster
+import Orders
+import Dummies
+import UnitSearch
+
+/** Даммик-кастер за игрока юнита на его месте, живёт delay секунд */
+function unit.dummyCaster(real delay) returns DummyCaster
+    return new DummyCaster()
+        ..owner(this.getOwner())
+        ..origin(this.getPos())
+        ..delay(delay)
+
+/** Тень юнита: копия типа под 'Aloc' и затемнением, идёт в атаку и исчезает через life секунд */
+function shadowOf(unit source, player owner, real life)
+    let u = CreateUnit(owner, source.getTypeId(), source.getX(), source.getY(), 0.0)
+        ..addAbility('Aloc')
+        ..setVertexColor(55, 55, 55, 150)
+    u.attackLane()
+    doAfter(life) ->
+        u.remove()
+
+// ============================================================
+// Триггер: Rohan — 'o000'/'o001' при полной мане: волна исцеления по раненому союзнику
+// ============================================================
+
+@noinline
+function rohan()
+    let a = GetAttacker()
+    let id = a.getTypeId()
+    if a.getMana() != 60
+        return
+    let p = a.getOwner()
+    let t = firstUnitInRange(a.getPos(), 700.0, (u) -> u.isAllyOf(p) and u.isAlive() and (u.getHP() / u.getMaxHP()) <= 0.60)
+    if t != null
+        a.dummyCaster(3.0).castTarget(id == 'o000' ? 'A07L' : 'A07M', 1, OrderIds.healingwave, t)
+        a.setMana(0.0)
+
+// ============================================================
+// Триггер: Kel — 'h02L'/'h02M': при полной мане залп Phoenix Fire; без 'A07R' — вытягивает ману у гиганта рядом с целью
+// ============================================================
+
+@noinline
+function kel()
+    let a = GetAttacker()
+    let id = a.getTypeId()
+    let p = a.getOwner()
+    let strong = id == 'h02L'
+    if a.getMana() >= 60
+        // даммик с Phoenix Fire: у сильной версии второй уровень и живёт дольше
+        auraDummy(p, a.getPos(), 'A07Q', strong ? 2 : 1, strong ? 0.35 : 0.15)
+        a.setMana(0.0)
+    if a.getAbilityLevel('A07R') == 0
+        let target = GetTriggerUnit()
+        let s = firstUnitInRange(target.getPos(), 300.0, (u) -> u.isEnemyOf(p) and u.isAlive() and u.isType(UNIT_TYPE_GIANT) and u.getMana() >= 30 and u.getAbilityLevel('Avul') == 0 and not target.isType(UNIT_TYPE_HERO))
+        if s != null
+            a.addAbility('A07R')
+            a.setMana(a.getMana() + s.getMana())
+            s.setMana(0.0)
+            let fxTarget = addEffect("Abilities\\Spells\\Other\\Drain\\ManaDrainTarget.mdl", a, "chest")
+            let fxCaster = addEffect("Abilities\\Spells\\Other\\Drain\\ManaDrainCaster.mdl", s, "chest")
+            doAfter(strong ? 15.0 : 24.0) ->
+                a.removeAbility('A07R')
+                fxCaster.destr()
+                fxTarget.destr()
+
+// ============================================================
+// Триггер: KelUp — под 'B01X' при HP <= 180 один раз +400 HP (метка 'A07P')
+// ============================================================
+
+@noinline
+function kelUp()
+    let a = GetAttacker()
+    if a.getAbilityLevel('B01X') <= 0 or a.hasAbility('A07P') or a.getHP() > 180 or a.getHP() < 1
+        return
+    a.setHP(a.getHP() + 400)
+    a.addAbility('A07P')
+    addEffect("Abilities\\Spells\\Other\\Incinerate\\FireLordDeathExplode.mdl", a, "origin").destr()
+
+// ============================================================
+// Триггер: SamuroRed / SamuroRed1 — с шансом 1/5 ('A083') или 1/4 ('A087') рядом на 3 с появляется тёмный двойник
+// ============================================================
+
+@noinline
+function samuroRed(int abil, int chanceDie)
+    let a = GetAttacker()
+    if a.getAbilityLevel(abil) != 1 or GetRandomInt(1, chanceDie) != 1
+        return
+    let u = CreateUnit(a.getOwner(), a.getTypeId(), a.getX(), a.getY(), GetUnitFacing(a))
+        ..setTimedLife(60.0, 'BHwe')
+        ..removeAbility(abil)
+        ..addAbility('Aloc')
+        ..setVertexColor(0, 0, 0, 50)
+    addEffect("models\\Portal.mdx", u, "origin")
+    doAfter(3.0) ->
+        u.remove()
+
+// ============================================================
+// Триггер: ArthasHeal — 'A08D': +490 HP ('u000') или +980
+// ============================================================
+
+@noinline
+function arthasHeal(unit c)
+    c.setHP(c.getHP() + (c.getTypeId() == 'u000' ? 490 : 980))
+    addEffect("Abilities\\Spells\\Undead\\DeathCoil\\DeathCoilSpecialArt.mdl", c.getPos()).destr()
+
+// ============================================================
+// Триггер: PrizivGolema — 'A08E': инфернал ('A04S' у 'u003', 'A08I' у 'u002') на месте кастера
+// ============================================================
+
+@noinline
+function prizivGolema(unit c)
+    var abil = 0
+    if c.getTypeId() == 'u003'
+        abil = 'A04S'
+    else if c.getTypeId() == 'u002'
+        abil = 'A08I'
+    if abil != 0
+        // инфернал падает с задержкой — даммику даём пожить дольше, чем было (1 с), чтобы вызов точно успел
+        c.dummyCaster(3.0).castPoint(abil, 1, OrderIds.inferno, c.getPos())
+
+// ============================================================
+// Триггер: Illidan — 'A08J': иллюзия кастера ('A08N')
+// ============================================================
+
+@noinline
+function illidan(unit c)
+    InstantDummyCaster.castTarget(c.getOwner(), 'A08N', 1, OrderIds.wandOfIllusion, c, c.getPos())
+
+// ============================================================
+// Триггер: Purge — 'n006'/'n007' с шансом 20% рассеивают цель ('A08Q')
+// ============================================================
+
+@noinline
+function purge()
+    let a = GetAttacker()
+    if GetRandomInt(1, 100) > 20
+        return
+    let t = GetTriggerUnit()
+    InstantDummyCaster.castTarget(a.getOwner(), 'A08Q', 1, OrderIds.purge, t, t.getPos())
+
+// ============================================================
+// Триггер: Racketki — 'A08T' (не герой): даммик с Phoenix Fire 'A08X' на 0.59 с ('h02E') / 1.09 с ('h02D') / 3 с
+// ============================================================
+
+@noinline
+function racketki(unit c)
+    if c.isType(UNIT_TYPE_HERO)
+        return
+    var life = 3.0
+    if c.getTypeId() == 'h02E'
+        life = 0.59
+    else if c.getTypeId() == 'h02D'
+        life = 1.09
+    auraDummy(c.getOwner(), c.getPos(), 'A08X', 0, life)
+
+// ============================================================
+// Триггер: Jaina2 — цель 'A090'/'A091' 5 секунд горит (80 / 180 в секунду); каждый третий каст призывает элементаля
+// ============================================================
+
+@noinline
+function jaina2(unit c, int abil)
+    let t = GetSpellTargetUnit()
+    let dmg = abil == 'A090' ? 80.0 : 180.0
+    doPeriodicallyCounted(1.0, 5) cb ->
+        c.damageTarget(t, dmg, true, false, ATTACK_TYPE_NORMAL, DAMAGE_TYPE_FIRE, WEAPON_TYPE_WHOKNOWS)
+    if c.getAbilityLevel('A09R') == 1
+        if abil == 'A090' and c.getTypeId() == 'h01B'
+            CreateUnit(c.getOwner(), 'h01N', c.getX(), c.getY(), 0.0).attackLane()
+        else if abil == 'A091' and c.getTypeId() == 'h01A'
+            CreateUnit(c.getOwner(), 'h01O', c.getX(), c.getY(), 0.0).attackLane()
+        c.setAbilityLevel('A09R', 3)
+    else
+        DecUnitAbilityLevel(c, 'A09R')
+
+// ============================================================
+// Триггер: Jaina — элементаль 'h01O'/'h01N', убитый гигантом/тауреном, напоследок оглушает убийцу
+// ============================================================
+
+@noinline
+function jaina()
+    let d = GetTriggerUnit()
+    let k = GetKillingUnit()
+    let id = d.getTypeId()
+    if not (k.isType(UNIT_TYPE_GIANT) or k.isType(UNIT_TYPE_TAUREN))
+        return
+    new DummyCaster()
+        ..owner(d.getOwner())
+        ..origin(k.getPos())
+        ..delay(6.0)
+        ..castTarget(id == 'h01N' ? 'A090' : 'A091', 1, OrderIds.thunderbolt, k)
+
+// ============================================================
+// Триггер: CenariusAOE — 'h01D'/'h01C' при полной мане: призыв на минуту и удар по месту цели
+// ============================================================
+
+@noinline
+function cenariusAOE()
+    let a = GetAttacker()
+    let id = a.getTypeId()
+    if a.getMana() != 60
+        return
+    let p = a.getOwner()
+    let strong = id == 'h01D'
+    CreateUnit(p, strong ? 'h01P' : 'h01Q', a.getX(), a.getY(), 0.0)
+        ..setTimedLife(60.0, 'BHwe')
+        ..attackLane()
+    InstantDummyCaster.castImmediate(p, strong ? 'A0AV' : 'A0CL', 1, OrderIds.creepthunderclap, GetTriggerUnit().getPos())
+    a.setMana(0.0)
+
+// ============================================================
+// Триггер: Panda3 — 'n045' при HP <= 50%: 'A0DW' и «ярость стихий» на 25 секунд
+// ============================================================
+
+@noinline
+function panda3()
+    let u = GetAttacker()
+    if u.getHP() / u.getMaxHP() > 0.50 or u.hasAbility('A0DW')
+        return
+    u.addAbility('A0DW')
+    u.issueImmediateOrder("elementalfury")
+    doAfter(25.0) ->
+        u.removeAbility('A0DW')
+
+// ============================================================
+// Триггер: SenjiiTotem — 'h09E'/'h09I' при полной мане ставят пару случайных тотемов (у себя и у цели)
+// ============================================================
+
+@noinline
+function senjiiTotem()
+    let u = GetAttacker()
+    let id = u.getTypeId()
+    if u.getMana() != 60
+        return
+    let t = GetTriggerUnit()
+    let lvl = id == 'h09I' ? 2 : 1
+    let kind = GetRandomInt(1, 5)
+    // тотем у себя: аура по виду
+    var selfAbil = 'A0EK'
+    var targetAbil = 'A0EM'
+    if kind == 1
+        selfAbil = 'A0EF'
+        targetAbil = 'A0EG'
+    else if kind == 2
+        selfAbil = 'A0EH'
+        targetAbil = 'A0EI'
+    else if kind == 3
+        selfAbil = 'A0EJ'
+        targetAbil = 'A0EL'
+    else if kind == 4
+        selfAbil = 'S00W'
+        targetAbil = 'S00X'
+    CreateUnit(u.getOwner(), 'e01V', u.getX(), u.getY(), 0.0)
+        ..setTimedLife(10.0, 'BHwe')
+        ..addAbility(selfAbil)
+        ..setAbilityLevel(selfAbil, lvl)
+    // тотем у цели: 3-й и 5-й вид бьют топотом и живут 3 с, остальные — аура на 10 с
+    let stomps = kind == 3 or kind == 5
+    let totem = CreateUnit(u.getOwner(), 'e01W', t.getX(), t.getY(), 0.0)
+        ..addAbility(targetAbil)
+        ..setAbilityLevel(targetAbil, lvl)
+    if stomps
+        totem.issueImmediateOrder("stomp")
+    totem.setTimedLife(stomps ? 3.0 : 10.0, 'BHwe')
+    u.setMana(0.0)
+
+// ============================================================
+// Триггер: SenjiAura — под 'B02E' не-герои получают пару способностей по типу атаки
+// ============================================================
+
+@noinline
+function senjiAura()
+    let a = GetAttacker()
+    if a.getAbilityLevel('B02E') <= 0 or a.isType(UNIT_TYPE_HERO)
+        return
+    if a.isType(UNIT_TYPE_RANGED_ATTACKER) and not a.hasAbility('A0CN') and not a.hasAbility('A0CR')
+        a.addAbility('A0CN')
+        a.addAbility('A0CR')
+    if a.isType(UNIT_TYPE_MELEE_ATTACKER) and not a.hasAbility('A0CO') and not a.hasAbility('A0CP')
+        a.addAbility('A0CO')
+        a.addAbility('A0CP')
+
+// ============================================================
+// Триггер: MultDarkRanger — 'h09S'/'h09V': при полной мане мультивыстрел, иначе снимается
+// ============================================================
+
+@noinline
+function multDarkRanger()
+    let a = GetAttacker()
+    let id = a.getTypeId()
+    let abil = id == 'h09S' ? 'A09P' : 'A09Q'
+    if a.getMana() == 60
+        a.addAbility(abil)
+        a.setMana(0.0)
+    else if a.hasAbility(abil)
+        a.removeAbility(abil)
+
+// ============================================================
+// Триггер: DarkAura — под 'B03N' с шансом 20% убитый встаёт тенью на 5 секунд
+// ============================================================
+
+@noinline
+function darkAura()
+    let k = GetKillingUnit()
+    if k.getAbilityLevel('B03N') != 1 or GetRandomInt(1, 100) > 20
+        return
+    let d = GetTriggerUnit()
+    addEffect("Abilities\\Spells\\Undead\\AnimateDead\\AnimateDeadTarget.mdl", d, "origin").destr()
+    shadowOf(d, k.getOwner(), 5.0)
+
+// ============================================================
+// Триггер: ElementalLordAt — 'n04R'/'n04S' при атаке отдают приказы на свои способности
+// ============================================================
+
+@noinline
+function elementalLordAt()
+    let u = GetAttacker()
+    let full = u.getMana() == 60
+    if full and u.getAbilityLevel('A0G4') > 0
+        u.issuePointOrder("carrionswarm", GetTriggerUnit().getPos())
+    if full and u.getAbilityLevel('A0G5') > 0
+        u.issueImmediateOrder("stomp")
+    if full and u.getAbilityLevel('A0GB') > 0
+        u.issueImmediateOrder("waterelemental")
+    if u.getAbilityLevel('A0G8') > 0
+        u.issueImmediateOrder("roar")
+
+// ============================================================
+// Триггер: ElementalLordCast — 'n04S': 'A0G4' рассеивает гигантов рядом, 'A0G8' — тучка, 'A0GB' — 9 шипов вокруг
+// ============================================================
+
+@noinline
+function elementalLordCast(unit u, int ab)
+    if u.getTypeId() != 'n04S'
+        return
+    let p = u.getOwner()
+    let pos = u.getPos()
+    if ab == 'A0G4'
+        forUnitsInRange(pos, 300.0) t ->
+            if t.isEnemyOf(p) and t.isAlive() and t.isType(UNIT_TYPE_GIANT) and t.getAbilityLevel('Bprg') == 0
+                InstantDummyCaster.castTarget(p, 'A0G3', 1, OrderIds.purge, t, t.getPos())
+    else if ab == 'A0G8'
+        CreateUnit(p, 'e00V', pos.x, pos.y, 0.0).setTimedLife(10.0, 'BHwe')
+    else if ab == 'A0GB'
+        for i = 0 to 8
+            u.dummyCaster(3.0).castPoint('A0G6', 1, OrderIds.impale, pos.polarOffset((45 + i * 45).toReal().asAngleDegrees(), 100.0))
+
+// ============================================================
+// Триггер: ElementalLordKill — 'n04S' с 'A0G7' за убийство лечится на 20% максимума HP убитого
+// ============================================================
+
+@noinline
+function elementalLordKill()
+    let k = GetKillingUnit()
+    if k.getAbilityLevel('A0G7') <= 0
+        return
+    k.setHP(k.getHP() + GetDyingUnit().getMaxHP() * 0.2)
+    addEffect("models\\Call of Dread Green.mdl", k, "origin").destr()
+
+init
+    onAttackBy('o000', 'o001') ->
+        rohan()
+    onAttackBy('h02L', 'h02M') ->
+        kel()
+    onAnyAttack() ->
+        kelUp()
+    onAnyAttack() ->
+        samuroRed('A083', 5)
+    onAnyAttack() ->
+        samuroRed('A087', 4)
+    onAttackBy('n006', 'n007') ->
+        purge()
+    onAttackBy('h01D', 'h01C') ->
+        cenariusAOE()
+    onAttackBy('n045') ->
+        panda3()
+    onAttackBy('h09E', 'h09I') ->
+        senjiiTotem()
+    onAnyAttack() ->
+        senjiAura()
+    onAttackBy('h09S', 'h09V') ->
+        multDarkRanger()
+    onAttackBy('n04R', 'n04S') ->
+        elementalLordAt()
+    EventListener.onCast('A08D') (caster) ->
+        arthasHeal(caster)
+    EventListener.onCast('A08E') (caster) ->
+        prizivGolema(caster)
+    EventListener.onCast('A08J') (caster) ->
+        illidan(caster)
+    EventListener.onCast('A08T') (caster) ->
+        racketki(caster)
+    EventListener.onCast('A090') (caster) ->
+        jaina2(caster, 'A090')
+    EventListener.onCast('A091') (caster) ->
+        jaina2(caster, 'A091')
+    EventListener.onCast('A0G4') (caster) ->
+        elementalLordCast(caster, 'A0G4')
+    EventListener.onCast('A0G8') (caster) ->
+        elementalLordCast(caster, 'A0G8')
+    EventListener.onCast('A0GB') (caster) ->
+        elementalLordCast(caster, 'A0GB')
+    onDeathOf('h01O', 'h01N') ->
+        jaina()
+    onAnyDeath() ->
+        darkAura()
+    onKillBy('n04S') ->
+        elementalLordKill()

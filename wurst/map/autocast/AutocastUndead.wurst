@@ -1,0 +1,478 @@
+package AutocastUndead
+import Initialization
+import MapGlobals
+import ClosureEvents
+import UnitEvents
+import ClosureTimers
+import ClosureForGroups
+import UnitSearch
+
+// ============================================================
+// Триггер: AttackCast — юниты, которые при атаке сами отдают приказ на способность (без даммиков); см. init
+// ============================================================
+
+/** Атакующий отдаёт себе приказ order, если маны не меньше minMana (0 — без условия) */
+function selfOrder(string order, real minMana)
+    let u = GetAttacker()
+    if u.getMana() >= minMana
+        u.issueImmediateOrder(order)
+
+/** Атакующий отдаёт приказ order по атакуемому, если маны не меньше minMana */
+function targetOrder(string order, real minMana)
+    let u = GetAttacker()
+    if u.getMana() >= minMana
+        u.issueTargetOrder(order, GetTriggerUnit())
+
+/** Атакующий отдаёт приказ order в точку атакуемого, если маны не меньше minMana */
+function pointOrder(string order, real minMana)
+    let u = GetAttacker()
+    if u.getMana() >= minMana
+        u.issuePointOrder(order, GetTriggerUnit().getPos())
+
+/** Способности по баффам/уровням (не по типу): рёв 'A05F', элементали 'A07S'/'A07W'/'A08T'/'A08E', саранча 'A07V'/'A07X' */
+function attackCastByAbility()
+    let u = GetAttacker()
+    let mana = u.getMana()
+    if u.getAbilityLevel('A05F') == 1 and u.getHP() >= 900 and u.getAbilityLevel('Broa') != 1
+        u.issueImmediateOrder("roar")
+    else if (u.getAbilityLevel('A07S') == 1 or u.getAbilityLevel('A07W') == 1) and mana >= 60
+        u.issueImmediateOrder("waterelemental")
+    else if u.getAbilityLevel('A07V') == 1 or u.getAbilityLevel('A07X') == 1
+        u.issueImmediateOrder("locustswarm")
+    else if (u.getAbilityLevel('A08T') == 1 or u.getAbilityLevel('A08E') == 1) and mana >= 60
+        u.issueImmediateOrder("waterelemental")
+
+// ============================================================
+// Триггер: DeathRemove — при смерти снимаются временные способности (чтобы не «воскресали» вместе с юнитом)
+// ============================================================
+
+function unit.removeIfHas(int abil)
+    if this.getAbilityLevel(abil) == 1
+        this.removeAbility(abil)
+
+@noinline
+function deathRemove()
+    let u = GetDyingUnit()
+    u..removeIfHas('A0BI')..removeIfHas('A0BF')..removeIfHas('A06V')
+        ..removeIfHas('A0CT')..removeIfHas('A0F2')..removeIfHas('A0ES')..removeIfHas('A0FB')
+    if u.getAbilityLevel('A0BG') == 1 and u.getAbilityLevel('S00P') == 1
+        u.removeAbility('A0BI')
+        u.removeAbility('S00P')
+    if u.getAbilityLevel('A051') == 1 and u.getAbilityLevel('S00Q') == 1
+        u.removeAbility('A051')
+        u.removeAbility('S00Q')
+    if u.getAbilityLevel('A0BH') == 1 and u.getAbilityLevel('S00R') == 1
+        u.removeAbility('A0BH')
+        u.removeAbility('S00R')
+
+// ============================================================
+// Триггер: Necr — 'A045': некроманты поднимают скелета (тип зависит от кастера), сильнее при 'u008' рядом
+// ============================================================
+
+/** Поднятый скелет: живёт 25 + 3·nearby секунд, +30·nearby HP; при синергии DE5 с шансом 30% усилен */
+function raiseSkeleton(player owner, int skeletonId, vec2 pos, int nearby)
+    let u = CreateUnit(owner, skeletonId, pos.x, pos.y, 0.0)
+    u.setTimedLife((25 + 3 * nearby).toReal(), 'BHwe')
+    if nearby > 0
+        wDammiHP(u, 30 * nearby)
+    if sinergiaDE5[owner.getId()] == 1 and GetRandomInt(1, 100) <= 30
+        wDammiHP(u, 50)
+        wDammiAtt(u, 10)
+        u.addAbility('A0F9')
+        u.addAbility('A0CO')
+    u.attackLane()
+    addEffect("Abilities\\Spells\\Undead\\RaiseSkeletonWarrior\\RaiseSkeleton.mdl", u.getPos()).destr()
+
+@noinline
+function necr(unit c)
+    let id = c.getTypeId()
+    let pos = c.getPos()
+    let owner = c.getOwner()
+    // сколько рядом своих 'u008' (не больше 4)
+    let nearby = min(4, countUnitsInRange(pos, 500.0, (f) -> f.isAllyOf(owner) and f.isAlive() and f.isType(UNIT_TYPE_GIANT) and f.getTypeId() == 'u008'))
+    if id == 'u00P'
+        raiseSkeleton(owner, 'u00S', pos, nearby)
+    else if id == 'u00V'
+        raiseSkeleton(owner, 'u00Y', pos, nearby)
+    else if id == 'u00W'
+        raiseSkeleton(owner, 'n014', pos, nearby)
+    else if id == 'u00C'
+        raiseSkeleton(owner, 'n017', pos, nearby)
+        raiseSkeleton(owner, 'u00S', pos, nearby)
+    else if id == 'u005'
+        raiseSkeleton(owner, 'n015', pos, nearby)
+    else if id == 'u00X'
+        raiseSkeleton(owner, 'n013', pos, nearby)
+
+// ============================================================
+// Триггер: DeathMagic — 'u009' при смерти бьёт врагов рядом на 100 и исчезает; облако держится 3 с
+// ============================================================
+
+@noinline
+function deathMagic()
+    let d = GetDyingUnit()
+    let p = d.getOwner()
+    let e = addEffect("Abilities\\Spells\\Undead\\PlagueCloud\\PlagueCloudCaster.mdl", d.getPos())
+    forUnitsInRange(d.getPos(), 300.0) u ->
+        if u.isEnemyOf(p) and u.isAlive() and (u.isType(UNIT_TYPE_GIANT) or u.isType(UNIT_TYPE_TAUREN))
+            d.damageTarget(u, 100.0, true, false, ATTACK_TYPE_MAGIC, DAMAGE_TYPE_NORMAL, WEAPON_TYPE_WHOKNOWS)
+    d.remove()
+    doAfter(3.0) ->
+        e.destr()
+
+// ============================================================
+// Триггер: DeathSpider — из 'u007' выходят два паучка, живут по 2 с + 2 с за каждого врага в радиусе 700
+// ============================================================
+
+@noinline
+function deathSpider()
+    let d = GetDyingUnit()
+    let p = d.getOwner()
+    let enemies = countUnitsInRange(d.getPos(), 700.0, (u) -> u.isEnemyOf(p) and u.isAlive())
+    for i = 1 to 2
+        CreateUnit(p, 'u00N', d.getX(), d.getY(), 0.0)
+            ..setTimedLife(2 + enemies.toReal() * 2, 'BHwe')
+            ..attackLane()
+
+// ============================================================
+// Триггер: Vyrd — 'u00I' добавляет 3% от максимума HP цели (до 40)
+// ============================================================
+
+@noinline
+function vyrd()
+    let u = GetAttacker()
+    let c = GetTriggerUnit()
+    u.damageTarget(c, min(40.0, c.getMaxHP() * 0.03), true, false, ATTACK_TYPE_NORMAL, DAMAGE_TYPE_NORMAL, WEAPON_TYPE_WHOKNOWS)
+
+// ============================================================
+// Триггер: DamageKill — 'u00U' за убийство +8 урона и уровень 'A07O' (до 9)
+// ============================================================
+
+@noinline
+function damageKill()
+    let u = GetKillingUnit()
+    if u.getAbilityLevel('A07O') < 9
+        wDammiAtt(u, 8)
+        u.incAbilityLevel('A07O')
+
+// ============================================================
+// Триггер: SetkaArmor — цель паутины получает 'A05Q'
+// ============================================================
+
+@noinline
+function setkaArmor()
+    GetSpellTargetUnit().addAbility('A05Q')
+
+// ============================================================
+// Триггер: Arhimond — 'n019' при атаке кастует «дождь хаоса» на цель
+// ============================================================
+
+@noinline
+function arhimond()
+    GetAttacker().issuePointOrder("rainofchaos", GetTriggerUnit().getPos())
+
+// ============================================================
+// Триггер: GhostMagic — призраки с шансом 30% на 5 с усиливаются и метят цель
+// ============================================================
+
+@noinline
+function ghostMagic()
+    let a = GetAttacker()
+    let t = GetTriggerUnit()
+    let id = a.getTypeId()
+    if t.isType(UNIT_TYPE_HERO) or a.getAbilityLevel('A09L') == 1 or GetRandomInt(1, 10) > 3
+        return
+    let ice = id == 'n018'
+    addEffect(ice ? "Abilities\\Spells\\Undead\\FreezingBreath\\FreezingBreathTargetArt.mdl" : "Abilities\\Spells\\Undead\\DeathandDecay\\DeathandDecayTarget.mdl", t.getPos()).destr()
+    a.addAbility('A04U')
+    if not ice
+        a.addAbility('A02I')
+        if t.getAbilityLevel('A04T') != 1
+            t.addAbility('A04T')
+    if t.getAbilityLevel('A01N') != 1
+        t.addAbility('A01N')
+    let fx = addEffect("Abilities\\Spells\\Items\\AIob\\AIobTarget.mdl", a, "weapon")
+    doAfter(5.0) ->
+        a.removeAbility('A04U')
+        if not ice
+            a.removeAbility('A02I')
+            t.removeAbility('A09K')
+        t.removeAbility('A01N')
+        fx.destr()
+
+// ============================================================
+// Триггер: Golem — 'n01B': каждые 7 атак 'A04V' +1 (до 7)
+// ============================================================
+
+@noinline
+function golem()
+    let t = GetTriggerUnit()
+    if t.getAbilityLevel('A0D7') > 6
+        t.setAbilityLevel('A0D7', 1)
+        if t.getAbilityLevel('A04V') < 7
+            t.incAbilityLevel('A04V')
+    else
+        t.incAbilityLevel('A0D7')
+
+// ============================================================
+// Триггер: DragonMagic — 'A01F': кастер на 7 с получает 'A04W'
+// ============================================================
+
+@noinline
+function dragonMagic(unit u)
+    u.addAbility('A04W')
+    doAfter(7.0) ->
+        u.removeAbility('A04W')
+
+// ============================================================
+// Триггер: Dark1 — 'n01D'/'n01G' ниже 50% HP меняют форму (и обратно выше 50%)
+// ============================================================
+
+@noinline
+function dark1()
+    let t = GetTriggerUnit()
+    let id = t.getTypeId()
+    let low = id == 'n01G' ? 'A052' : 'A051'
+    let high = id == 'n01G' ? 'A050' : 'A04Z'
+    let hp = t.getHP() / t.getMaxHP()
+    if hp <= 0.50 and t.getAbilityLevel('A052') != 1 and t.getAbilityLevel('A051') != 1
+        t.addAbility(low)
+        t.removeAbility(high)
+        addEffect("Abilities\\Spells\\Orc\\FeralSpirit\\feralspirittarget.mdl", t.getPos()).destr()
+    else if hp > 0.50 and t.getAbilityLevel('A050') != 1 and t.getAbilityLevel('A04Z') != 1
+        t.removeAbility(low)
+        t.addAbility(high)
+
+// ============================================================
+// Триггер: Vampir — с 'A054' при HP <= 25%: 'A053' на 3 с, перезарядка 30 с
+// ============================================================
+
+@noinline
+function vampir()
+    let t = GetTriggerUnit()
+    if t.getAbilityLevel('A054') != 1 or t.getHP() / t.getMaxHP() > 0.25
+        return
+    t.removeAbility('A054')
+    t.addAbility('A053')
+    let fx = addEffect("Abilities\\Spells\\Items\\VampiricPotion\\VampPotionCaster.mdl", t, "chest")
+    doAfter(3.0) ->
+        t.removeAbility('A053')
+        fx.destr()
+    doAfter(30.0) ->
+        t.addAbility('A054')
+
+// ============================================================
+// Триггер: BBSymon — 'n01O' при полной мане забирает вражеского призванного (HP < 600) рядом с целью
+// ============================================================
+
+@noinline
+function bbSymon()
+    let a = GetAttacker()
+    let p = a.getOwner()
+    // первого попавшегося (мана уходит после первого)
+    forUnitsInRange(GetTriggerUnit().getPos(), 500.0) u ->
+        if u.isEnemyOf(p) and u.isAlive() and u.isType(UNIT_TYPE_SUMMONED) and u.getHP() < 600 and a.getMana() == 60
+            a.setMana(0.0)
+            addEffect("Abilities\\Spells\\Human\\ControlMagic\\ControlMagicTarget.mdl", u, "overhead").destr()
+            u.setOwner(p, true)
+            u.attackLane()
+
+// ============================================================
+// Триггер: NormalGhost — 'n01L' с шансом 35% пожирает не-героя с HP <= 330: золото за него хозяину
+// ============================================================
+
+@noinline
+function normalGhost()
+    let a = GetAttacker()
+    let u = GetTriggerUnit()
+    if u.getHP() > 330 or u.isType(UNIT_TYPE_HERO) or GetRandomInt(1, 100) > 35
+        return
+    let p = a.getOwner()
+    let gold = unitGold(u, u.getTypeId())
+    goldText(u, p, gold)
+    p.setGold(p.getGold() + gold)
+    addEffect("Abilities\\Spells\\Items\\TomeOfRetraining\\TomeOfRetrainingCaster.mdl", u.getPos()).destr()
+    u.remove()
+    doAfter(0.10) ->
+        a.attackLane()
+
+// ============================================================
+// Триггер: DarkDragon — 'n01M' метит цель ('S00E'); через 5 с 300 урона, а если цель при этом <= 300 HP — взрыв по врагам рядом с драконом
+// ============================================================
+
+@noinline
+function darkDragon()
+    let a = GetAttacker()
+    let t = GetTriggerUnit()
+    if t.getTypeId() == 'H003' or t.getAbilityLevel('S00E') != 0
+        return
+    t.addAbility('S00E')
+    let fx = addEffect("Abilities\\Spells\\Orc\\LiquidFire\\Liquidfire.mdl", t, "origin")
+    doAfter(5.0) ->
+        if a.getHP() > 0
+            a.damageTarget(t, 300.0, true, false, ATTACK_TYPE_NORMAL, DAMAGE_TYPE_NORMAL, WEAPON_TYPE_WHOKNOWS)
+            if t.getHP() <= 300
+                addEffect("Abilities\\Spells\\Other\\Doom\\DoomDeath.mdl", t.getPos()).destr()
+                // (в JASS-оригинале фильтр взрыва читал хозяина из Hash по таймеру; после перевода на doAfter там был null)
+                let p = a.getOwner()
+                forUnitsInRange(a.getPos(), 220.0) e ->
+                    if e.isEnemyOf(p) and e.isAlive() and (e.isType(UNIT_TYPE_GIANT) or e.isType(UNIT_TYPE_TAUREN))
+                        a.damageTarget(e, 100.0, true, false, ATTACK_TYPE_NORMAL, DAMAGE_TYPE_NORMAL, WEAPON_TYPE_WHOKNOWS)
+            else
+                addEffect("Abilities\\Spells\\Other\\Incinerate\\FireLordDeathExplode.mdl", t.getPos()).destr()
+        if t.getHP() > 0
+            t.removeAbility('S00E')
+        else
+            t.remove()
+        fx.destr()
+
+// ============================================================
+// Триггер: GolemRed — 'A05D' растёт с каждой полученной атакой до 13
+// ============================================================
+
+@noinline
+function golemRed()
+    let t = GetTriggerUnit()
+    let lvl = t.getAbilityLevel('A05D')
+    if lvl >= 1 and lvl < 13
+        t.incAbilityLevel('A05D')
+
+// ============================================================
+// Триггер: RedKryk — через 6 с после 'A05F' кастер под 'Broa' платит HP (680, при синергии 2 >= 3 — 238), но не умирает
+// ============================================================
+
+@noinline
+function redKryk(unit u)
+    doAfter(6.0) ->
+        if u.getHP() > 0 and u.getAbilityLevel('Broa') == 1
+            let cost = sinergia2[u.getOwner().getId()] < 3 ? 680.0 : 238.0
+            if u.getHP() > cost
+                u.damageTarget(u, cost, true, false, ATTACK_TYPE_HERO, DAMAGE_TYPE_NORMAL, WEAPON_TYPE_WHOKNOWS)
+            else
+                u.setHP(1.0)
+
+init
+    // AttackCast: приказы по типу атакующего (порядок — как в исходной цепочке)
+    onAttackBy('o00R', 'n00I', 'n00V', 'npn3') ->
+        selfOrder("stomp", 0)
+    onAttackBy('n01Q', 'n01C', 'h00Q') ->
+        selfOrder("berserk", 60)
+    onAttackBy('n03A') ->
+        targetOrder("doom", 60)
+    onAttackBy('n00K', 'h07P', 'n04J', 'n04K') ->
+        targetOrder("acidbomb", 60)
+    onAttackBy('n04T') ->
+        targetOrder("firerocks", 60)
+    onAttackBy('u00P', 'u00C', 'u005', 'u00X') ->
+        selfOrder("waterelemental", 0)
+    onAttackBy('u00W', 'u00V', 'n04G', 'n04F') ->
+        selfOrder("waterelemental", 0)
+    onAttackBy('u00F', 'n03M') ->
+        if GetAttacker().getMana() == 60
+            GetAttacker().issueTargetOrder("carrionswarm", GetAttacker())
+    onAttackBy('u00M') ->
+        if GetTriggerUnit().getAbilityLevel('Bcri') != 1
+            targetOrder("cripple", 60)
+    onAnyAttack() ->
+        attackCastByAbility()
+    onAttackBy('e008') ->
+        targetOrder("rejuvination", 60)
+    onAttackBy('e00B') ->
+        selfOrder("starfall", 0)
+    onAttackBy('u00E', 'n04N', 'n04O') ->
+        targetOrder("frostnova", 60)
+    onAttackBy('h07R') ->
+        targetOrder("creepthunderbolt", 0)
+    onAttackBy('e00L', 'e00Q') ->
+        selfOrder("roar", 0)
+    onAttackBy('n01W') ->
+        if GetAttacker().getAbilityLevel('Broa') != 1
+            selfOrder("roar", 0)
+    onAttackBy('n02S', 'n02Y') ->
+        selfOrder("manashieldon", 0)
+    onAttackBy('h02K', 'h02J', 'n049', 'n04A') ->
+        selfOrder("creepthunderclap", 0)
+    onAttackBy('h018', 'h019') ->
+        if GetAttacker().getMana() >= 60
+            selfOrder("spiritwolf", 0)
+        else
+            targetOrder("chainlightning", 0)
+    onAttackBy('e000', 'e001') ->
+        selfOrder("waterelemental", 60)
+    onAttackBy('n006', 'n007') ->
+        targetOrder("forkedlightning", 60)
+    onAttackBy('h01A', 'h01B') ->
+        if GetAttacker().getMana() == 60
+            targetOrder("thunderbolt", 0)
+            selfOrder("waterelemental", 0)
+    onAttackBy('n008', 'n009', 'h00E') ->
+        if GetAttacker().getMana() == 60
+            pointOrder("impale", 0)
+    onAttackBy('u000', 'u001') ->
+        let u = GetAttacker()
+        if u.getMana() == 60 and u.getHP() / u.getMaxHP() < 0.5
+            u.issueImmediateOrder("waterelemental")
+    onAttackBy('n03V', 'n03X', 'n03Z') ->
+        if GetAttacker().getMana() == 60
+            selfOrder("waterelemental", 0)
+    onAttackBy('n02C') ->
+        let c = GetTriggerUnit()
+        if GetAttacker().getMana() == 60 and c.getAbilityLevel('BNpa') < 1 and c.getAbilityLevel('BNpm') < 1
+            GetAttacker().issueTargetOrder("parasite", c)
+    onAttackBy('n01E', 'n01H') ->
+        if GetAttacker().getMana() == 60
+            targetOrder("thunderbolt", 0)
+    onAttackBy('n03U') ->
+        selfOrder("creepthunderclap", 60)
+    onAttackBy('u00D') ->
+        pointOrder("dispel", 0)
+    onAttackBy('n044', 'n045') ->
+        if GetAttacker().getMana() == 60
+            pointOrder("breathoffire", 0)
+    // реакция атакуемого
+    onAttacked('h03R') ->
+        GetTriggerUnit().issueImmediateOrder("divineshield")
+    onAttacked('n02D') ->
+        if GetAttacker().isType(UNIT_TYPE_RANGED_ATTACKER)
+            GetTriggerUnit().damageTarget(GetAttacker(), 15.0, true, false, ATTACK_TYPE_NORMAL, DAMAGE_TYPE_ENHANCED, WEAPON_TYPE_WHOKNOWS)
+    onAttacked('n04H', 'n04I') ->
+        let c = GetTriggerUnit()
+        if c.getMana() >= 60
+            c.issueTargetOrder("innerfire", c)
+    // остальные триггеры
+    onAttackBy('u00I') ->
+        vyrd()
+    onAttackBy('n019') ->
+        arhimond()
+    onAttackBy('n01A', 'n018') ->
+        ghostMagic()
+    onAttacked('n01B') ->
+        golem()
+    onAttacked('n01D', 'n01G') ->
+        dark1()
+    onAnyAttack() ->
+        vampir()
+    onAttackBy('n01O') ->
+        bbSymon()
+    onAttackBy('n01L') ->
+        normalGhost()
+    onAttackBy('n01M') ->
+        darkDragon()
+    onAnyAttack() ->
+        golemRed()
+    onAnyDeath() ->
+        deathRemove()
+    onDeathOf('u009') ->
+        deathMagic()
+    onDeathOf('u007') ->
+        deathSpider()
+    onKillBy('u00U') ->
+        damageKill()
+    EventListener.onCast('A045') (caster) ->
+        necr(caster)
+    EventListener.onCast('Aweb') (_caster) ->
+        setkaArmor()
+    EventListener.onCast('A01F') (caster) ->
+        dragonMagic(caster)
+    EventListener.onCast('A05F') (caster) ->
+        redKryk(caster)

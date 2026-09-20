@@ -1,0 +1,134 @@
+package UnitStats
+import UnitObjEditing
+
+/*
+	Полная подсказка юнита («Характеристики: Награда / Атакующие / Атака, Скорость атаки / Тип атаки /
+	Защитные: Здоровье, Защита / Тип защиты / Способность») собирается из цифр, а не пишется руками:
+
+		let stats = new Stats()
+			..bounty(2)..ranged(400)
+			..attack(18, 24, 1.5, AttackType.Pierce)
+			..defense(520, 0, ArmorType.Medium)
+			..skill("Имеет 15% шанс заблокировать 15 ед. физического урона.")
+			..skill("(Требуется 60 маны) (Перезарядка 10 секунд)")   // каждый вызов — ещё одна строка
+		new UnitDefinition('h004', 'hrif')
+		..setStats(stats)
+
+	Пока это только текст подсказки: на поля объекта (урон, здоровье…) Stats не влияет. Перевод подсказок
+	(locales/enUS.txt) ищет строку по готовому русскому тексту, так что формат ниже менять аккуратно.
+*/
+public class Stats
+	private string bountyLine = null
+	private string range = "(Ближний бой)"
+	private string attackText = ""
+	private string speedText = ""
+	private string attackTypeText = ""
+	private string hpText = ""
+	private string armorText = ""
+	private string armorTypeText = ""
+	private string abilityText = null
+
+	/** Награда: +n золота за убийство */
+	function bounty(int n) returns thistype
+		bountyLine = "|c00FFFF00Награда:|r " + (n > 0 ? "+" + n.toString() : n.toString())
+		return this
+
+	/** [Инком] +n — юнит даёт доход, а не награду */
+	function income(int n) returns thistype
+		bountyLine = "|c0000FF00[Инком]|r +" + n.toString()
+		return this
+
+	function melee() returns thistype
+		range = "(Ближний бой)"
+		return this
+
+	function melee(int range) returns thistype
+		this.range = "(Ближний бой/" + range.toString() + ")"
+		return this
+
+	function ranged(int range) returns thistype
+		this.range = "(Дальний бой/" + range.toString() + ")"
+		return this
+
+	function attack(int min, int max, real cooldown, AttackType kind) returns thistype
+		attackText = min.toString() + "-" + max.toString()
+		speedText = fmt(cooldown)
+		attackTypeText = attackTypeName(kind)
+		return this
+
+	function defense(int hp, int armor, ArmorType kind) returns thistype
+		hpText = hp.toString()
+		armorText = armor.toString()
+		armorTypeText = armorTypeName(kind)
+		return this
+
+	/** Текст после «Способность:»; повторный вызов добавляет строку. Без вызова — «Нет». */
+	function skill(string line) returns thistype
+		abilityText = abilityText == null ? line : abilityText + "\r\n" + line
+		return this
+
+	function text() returns string
+		var s = "|c00C0C0C0    Характеристики:|r\r\n"
+		if bountyLine != null
+			s += "                                " + bountyLine + "\r\n"
+		s += "|c00FF0000Атакующие:|r |c005BADFF" + range + "|r\r\n"
+		s += "     |c00C0C0C0Атака:|r " + attackText + "       |c00C0C0C0 Скорость атаки|r " + speedText + "\r\n"
+		s += "|c00C0C0C0Тип атаки:|r " + attackTypeText + "\r\n\r\n"
+		s += "|c0000FF00Защитные:|r\r\n"
+		s += "     |c00C0C0C0Здоровье:|r " + hpText + "       |c00C0C0C0Защита:|r " + armorText + "\r\n"
+		s += "|c00C0C0C0Тип защиты:|r " + armorTypeText + "\r\n\r\n"
+		s += "|c00FF8000Способность:|r " + (abilityText == null ? "Нет" : abilityText)
+		return s
+
+/** Подсказка из Stats; объект Stats после этого не нужен */
+public function UnitOrBuildingOrHeroDefinition.setStats(Stats stats)
+	this.setTooltipExtended(stats.text())
+	destroy stats
+
+/** 1.5 -> "1.5", 2.88 -> "2.88", 1.0 -> "1" (R2S даёт "1.500") */
+function fmt(real r) returns string
+	let whole = r.toInt()
+	let cents = ((r - whole) * 100 + 0.5).toInt()
+	if cents == 0
+		return whole.toString()
+	if cents mod 10 == 0
+		return whole.toString() + "." + (cents div 10).toString()
+	return whole.toString() + "." + (cents < 10 ? "0" : "") + cents.toString()
+
+function attackTypeName(AttackType t) returns string
+	switch t
+		case Normal
+			return "Обычный"
+		case Pierce
+			return "Колющий"
+		case Siege
+			return "Осадный"
+		case Spells
+			return "Магия"
+		case Chaos
+			return "Хаос"
+		case Magic
+			return "Магия"
+		case Hero
+			return "Герой"
+		default
+			return "?"
+
+function armorTypeName(ArmorType t) returns string
+	switch t
+		case Small
+			return "Лёгкий"
+		case Medium
+			return "Средний"
+		case Large
+			return "Тяжёлый"
+		case Fortified
+			return "Укреплённый"
+		case Normal
+			return "Обычный"
+		case Hero
+			return "Герой"
+		case Divine
+			return "Божественный"
+		case Unarmored
+			return "Без защиты"

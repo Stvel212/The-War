@@ -1,0 +1,49 @@
+package BuffsOriginal
+import BuffObjEditing
+
+@compiletime function create_w3h_Beng()
+	new BuffDefinition('Beng', 'Beng')
+	..setEditorSuffix("")
+	..setTooltipNormalExtended("")
+	..setIconNormal(1, "ReplaceableTextures\\CommandButtons\\BTNNagaWeaponUp3.blp")
+	..setArtTarget("")
+
+@compiletime function create_w3h_BHwe()
+	new BuffDefinition('BHwe', 'BHwe')
+	..setTooltipNormalExtended("")
+
+@compiletime function create_w3h_BNdo()
+	new BuffDefinition('BNdo', 'BNdo')
+	..setTooltipNormalExtended("")
+
+@compiletime function create_w3h_Bbsk()
+	new BuffDefinition('Bbsk', 'Bbsk')
+	..setTooltipNormalExtended("")
+
+@compiletime function create_w3h_Bspo()
+	new BuffDefinition('Bspo', 'Bspo')
+	..setIconNormal(1, "ReplaceableTextures\\CommandButtons\\BTNManaFlare.blp")
+
+@compiletime function create_w3h_Bfro()
+	new BuffDefinition('Bfro', 'Bfro')
+	..setArtTarget("Abilities\\Spells\\Other\\FrostDamage\\FrostDamage.mdl")
+
+@compiletime function create_w3h_Broa()
+	new BuffDefinition('Broa', 'Broa')
+	..setArtTarget("Abilities\\Spells\\NightElf\\BattleRoar\\RoarTarget.mdl")
+
+@compiletime function create_w3h_Bbar()
+	new BuffDefinition('Bbar', 'Bbar')
+	..setArtTarget("Abilities\\Spells\\NightElf\\Barkskin\\BarkSkinTarget.mdl")
+
+@compiletime function create_w3h_BEer()
+	new BuffDefinition('BEer', 'BEer')
+	..setArtTarget("Abilities\\Spells\\NightElf\\EntanglingRoots\\EntanglingRootsTarget.mdl")
+
+@compiletime function create_w3h_Xclf()
+	new BuffDefinition('Xclf', 'Xclf')
+	..setEffect("Abilities\\Spells\\Human\\CloudOfFog\\CloudOfFog.mdl")
+
+@compiletime function create_w3h_XNmo()
+	new BuffDefinition('XNmo', 'XNmo')
+	..setEffect("")

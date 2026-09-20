@@ -1,0 +1,19 @@
+package TheWar
+
+/*
+	The War Reborn — точка входа Wurst-проекта.
+
+	Структура wurst/:
+	  map/MapGlobals        глобальные переменные карты (бывшие udg_*), регионы, хэш-таблица
+	  map/lib/*             библиотеки из оригинала: SendResult, CjLib (MMD — статистика для ботов — лежит в wurst/MMD.wurst)
+	  map/Initialization    системные триггеры: Zadania, Int, Int2, Wave, Win
+	  map/DamageSystem      модификаторы урона (бывший DamageOne) на stdlib DamageEvent
+	  map/Scoreboard        мультиборды, выход игроков
+	  map/Main, Commands, Synergy, King, Builder, HeroSpells, Artifacts
+	  map/autocast/*        способности юнитов по расам
+	  map/MapStart          триггеры «Map initialization» — запускаются последними
+	  objects/*             данные объектов (юниты, способности, предметы…) — правятся здесь, не в редакторе
+
+	Скрипт в TheWar.w3x/war3map.j — только то, что генерирует World Editor (юниты на карте, регионы, config).
+*/
+import MapStart

@@ -1,0 +1,869 @@
+package Initialization
+import MMD
+import MapGlobals
+import UnitEvents
+import ClosureTimers
+import ClosureForGroups
+
+// ============================================================
+// Общие помощники (используются всеми пакетами карты)
+// ============================================================
+
+/** Юниты некроманта, которым нельзя давать баффы «на всех» */
+public function zapret_Necr(unit u) returns bool
+    let t = u.getTypeId()
+    return t == 'u00P' or t == 'u00C' or t == 'u005' or t == 'u00X' or t == 'u00W' or t == 'u00V' or t == 'u00S' or t == 'u00Y' or t == 'n014' or t == 'n017' or t == 'n015' or t == 'n013'
+
+/** Игрок в игре и им управляет человек */
+public function isInGame(player p) returns bool
+    return p.getSlotState() == PLAYER_SLOT_STATE_PLAYING and p.getController() == MAP_CONTROL_USER
+
+/** Левая команда: игроки 0-3 и их король (8); остальные (4-7, 9) — правая */
+public function player.isLeftTeam() returns bool
+    return this.getId() < 4 or this.getId() == 8
+
+/** Приказ идти в атаку по своей линии на высоте y: левая команда — вправо (x = 2750), правая — влево (x = -3300) */
+public function unit.attackLane(real y)
+    this.issuePointOrder("attack", vec2(this.getOwner().isLeftTeam() ? 2750.0 : -3300.0, y))
+
+/** Приказ идти в атаку по своей линии (по своей высоте) */
+public function unit.attackLane()
+    this.attackLane(this.getY())
+
+/** Лимит построек типа t */
+public function player.limit(int n, int t)
+    SetPlayerTechMaxAllowed(this, t, n)
+
+public function addManaToUnits(unit u, real amount)
+    u.setMana(u.getMana() + amount)
+
+/** Всплывающий текст над юнитом c: size — размер, time — время жизни; z: 128 — уходит вправо-вверх, 127 — влево-вверх, иначе высота */
+public function text(unit c, string s, real size, real time, real z)
+    var height = z
+    var tilt = 0
+    if z == 128
+        height = 50.0
+        tilt = 30
+    else if z == 127
+        height = 50.0
+        tilt = -30
+    let tt = CreateTextTag()
+    SetTextTagPosUnit(tt, c, height)
+    tt..setText(s, size)   // размер в пунктах: stdlib сам умножает на 0.0023
+        ..setColor(100, 100, 100, 255)
+        ..setVelocity(0.0666 * Cos((90.00 + tilt) * 0.01745), 0.0666 * Sin((90.00 + tilt) * 0.01745))
+        ..setPermanent(false)
+        ..setLifespan(time)
+        ..setFadepoint(time * 0.66)
+
+/** Всплывающее «+N» золота над юнитом, видное только игроку p (у остальных пустой текст, как в оригинале) */
+public function goldText(unit at, player p, int gold)
+    text(at, localPlayer == p ? "|cffFFFF00+" + gold.toString() + "|r" : "", 10.0, 3.50, 50.0)
+
+/** Цена юнита в «еде» ×2 (по базовому типу из EFFECT_TYPE_TARGET), а если нет — из таблицы getUnitFood по типу t */
+public function unitGold(unit u, int t) returns int
+    let food = 2 * GetFoodUsed(UnitId(GetAbilityEffectById(u.getTypeId(), EFFECT_TYPE_TARGET, 0)))
+    return food == 0 ? getUnitFood(t) : food
+
+/** +hp к максимуму здоровья (и к текущему, как давала бывшая способность-бонус 'A1ZV') */
+public function wDammiHP(unit c, int hp)
+    c.setMaxHP(c.getIntMaxHP() + hp)
+    c.setHP(c.getHP() + hp)
+
+/** +mp к максимуму маны (и к текущей, как давала бывшая способность-бонус 'A1ZT') */
+public function wDammiMP(unit c, int mp)
+    c.setMaxMana(c.getIntMaxMana() + mp)
+    c.setMana(c.getMana() + mp)
+
+/** +amount к базовому урону (раньше — через предметы-бонусы 'I1ZA'..'I1ZD') */
+public function wDammiAtt(unit u, int amount)
+    if amount > 0
+        u.setBaseDamage(u.getBaseDamage(0) + amount, 0)
+
+/** «Еда» юнита по типу для тех, у кого её нет в объекте (награда за убийство/продажу) */
+public function getUnitFood(int t) returns int
+    if t == 'h01L' or t == 'n03J' or t == 'u00S' or t == 'h007' or t == 'h00L' or t == 'n03W' or t == 'ucs1'
+        return 1
+    else if t == 'n03H' or t == 'u00N' or t == 'n047' or t == 'u00Y'
+        return 2
+    else if t == 'n03F' or t == 'n015' or t == 'n016' or t == 'n046' or t == 'n03Y'
+        return 4
+    else if t == 'n03E' or t == 'npn1' or t == 'npn2' or t == 'npn3'
+        return 6
+    else if t == 'h01O' or t == 'h01N' or t == 'o00V' or t == 'o00U' or t == 'h01P' or t == 'h01Q' or t == 'n004' or t == 'n005'
+        return 6
+    else if t == 'n03L' or t == 'n03D'
+        return 7
+    else if t == 'n03K'
+        return 8
+    else if t == 'n03S' or t == 'n03R'
+        return 10
+    else if t == 'n03M'
+        return 12
+    else if t == 'n03T'
+        return 15
+    else if t == 'n03C'
+        return 22
+    else if t == 'n03G'
+        return 30
+    else if t == 'n03A'
+        return 40
+    return 0
+
+// ============================================================
+// Случайный набор зданий (репик): по одному зданию из каждого «тира»
+// ============================================================
+
+/** Сколько вариантов в тире 1..10 */
+function tierSize(int tier) returns int
+    if tier == 1 or tier == 6 or tier == 8 or tier == 9
+        return 9
+    else if tier == 3 or tier == 5 or tier == 7
+        return 10
+    return 8
+
+/** Тип здания № i тира tier */
+function tierType(int tier, int i) returns int
+    if tier == 1
+        return OneTear[i]
+    else if tier == 2
+        return TwoTear[i]
+    else if tier == 3
+        return ThreeTear[i]
+    else if tier == 4
+        return FourTear[i]
+    else if tier == 5
+        return FiveTear[i]
+    else if tier == 6
+        return SixTear[i]
+    else if tier == 7
+        return SevenTear[i]
+    else if tier == 8
+        return EightTear[i]
+    else if tier == 9
+        return NineTear[i]
+    return TenTear[i]
+
+/** Случайный вариант тира, не совпадающий с прошлым (Repick), разрешается игроку с лимитом limit */
+function pickTier(player p, int tier, int limit)
+    let size = tierSize(tier)
+    let last = Repick[tier + 10 * p.getId()]
+    var r = GetRandomInt(1, size)
+    if r == last
+        r = r == size ? size - 1 : r + 1
+    Repick[tier + 10 * p.getId()] = r
+    SetPlayerTechMaxAllowed(p, tierType(tier, r), limit)
+
+/** Замена набора зданий игрока: всё запретить, потом по одному случайному из каждого тира (герои 8-9 — если героя ещё нет) */
+public function random(player p)
+    DisplayTextToPlayer(p, 0.0, 0.0, "|c0000FF80Replacement complete!|r")
+    for i = 1 to 95
+        SetPlayerTechMaxAllowed(p, AllTear[i], 0)
+    for tier = 1 to 7
+        pickTier(p, tier, 999)
+    if not Hero[p.getId()]
+        pickTier(p, 8, 1)
+        pickTier(p, 9, 1)
+    pickTier(p, 10, 999)
+
+// ============================================================
+// Триггер: Zadania — задания (список в F9)
+// ============================================================
+
+public function zadania()
+    CreateQuestBJ(bj_QUESTTYPE_REQ_DISCOVERED, "TRIGSTR_6718", "TRIGSTR_6719", "icons\\PASBTNLibertyYellow.blp")
+    CreateQuestBJ(bj_QUESTTYPE_REQ_DISCOVERED, "TRIGSTR_6720", "TRIGSTR_6721", "icons\\PASHeroShadoPan.blp")
+
+// ============================================================
+// Триггер: Int — глобалы, звуки, короли, строители, магазины, таблицы тиров
+// ============================================================
+
+@noinline
+function fillTiers()
+    OneTear[1] = 'h011'
+    OneTear[2] = 'h02V'
+    OneTear[3] = 'h02S'
+    OneTear[4] = 'h04G'
+    OneTear[5] = 'h062'
+    OneTear[6] = 'h057'
+    OneTear[7] = 'h06Y'
+    OneTear[8] = 'h074'
+    OneTear[9] = 'h07X'
+    TwoTear[1] = 'h00U'
+    TwoTear[2] = 'h02X'
+    TwoTear[3] = 'h03V'
+    TwoTear[4] = 'h060'
+    TwoTear[5] = 'h06M'
+    TwoTear[6] = 'h075'
+    TwoTear[7] = 'h05A'
+    TwoTear[8] = 'h095'
+    ThreeTear[1] = 'h00T'
+    ThreeTear[2] = 'h031'
+    ThreeTear[3] = 'h03Y'
+    ThreeTear[4] = 'h05V'
+    ThreeTear[5] = 'h065'
+    ThreeTear[6] = 'h081'
+    ThreeTear[7] = 'h05G'
+    ThreeTear[8] = 'h078'
+    ThreeTear[9] = 'h08L'
+    ThreeTear[10] = 'h092'
+    FourTear[1] = 'h014'
+    FourTear[2] = 'h032'
+    FourTear[3] = 'h040'
+    FourTear[4] = 'h04N'
+    FourTear[5] = 'h05F'
+    FourTear[6] = 'h067'
+    FourTear[7] = 'h07A'
+    FourTear[8] = 'h080'
+    FiveTear[1] = 'h03I'
+    FiveTear[2] = 'h035'
+    FiveTear[3] = 'h051'
+    FiveTear[4] = 'h042'
+    FiveTear[5] = 'h084'
+    FiveTear[6] = 'h04P'
+    FiveTear[7] = 'h05J'
+    FiveTear[8] = 'h069'
+    FiveTear[9] = 'h06P'
+    FiveTear[10] = 'h07C'
+    SixTear[1] = 'h037'
+    SixTear[2] = 'h044'
+    SixTear[3] = 'h05K'
+    SixTear[4] = 'h06B'
+    SixTear[5] = 'h04R'
+    SixTear[6] = 'h06S'
+    SixTear[7] = 'h07E'
+    SixTear[8] = 'h01E'
+    SixTear[9] = 'h086'
+    SevenTear[1] = 'h03J'
+    SevenTear[2] = 'h039'
+    SevenTear[3] = 'h046'
+    SevenTear[4] = 'h05M'
+    SevenTear[5] = 'h04T'
+    SevenTear[6] = 'h06V'
+    SevenTear[7] = 'h07G'
+    SevenTear[8] = 'h06D'
+    SevenTear[9] = 'h08I'
+    SevenTear[10] = 'h088'
+    EightTear[1] = 'h02P'
+    EightTear[2] = 'h025'
+    EightTear[3] = 'h027'
+    EightTear[4] = 'h02F'
+    EightTear[5] = 'h01S'
+    EightTear[6] = 'h021'
+    EightTear[7] = 'h02H'
+    EightTear[8] = 'h099'
+    EightTear[9] = 'h09W'
+    NineTear[1] = 'h02O'
+    NineTear[2] = 'h01X'
+    NineTear[3] = 'h01Z'
+    NineTear[4] = 'h02B'
+    NineTear[5] = 'h023'
+    NineTear[6] = 'h029'
+    NineTear[7] = 'h01T'
+    NineTear[8] = 'h09J'
+    NineTear[9] = 'h0AG'
+    TenTear[1] = 'h0A0'
+    TenTear[2] = 'h0A2'
+    TenTear[3] = 'h0A4'
+    TenTear[4] = 'h0A6'
+    TenTear[5] = 'h0A8'
+    TenTear[6] = 'h0AA'
+    TenTear[7] = 'h0AC'
+    TenTear[8] = 'h0AE'
+    AllTear[1] = 'h011'
+    AllTear[2] = 'h02V'
+    AllTear[3] = 'h00T'
+    AllTear[4] = 'h031'
+    AllTear[5] = 'h00U'
+    AllTear[6] = 'h02X'
+    AllTear[7] = 'h014'
+    AllTear[8] = 'h032'
+    AllTear[9] = 'h03I'
+    AllTear[10] = 'h035'
+    AllTear[11] = 'h037'
+    AllTear[12] = 'h01E'
+    AllTear[13] = 'h03J'
+    AllTear[14] = 'h039'
+    AllTear[15] = 'h034'
+    AllTear[16] = 'h02P'
+    AllTear[17] = 'h025'
+    AllTear[18] = 'h02F'
+    AllTear[19] = 'h08L'
+    AllTear[20] = 'h027'
+    AllTear[21] = 'h021'
+    AllTear[22] = 'h02O'
+    AllTear[23] = 'h01X'
+    AllTear[24] = 'h01Z'
+    AllTear[25] = 'h01S'
+    AllTear[26] = 'h023'
+    AllTear[27] = 'h029'
+    AllTear[28] = 'h02B'
+    AllTear[29] = 'h03V'
+    AllTear[30] = 'h02S'
+    AllTear[31] = 'h044'
+    AllTear[32] = 'h046'
+    AllTear[33] = 'h042'
+    AllTear[34] = 'h04G'
+    AllTear[35] = 'h09J'
+    AllTear[36] = 'h05V'
+    AllTear[37] = 'h04N'
+    AllTear[38] = 'h02T'
+    AllTear[39] = 'h04P'
+    AllTear[40] = 'h04E'
+    AllTear[41] = 'h051'
+    AllTear[42] = 'h04R'
+    AllTear[43] = 'h057'
+    AllTear[44] = 'h05A'
+    AllTear[45] = 'h05G'
+    AllTear[46] = 'h05F'
+    AllTear[47] = 'h05J'
+    AllTear[48] = 'h05K'
+    AllTear[49] = 'h05M'
+    AllTear[50] = 'h062'
+    AllTear[51] = 'h060'
+    AllTear[52] = 'h065'
+    AllTear[53] = 'h067'
+    AllTear[54] = 'h069'
+    AllTear[55] = 'h06B'
+    AllTear[56] = 'h06D'
+    AllTear[57] = 'h06M'
+    AllTear[58] = 'h06P'
+    AllTear[59] = 'h06S'
+    AllTear[60] = 'h06V'
+    AllTear[61] = 'h06Y'
+    AllTear[62] = 'h084'
+    AllTear[63] = 'h07C'
+    AllTear[64] = 'h074'
+    AllTear[65] = 'h075'
+    AllTear[66] = 'h078'
+    AllTear[67] = 'h07A'
+    AllTear[68] = 'h07E'
+    AllTear[69] = 'h07G'
+    AllTear[70] = 'h07X'
+    AllTear[71] = 'h080'
+    AllTear[72] = 'h081'
+    AllTear[73] = 'n08L'
+    AllTear[74] = 'h08I'
+    AllTear[75] = 'h087'
+    AllTear[76] = 'h088'
+    AllTear[77] = 'h086'
+    AllTear[78] = 'h04T'
+    AllTear[79] = 'h040'
+    AllTear[80] = 'h03Y'
+    AllTear[81] = 'h01T'
+    AllTear[82] = 'h02H'
+    AllTear[83] = 'h092'
+    AllTear[84] = 'h095'
+    AllTear[85] = 'h099'
+    AllTear[86] = 'h09W'
+    AllTear[87] = 'h0A0'
+    AllTear[88] = 'h0A2'
+    AllTear[89] = 'h0A4'
+    AllTear[90] = 'h0A6'
+    AllTear[91] = 'h0A8'
+    AllTear[92] = 'h0AA'
+    AllTear[93] = 'h0AC'
+    AllTear[94] = 'h0AE'
+    AllTear[95] = 'h0AG'
+
+public function initGame()
+    Hash = InitHashtable()
+    for i = 1 to 5
+        ForceG[i] = CreateForce()
+    LOL = CreateSound("sounds\\LOLfb.mp3", false, false, false, 10, 10, "")
+        ..setDuration(3579)
+        ..setChannel(0)
+        ..setVolume(127)
+        ..setPitch(1.0)
+    KnightNoGold = CreateSound("Sound\\Interface\\Warning\\Human\\KnightNoGold1.wav", false, false, false, 10, 10, "")
+    SetSoundParamsFromLabel(KnightNoGold, "NoGoldHuman")
+    KnightNoGold.setDuration(1486)
+    Color[0] = "FF0000"
+    Color[1] = "0000FF"
+    Color[2] = "00FFFF"
+    Color[3] = "800080"
+    Color[4] = "FFFF00"
+    Color[5] = "FFA500"
+    Color[6] = "00FF00"
+    Color[7] = "FF00FF"
+    for a = 0 to 7
+        LimitArt[a] = 2
+    King[1] = CreateUnit(players[8], 'H003', -3070.0, 250.0, 0.0)
+    King[2] = CreateUnit(players[9], 'H003', 2550.0, 250.0, 180.0)
+    for a = 1 to 2
+        King[a]..issuePointOrder("root", King[a].getPos())
+            ..removeAbility('A0BQ')
+    // базы: левые у x = -3070 (здание базы -3672), правые у x = 2550 (3138); по 4 высоты
+    for a = 0 to 7
+        let left = a < 4
+        let lane = a mod 4
+        let y = lane == 0 ? -4990.0 : (lane == 1 ? -2400.0 : (lane == 2 ? 3050.0 : 5620.0))
+        let x = left ? -3070.0 : 2550.0
+        let facing = left ? 180.0 : 270.0
+        Arthas[a] = CreateUnit(players[a], 'h02T', x, y, facing)
+        Builder[a] = CreateUnit(players[a], 'H01Y', x, y, facing)
+        Baza[a] = CreateUnit(players[a], 'h000', left ? -3672.0 : 3138.0, y, 270.0)
+        ForceG[left ? 1 : 2].addPlayer(players[a])
+        SetCameraFieldForPlayer(players[a], CAMERA_FIELD_TARGET_DISTANCE, 2400.0, 0.0)
+    Magazin[0] = CreateUnit(players[8], 'n012', -3968.0, 723.0, 270.0)
+    Magazin[1] = CreateUnit(players[8], 'n02H', -3775.0, 736.0, 270.0)
+    Magazin[2] = CreateUnit(players[8], 'n030', -3965.0, 491.0, 270.0)
+    Magazin[3] = CreateUnit(players[8], 'n031', -3775.0, 479.0, 270.0)
+    Magazin[4] = CreateUnit(players[8], 'n032', -3968.0, 231.0, 270.0)
+    Magazin[5] = CreateUnit(players[8], 'n033', -3775.0, 244.0, 270.0)
+    Magazin[6] = CreateUnit(players[8], 'n03N', -3968.0, -40.0, 270.0)
+    Magazin[7] = CreateUnit(players[8], 'n03P', -3900.0, -315.0, 270.0)
+    Magazin[8] = CreateUnit(players[8], 'n03O', -3775.0, -40.0, 270.0)
+    Magazin[9] = CreateUnit(players[9], 'n012', 3262.0, 736.0, 270.0)
+    Magazin[10] = CreateUnit(players[9], 'n02H', 3469.0, 732.0, 270.0)
+    Magazin[11] = CreateUnit(players[9], 'n030', 3262.0, 483.0, 270.0)
+    Magazin[12] = CreateUnit(players[9], 'n031', 3469.0, 481.0, 270.0)
+    Magazin[13] = CreateUnit(players[9], 'n032', 3262.0, 248.0, 270.0)
+    Magazin[14] = CreateUnit(players[9], 'n033', 3469.0, 235.0, 270.0)
+    Magazin[15] = CreateUnit(players[9], 'n03N', 3262.0, -31.0, 270.0)
+    Magazin[16] = CreateUnit(players[9], 'n03P', 3362.0, -330.0, 270.0)
+    Magazin[17] = CreateUnit(players[9], 'n03O', 3460.0, -31.0, 270.0)
+    roundTimer.start(3.0, null)
+    fillTiers()
+
+// ============================================================
+// Триггер: Int2 — первый раунд: особые «скины» баз по никам, рабочие, надписи, обзор
+// ============================================================
+
+/** Заменить строителя/базу/Артаса игрока a на особые типы и выдать рабочего wispId; вернуть рабочего */
+function applySkin(int a, int wispId, int builderId, int bazaId, int arthasId) returns unit
+    let p = players[a]
+    let wisp = CreateUnit(p, wispId, Builder[a].getX(), Builder[a].getY(), 0.0)
+    wisp.setPathing(true)
+    let builder = CreateUnit(p, builderId, Builder[a].getX(), Builder[a].getY(), 0.0)
+    Builder[a].remove()
+    Builder[a] = builder
+    let bazaPos = Baza[a].getPos()
+    Baza[a].remove()
+    Baza[a] = CreateUnit(p, bazaId, bazaPos.x, bazaPos.y, 270.0)
+    let arthas = CreateUnit(p, arthasId, Arthas[a].getX(), Arthas[a].getY(), 0.0)
+    Arthas[a].remove()
+    Arthas[a] = arthas
+    return wisp
+
+/** Вокруг базы игрока a деревья 'LTlt' заменяются на treeId, а земля 'Yhdg' перед базой — на terrainId */
+function decorateBase(int a, int treeId, int terrainId)
+    let base = Baza[a].getPos()
+    let d = a < 4 ? 1 : -1
+    let r = Rect(base.x - 1000, base.y - 1000, base.x + 1000, base.y + 1000)
+    forDestructablesInRect(r) dest ->
+        if dest.getTypeId() == 'LTlt'
+            let pos = dest.getPos()
+            dest.remove()
+            createDestructable(treeId, pos, angle(0), 1.0, 1)
+    r.remove()
+    for b = 0 to 7
+        for c = 0 to 9
+            let x = base.x + (80 + c * 133) * d
+            let y = base.y - 400 + b * 133
+            if GetTerrainType(x, y) == 'Yhdg'
+                SetTerrainType(x, y, terrainId, -1, 1, 1)
+
+/** Особый скин игрока a + украшение базы (treeId == 0 — без украшения); вернуть рабочего */
+function skin(int a, int wispId, int builderId, int bazaId, int arthasId, int treeId, int terrainId) returns unit
+    let w = applySkin(a, wispId, builderId, bazaId, arthasId)
+    if treeId != 0
+        decorateBase(a, treeId, terrainId)
+    return w
+
+/** Рабочий игрока a по нику (особые скины у постоянных игроков) */
+function createWorker(int a) returns unit
+    let name = players[a].getName()
+    if name == "Stvel#2381"
+        return skin(a, 'e01Y', 'H08M', 'h08N', 'h08O', 'JTct', 'Zgrs')
+    else if name == "The_War"
+        return skin(a, 'e01S', 'H08P', 'h08R', 'h08S', 0, 0)
+    else if name == "HELLRISER" or name == "Delovet" or name == "SorryIllKillYou" or name == "BuriTos" or name == "The_Asakura_War"
+        return skin(a, 'e01T', 'H08V', 'h08T', 'h08U', 'DTsh', 'Kdtr')
+    else if name == "LordofKodoes#2670"
+        return skin(a, 'e01Y', 'H09F', 'h08N', 'h09G', 'GTsh', 'Cpos')
+    else if name == "dEDaRTEM"
+        return skin(a, 'e01D', 'H0AJ', 'h0AK', 'h0AL', 'B002', 'Gdkr')
+    else if name == "Pentium4" or name == "OZ-Robert"
+        return skin(a, 'e01R', 'H08W', 'h08X', 'h08Y', 'FTtw', 'Fgrd')
+    else if name == "PLEVA_KOZLA" or name == "MyNameIsIra" or name == "Djanbo1djan-_-" or name == "Bodyrest" or name == "1st_PVL" or name == "TacticalSurv"
+        return skin(a, 'e01U', 'H08Z', 'h091', 'h090', 'ZTtw', 'Zgrs')
+    else if name == "XxRiKxX123"
+        return skin(a, 'e01R', 'H09B', 'h09C', 'h09D', 'FTtw', 'Fgrd')
+    else if name == "IIoBapeHoK"
+        return skin(a, 'e01X', 'H09L', 'h09N', 'h09M', 0, 0)
+    else if name == "SnOoL1337" or name == "NeverLookBack"
+        return skin(a, 'e01T', 'H08W', 'h08T', 'h08Y', 'FTtw', 'Fgrd')
+    else if name == ".Epicfail."
+        return skin(a, 'e01E', 'H0AO', 'h0AN', 'h0AM', 'WTst', 'Idki')
+    else if name == "raknakrabe" or name == "Fear"
+        return skin(a, 'e01Z', 'H09T', 'h09U', 'h09Q', 'FTtw', 'Fgrd')
+    let w = CreateUnit(players[a], 'e003', Builder[a].getX(), Builder[a].getY(), 0.0)
+    w.setPathing(true)
+    return w
+
+/** Подпись над магазином (по типу здания) */
+public function shopLabel(unit u)
+    let id = u.getTypeId()
+    string s = null
+    var dx = -15.0
+    if id == 'n012'
+        s = "Damage"
+    else if id == 'n02H'
+        s = "Regeneration"
+    else if id == 'n030'
+        s = "Auras"
+    else if id == 'n031'
+        s = "Command Auras"
+    else if id == 'n032'
+        s = "Stuns"
+        dx = 0.0
+    else if id == 'n033'
+        s = "Summons"
+    else if id == 'n03N' or id == 'n03O'
+        s = "Misc"
+    else if id == 'n03P'
+        s = "Sold"
+    if s != null
+        CreateTextTag()
+            ..setText("|cffFF0000" + s + "|r", 10)
+            ..setPos(u.getX() + dx, u.getY(), 0.0)
+
+@noinline
+function initPlayers()
+    for a = 0 to 7
+        let p = players[a]
+        let wisp = createWorker(a)
+        Baza[a].setVertexColor(255, 255, 255, 180)
+        // текст ресурсов над базой — виден только своей команде
+        TextR[a] = CreateTextTag()
+            ..setText("", 10)
+            ..setPos(Baza[a].getX() - 50, Baza[a].getY(), 0.0)
+        if (ForceG[1].containsPlayer(localPlayer) and a > 3) or (ForceG[2].containsPlayer(localPlayer) and a < 4)
+            TextR[a].setVisibility(false)
+        // рабочий сразу идёт рубить ближайшее дерево
+        let r = Rect(wisp.getX() - 1000, wisp.getY() - 1000, wisp.getX() + 1000, wisp.getY() + 1000)
+        forDestructablesInRect(r) dest ->
+            wisp.issueTargetOrder("harvest", dest)
+        r.remove()
+        let vision = a < 4 ? rct_Vision1 : rct_Vision2
+        CreateFogModifierRect(p, FOG_OF_WAR_VISIBLE, vision, true, false).start()
+        SetFogStateRect(p, FOG_OF_WAR_VISIBLE, vision, true)
+    // объявление о турнире 2x2 (два постоянных текстага у воды) убрано по просьбе
+
+// ============================================================
+// Триггер: Wave — раунд: юниты со всех построек, награда, наёмники в бой
+// ============================================================
+
+/** Случайные (25%) улучшения от исследований строителя владельца */
+function applyBuilderUpgrades(unit s)
+    let b = Builder[s.getOwner().getId()]
+    if b.getAbilityLevel('B02S') >= 1 and GetRandomInt(1, 100) <= 25
+        s.addAbility('A0BI')
+        addEffect("Abilities\\Weapons\\AvengerMissile\\AvengerMissile.mdl", s, "chest")
+    if b.getAbilityLevel('B02Q') >= 1 and GetRandomInt(1, 100) <= 25
+        s.addAbility('A0BF')
+        addEffect("Abilities\\Spells\\Undead\\ReplenishMana\\ReplenishManaCasterOverhead.mdl", s, "overhead").destr()
+    if b.getAbilityLevel('B02R') >= 1 and s.isType(UNIT_TYPE_MELEE_ATTACKER) and GetRandomInt(1, 100) <= 25
+        s.addAbility('A06V')
+        addEffect("Abilities\\Spells\\Other\\ANrm\\ANrmTarget.mdl", s, "origin")
+    if b.getAbilityLevel('B02T') >= 1 and GetRandomInt(1, 100) <= 25
+        s..addAbility('A0BG')..addAbility('S00P')
+    if b.getAbilityLevel('B02P') >= 1 and GetRandomInt(1, 100) <= 25
+        s..addAbility('A051')..addAbility('S00Q')
+    if b.getAbilityLevel('B02F') >= 1 and GetRandomInt(1, 100) <= 25
+        s..addAbility('A0BH')..addAbility('S00R')
+    if b.getAbilityLevel('B02Z') >= 1 and GetRandomInt(1, 100) <= 25
+        s.addAbility('A0CT')
+    if b.getAbilityLevel('B03K') >= 1 and GetRandomInt(1, 100) <= 25 and not zapret_Necr(s)
+        s.addAbility('A0F2')
+        addEffect("models\\Armor Stimulus Orange.mdx", s, "overhead")
+    if b.getAbilityLevel('B03F') >= 1 and s.getMaxMana() == 60 and GetRandomInt(1, 100) <= 25
+        s.addAbility('A0ES')
+        addEffect("Abilities\\Spells\\Other\\ANrl\\ANrlTarget.mdl", s, "origin")
+    if b.getAbilityLevel('B03M') >= 1 and s.getMaxMana() == 60 and GetRandomInt(1, 100) <= 25 and not zapret_Necr(s)
+        s.addAbility('A0FB')
+        addEffect("models\\Magic_Aura_02.mdl", s, "origin")
+    if b.getAbilityLevel('B02O') >= 1
+        wDammiHP(s, 205)
+        s.addAbility('S00S')
+
+/** Бонусы от синергий зданий владельца */
+function applySynergies(unit s)
+    let id = s.getOwner().getId()
+    let t = s.getTypeId()
+    let flying = s.getAbilityLevel('A00W') == 1
+    if sinergia3[id] >= 5 and t == 'e00M'
+        s..addAbility('A02I')..addAbility('A04U')
+        wDammiAtt(s, 15)
+    if sinergia[id] >= 3 and t == 'o006'
+        s..addAbility('A02I')..addAbility('A02J')
+        wDammiAtt(s, 3)
+    if sinergia1[id] >= 1 and flying
+        s..addAbility('A02I')..addAbility('A03S')
+    if sinergia4[id] >= 1 and flying
+        s.addAbility('A064')
+    if sinergia8[id] >= 1 and flying
+        s.addAbility('A07D')
+    if t == 'n02L'
+        if sinergia6[id] == 1
+            s..addAbility('A06V')..addAbility('A03Z')..setVertexColor(255, 0, 0, 255)
+        else
+            s..addAbility('A04U')..addAbility('A00J')..setVertexColor(0, 255, 0, 255)
+    if t == 'n026'
+        addEffect("Abilities\\Spells\\Undead\\AbsorbMana\\AbsorbManaBirthMissile.mdl", s, "weapon,left")
+        let lvl = min(5, sinergia5[id])
+        wDammiHP(s, 50 * lvl)
+        s..setAbilityLevel('A0DA', lvl)..setAbilityLevel('A06G', lvl)..setAbilityLevel('A06H', lvl)
+        wDammiAtt(s, 2 * lvl)
+    if t == 'n02R'
+        wDammiHP(s, 216 * min(5, sinergia7[id]))
+    if sinergia9[id] >= 3 and t == 'n035'
+        s..addAbility('A06M')..addAbility('A02I')
+        addEffect("Units\\NightElf\\Owl\\Owl.mdl", s, "origin")
+    if sinergia10[id] >= 1 and t == 'n022'
+        s..addAbility('A02I')..addAbility('A0DD')
+    if (sinergia11[id] >= 1 and t == 'u00P') or t == 'u00C' or t == 'u005' or t == 'u00X' or t == 'u00W' or t == 'u00V'
+        wDammiHP(s, sinergia11[id] < 4 ? 25 * sinergia11[id] : 100)
+    if sinergia12[id] >= 3 and t == 'n00O'
+        s..addAbility('A0GQ')..addAbility('A0CP')
+    if sinergiaDE2[id] >= 1
+        wDammiHP(s, 125)
+        if t == 'n014' or t == 'n013' or t == 'n017' or t == 'u00H' or t == 'n015' or t == 'u00S' or t == 'u00Y'
+            s.addAbility('A0DL')
+        if t == 'u00P' or t == 'u00C' or t == 'u005' or t == 'u00X' or t == 'u00W' or t == 'u00V' or t == 'u00E'
+            s.addAbility('A0DG')
+    if sinergiaDE[id] == 1
+        s.addAbility('A0DH')
+    if sinergiaDE1[id] >= 1
+        s.addAbility('A0DK')
+        addEffect("models\\CircleOutBuff.mdl", s, "origin")
+    if sinergiaDE3[id] >= 1
+        addEffect("models\\Portal.mdl", s, "origin")
+        s.addAbility('A0DJ')
+    if sinergiaDE5[id] >= 1
+        s.addAbility('A0DJ')
+    if sinergiaDE6[id] >= 1
+        s.addAbility('A0F1')
+
+/** Синергии элементалей (H1..H8): у лордов 'n04R'/'n04S' — до двух умений (актив + пассив), у 'n04S' ещё и комбо */
+function applyElementalSynergies(unit s)
+    let id = s.getOwner().getId()
+    let t = s.getTypeId()
+    let h1 = sinergiaH1[id] >= 1
+    let h2 = sinergiaH2[id] >= 1
+    let h3 = sinergiaH3[id] >= 1
+    let h4 = sinergiaH4[id] >= 1
+    let h5 = sinergiaH5[id] >= 1
+    let h6 = sinergiaH6[id] >= 1
+    let h7 = sinergiaH7[id] >= 1
+    let h8 = sinergiaH8[id] >= 1
+    var combo = 0
+    var active = 0
+    var passive = 0
+    if t == 'n04R'
+        if (h1 or h2) and combo != 2 and active != 1
+            s..addAbility('A0G5')..setVertexColor(255, 0, 0, 255)
+            combo++
+            active++
+        if (h3 or h4) and combo != 2 and passive != 1
+            s..addAbility('A0G7')..addAbility('A0GD')
+            combo++
+            passive++
+            addEffect("models\\Windwalk Necro Soul.mdl", s, "chest")
+        if (h5 or h6) and combo != 2 and active != 1
+            s..addAbility('A0G4')..setVertexColor(0, 0, 255, 255)
+            combo++
+            active++
+        if (h7 or h8) and combo != 2 and passive != 1
+            s..addAbility('A0G8')..addAbility('A0GC')
+            combo++
+            passive++
+            addEffect("models\\Windwalk.mdl", s, "chest")
+    else if t == 'n04S'
+        if h1 and h2 and combo != 2 and active != 1
+            s..addAbility('A0GB')..setVertexColor(255, 0, 0, 255)
+            combo++
+            active++
+        if h3 and h4 and combo != 2 and passive != 1
+            s..addAbility('A0G7')..setAbilityLevel('A0G7', 2)..addAbility('A0GD')..setAbilityLevel('A0GD', 2)
+            combo++
+            passive++
+            addEffect("models\\Windwalk Necro Soul.mdl", s, "chest")
+        if h5 and h6 and combo != 2 and active != 1
+            s..addAbility('A0G4')..setAbilityLevel('A0G4', 2)..setVertexColor(0, 0, 255, 255)
+            combo++
+            active++
+        if h7 and h8 and combo != 2 and passive != 1
+            s..addAbility('A0G8')..setAbilityLevel('A0G8', 2)..addAbility('A0GC')..setAbilityLevel('A0GC', 2)
+            combo++
+            passive++
+            addEffect("models\\Windwalk.mdl", s, "chest")
+        if ((h1 and h2) or (h5 and h6)) and combo != 3
+            s.addAbility('A0G9')
+            combo++
+        else if ((h3 and h4) or (h7 and h8)) and combo != 3
+            s.addAbility('S012')
+            combo++
+        if h1 and h2 and h3 and h4 and combo != 4
+            s.addAbility('A0GR')
+            combo++
+        else if h5 and h6 and h7 and h8 and combo != 4
+            s.addAbility('A0GS')
+            combo++
+    if h7 and h5 and (t == 'n04E' or t == 'n04M')
+        wDammiHP(s, 100)
+        wDammiAtt(s, 15)
+    if h1 and h2 and (t == 'n04A' or t == 'n04I')
+        s..addAbility('A06L')..addAbility('A02I')..addAbility('A0GJ')
+    if h6 and h4 and (t == 'n04O' or t == 'n04G')
+        s..addAbility('A0GI')..addAbility('A0GK')
+    if h3 and h8 and (t == 'n04K' or t == 'n04D')
+        s..addAbility('A064')..addAbility('A040')
+
+/** Юниты с постройки u на раунд: по одному (3 у 'h04A', 2 у 'h04N'/'h09Z'), с бонусами владельца */
+@noinline
+function spawnFrom(unit u)
+    let p = u.getOwner()
+    let t = u.getTypeId()
+    if u.getAbilityLevel('A006') == 1
+        u.setAbilityLevel('A006', 2)
+    var count = 1
+    if t == 'h04A'
+        count = 3
+    else if t == 'h04N' or t == 'h09Z'
+        count = 2
+    if t == 'h080'
+        p.setGold(p.getGold() - 8)
+        text(u, "|cffFFFF00-8|r", 8.0, 3.50, 50.0)
+    for i = 1 to count
+        let s = CreateUnit(p, UnitId(GetAbilityEffectById(t, EFFECT_TYPE_TARGET, 0)), u.getX(), u.getY(), 90.0)
+        s.setPathing(true)
+        let sid = s.getTypeId()
+        if sid == 'h03R'
+            P.add(s)
+        if sid != 'e003' and sid != 'e002' and not s.isType(UNIT_TYPE_STRUCTURE) and not s.isType(UNIT_TYPE_HERO)
+            applyBuilderUpgrades(s)
+        applySynergies(s)
+        applyElementalSynergies(s)
+        if round > 60
+            s.setPathing(false)
+        s.attackLane()
+        if sid == 'n01J' or sid == 'n01F'
+            s.addAbility('A04U')
+            doAfter(30.0) ->
+                s.removeAbility('A04U')
+
+/** Наёмник выходит на линию; 'n03T' даёт 'A04G' союзным гигантам рядом */
+@noinline
+function naimAttack(unit u)
+    let p = u.getOwner()
+    Naim.remove(u)
+    u.setPathing(true)
+    SetUnitPosition(u, u.getX() + (u.getX() < 0 ? 900 : -900), u.getY() + 700)
+    u.attackLane()
+    if u.getTypeId() == 'n03T'
+        forUnitsInRange(u.getPos(), 1100.0) s ->
+            if s.isAllyOf(p) and s.isAlive() and s.isType(UNIT_TYPE_GIANT)
+                s.addAbility('A04G')
+                addEffect("models\\CircleOutBuff.mdl", s, "origin")
+
+/** Стража короля a на раунд: 10 пехотинцев с бонусами от характеристик короля */
+function kingGuards(int a)
+    let king = King[a]
+    let dmg = (king.getAgi(false) - 60) div 10 + (king.getStr(false) - 60) div 20
+    let hp = ((king.getInt(false) - 60) * 3.5 + (king.getStr(false) - 60) * 1.5).toInt()
+    for i = 0 to 9
+        let u = CreateUnit(players[a == 1 ? 8 : 9], 'h01L', a == 1 ? -3400.0 : 2800.0, (-250 + 100 * i).toReal(), a == 1 ? 180.0 : 270.0)
+        wDammiAtt(u, dmg)
+        wDammiHP(u, hp)
+        u.attackLane()
+
+/** Первый раунд: подписи магазинов, стартовое золото, лимиты построек, случайный набор зданий, пустые слоты */
+@noinline
+function firstRound()
+    initPlayers()
+    let world = GetWorldBounds()
+    forUnitsInRect(world) u ->
+        if u.isType(UNIT_TYPE_STRUCTURE)
+            shopLabel(u)
+    world.remove()
+    for a = 0 to 7
+        let p = players[a]
+        for slot = 1 to 8
+            ZapretElem[elemLimit(slot, a)] = 2
+        p.setGold(700)
+        // лимиты построек: рабочие и особые здания
+        p..limit(8, 'e003')..limit(8, 'e01S')..limit(8, 'e01R')..limit(8, 'e01T')..limit(8, 'e01X')..limit(8, 'e01U')
+            ..limit(8, 'e01Z')..limit(8, 'e01Y')..limit(8, 'e01E')..limit(8, 'e01D')..limit(8, 'h07J')
+            ..limit(6, 'h05N')..limit(6, 'h012')..limit(6, 'h06E')..limit(6, 'h06T')
+            ..limit(5, 'h054')..limit(5, 'h00W')..limit(5, 'h047')..limit(5, 'h015')
+            ..limit(1, 'h06U')..limit(1, 'h02Q')..limit(1, 'h017')..limit(1, 'h04D')..limit(1, 'h055')
+            ..limit(1, 'h05X')..limit(1, 'h06L')..limit(1, 'h08E')..limit(1, 'h09Z')
+        random(p)
+        for i = 1 to 6
+            Builder[a].addItemHandle(CreateItem('I000', Builder[a].getX(), Builder[a].getY()))
+        for i = 1 to 4
+            Arthas[a].addItemHandle(CreateItem('I000', Arthas[a].getX(), Arthas[a].getY()))
+
+@noinline
+function wave()
+    DestroyTimerDialog(TimerD)
+    round++
+    if round >= 105
+        Zamedlo = 12
+    else if round >= 90
+        Zamedlo = 10
+    else if round >= 75
+        Zamedlo = 8
+    else if round >= 60
+        Zamedlo = 6
+    else if round >= 45
+        Zamedlo = 4
+    else if round >= 30
+        Zamedlo = 2
+    roundTimer.start((38 + Zamedlo).toReal(), null)
+    TimerD = CreateTimerDialog(roundTimer)
+        ..setTitle("Round " + round.toString())
+        ..display(true)
+    if round == 1
+        firstRound()
+        return
+    kingGuards(1)
+    kingGuards(2)
+    for a = 0 to 7
+        IncomeR[a] += 3
+        players[a].setGold(players[a].getGold() + Income[a] + (100 + IncomeR[a]))
+        wDammiAtt(Arthas[a], 1)
+        DisplayTextToPlayer(players[a], 0.0, 0.0, "|cffFFD700Round " + round.toString() + "|r\nRound reward: |cffffff00" + (100 + IncomeR[a]).toString() + " gold!|r \nYour income: |cffffff00" + Income[a].toString() + " gold!|r")
+    BuildUnit.forEachIn() u ->
+        spawnFrom(u)
+    doAfter(1.0) ->
+        Naim.forEachIn() u ->
+            naimAttack(u)
+
+// ============================================================
+// Триггер: Win — смерть короля: через 3 с победа/поражение командам
+// ============================================================
+
+@noinline
+function win()
+    let d = GetDyingUnit()
+    if d != King[1] and d != King[2]
+        return
+    SetCameraPosition(d.getX(), d.getY())
+    let losers = d == King[1] ? 0 : 4
+    let winners = d == King[1] ? 4 : 0
+    doAfter(3.0) ->
+        for i = 0 to 3
+            MMD.flagPlayer(players[winners + i], PlayerFlag.Winner)
+            MMD.flagPlayer(players[losers + i], PlayerFlag.Loser)
+            CustomVictoryBJ(players[winners + i], true, true)
+            CustomDefeatBJ(players[losers + i], "Defeat!")
+
+init
+    CreateTrigger()
+        ..registerTimerExpireEvent(roundTimer)
+        ..addAction(function wave)
+    onDeathOf('H003') ->
+        win()

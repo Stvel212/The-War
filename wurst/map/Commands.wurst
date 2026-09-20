@@ -1,0 +1,168 @@
+package Commands
+import Initialization
+import MapGlobals
+import ClosureTimers
+
+/** Админы карты: им доступны -control и -kick */
+function player.isAdmin() returns bool
+    let n = this.getName()
+    return n == "Stvel#2381" or n == "LordofKodoes#2670"
+/** Сообщение всем */
+function printAll(string msg)
+    if bj_FORCE_ALL_PLAYERS.containsPlayer(localPlayer)
+        DisplayTextToPlayer(localPlayer, 0.0, 0.0, msg)
+
+/** Имя игрока в его цвете */
+function player.coloredName() returns string
+    return "|c00" + Color[this.getId()] + this.getName() + "|r"
+
+// ============================================================
+// Команда: -up N — отдалить камеру на N (0..1200)
+// ============================================================
+
+function cmdCamera(player p, string msg)
+    let dist = msg.substring(3, 7).toInt()
+    if dist >= 0 and dist <= 1200 and localPlayer == p
+        SetCameraField(CAMERA_FIELD_TARGET_DISTANCE, 2400 + dist.toReal(), 2.0)
+
+// ============================================================
+// Команда: -give — дерево выбывших из команды делится поровну между оставшимися
+// ============================================================
+
+function cmdGiveLumber(player p)
+    let left = ForceG[1].containsPlayer(p)
+    let gone = left ? ForceG[3] : ForceG[4]
+    let team = left ? ForceG[1] : ForceG[2]
+    var total = 0
+    for q in gone
+        total += q.getLumber()
+        q.setLumber(0)
+    let share = total div CountPlayer[left ? 1 : 2]
+    for q in team
+        q.setLumber(q.getLumber() + share)
+    if team.containsPlayer(localPlayer)
+        DisplayTextToPlayer(localPlayer, 0.0, 0.0, "|cff80ff00You received |r|cff008000" + share.toString() + "|r|cff80ff00 lumber|r")
+
+// ============================================================
+// Команда: -roll — случайное число 1..1000 всем
+// ============================================================
+
+function cmdRoll(player p)
+    printAll(p.coloredName() + "Lucky?) = " + GetRandomInt(1, 1000).toString())
+
+// ============================================================
+// Команда: -control N — админу полный контроль над игроком N
+// ============================================================
+
+function cmdGiveControl(player p, string msg)
+    if not p.isAdmin()
+        return
+    let target = players[msg.substring(8, 12).toInt()]
+    target.setPlayerAlliance(p, ALLIANCE_SHARED_ADVANCED_CONTROL, true)
+    target.setPlayerAlliance(p, ALLIANCE_SHARED_SPELLS, true)
+    target.setPlayerAlliance(p, ALLIANCE_SHARED_CONTROL, true)
+    udg_Board.display(true)
+
+// ============================================================
+// Команда: -rob — сколько золота украли мародёры
+// ============================================================
+
+function cmdRob(player p)
+    DisplayTextToPlayer(p, 0.0, 0.0, "|cff80ffffStolen: |r|cffffff00" + rob[p.getId()].toString() + " gold!|r")
+
+// ============================================================
+// Команда: -tunR N — на 3 секунды показать кольцо радиуса N вокруг строителя (25 маркеров)
+// ============================================================
+
+function cmdTunRadius(player p, string msg)
+    let radius = msg.substring(6, 10).toInt().toReal()
+    let center = Builder[p.getId()].getPos()
+    for i = 0 to 24
+        let pos = center.polarOffset((67.5 + i * 22.5).asAngleDegrees(), radius)
+        CreateUnit(players[bj_PLAYER_NEUTRAL_EXTRA], 'e01Q', pos.x, pos.y, 0.0).setTimedLife(3.0, 'BHwe')
+
+// ============================================================
+// Триггер: KickAfk — раз в 10 с: если строитель не двигался 290 с, а золота >= 1200, команде предлагают -kickafk
+// ============================================================
+
+@noinline
+function kickAfkCheck()
+    for a = 0 to 8
+        let p = players[a]
+        let b = Builder[a]
+        if KickX[a] == b.getX() and KickY[a] == b.getY()
+            KickT[a] += 10
+            if KickT[a] == 290 and isInGame(p) and p.getGold() >= 1200
+                let team = a < 4 ? ForceG[1] : ForceG[2]
+                if team.containsPlayer(localPlayer)
+                    localPlayer.print("Player " + p.coloredName() + " is AFK. Use the command |cffff8080-kickafk" + a.toString() + "|r", 10.0)
+        else
+            KickT[a] = 0
+            KickX[a] = b.getX()
+            KickY[a] = b.getY()
+
+/** Кик игрока id: поражение, перевод в выбывшие, контроль над его юнитами — команде */
+function kickPlayer(int id)
+    let victim = players[id]
+    if bj_FORCE_ALL_PLAYERS.containsPlayer(localPlayer)
+        localPlayer.print("Player " + victim.coloredName() + " has been kicked!", 15.0)
+    PlayerL[id] = true
+    CustomDefeatBJ(victim, "Defeat")
+    let left = id < 4
+    ForceG[left ? 3 : 4].addPlayer(victim)
+    ForceG[left ? 1 : 2].removePlayer(victim)
+    for a = (left ? 0 : 4) to (left ? 4 : 8)
+        victim.setPlayerAlliance(players[a], ALLIANCE_SHARED_CONTROL, true)
+        victim.setPlayerAlliance(players[a], ALLIANCE_SHARED_ADVANCED_CONTROL, true)
+    udg_Board.display(true)
+
+// ============================================================
+// Команда: -kickafkN — кикнуть афк-игрока N (если он и правда 290 с не двигался)
+// ============================================================
+
+function cmdKickAfk(string msg)
+    let id = msg.substring(8, 9).toInt()
+    if KickT[id] >= 290 and isInGame(players[id])
+        kickPlayer(id)
+
+// ============================================================
+// Команда: -kick N — админский кик
+// ============================================================
+
+function cmdMyKick(player p, string msg)
+    if p.getName() == "Stvel" or p.getName() == "LordofKodoes" or p.getName() == "WorldEdit"
+        kickPlayer(msg.substring(6, 7).toInt())
+
+@noinline
+function onChat()
+    let p = GetTriggerPlayer()
+    let msg = GetEventPlayerChatString()
+    if msg.substring(0, 3) == "-up"
+        cmdCamera(p, msg)
+    else if p.getId() > 7
+        skip // наблюдателям (10, 11) доступна только камера
+    else if msg == "-give"
+        cmdGiveLumber(p)
+    else if msg == "-roll"
+        cmdRoll(p)
+    else if msg.substring(0, 8) == "-control"
+        cmdGiveControl(p, msg)
+    else if msg == "-rob"
+        cmdRob(p)
+    else if msg.substring(0, 5) == "-tunR"
+        cmdTunRadius(p, msg)
+    else if msg.substring(0, 8) == "-kickafk"
+        cmdKickAfk(msg)
+    else if msg.substring(0, 5) == "-kick"
+        cmdMyKick(p, msg)
+
+init
+    // один чат-триггер на всех: игроки 0-7 и наблюдатели 10-11 (им доступна только камера, см. onChat)
+    let chat = CreateTrigger()
+    for i = 0 to 7
+        chat.registerPlayerChatEvent(players[i], "", true)
+    chat.registerPlayerChatEvent(players[10], "", true)
+    chat.registerPlayerChatEvent(players[11], "", true)
+    chat.addAction(function onChat)
+    doPeriodically(10.0) cb ->
+        kickAfkCheck()

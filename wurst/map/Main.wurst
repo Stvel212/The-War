@@ -1,0 +1,709 @@
+package Main
+import UpgradeCosts
+import Initialization
+import MapGlobals
+import ClosureEvents
+import UnitEvents
+import ClosureTimers
+import ClosureForGroups
+import OnUnitEnterLeave
+import Dummies
+import HashMap
+
+/** Регион из прямоугольников */
+function regionOf(rect r1, rect r2) returns region
+    return CreateRegion()..addRect(r1)..addRect(r2)
+
+function regionOf(rect r1, rect r2, rect r3, rect r4, rect r5, rect r6) returns region
+    return regionOf(r1, r2)..addRect(r3)..addRect(r4)..addRect(r5)..addRect(r6)
+
+function regionOf(rect r1, rect r2, rect r3, rect r4, rect r5, rect r6, rect r7, rect r8) returns region
+    return regionOf(r1, r2, r3, r4, r5, r6)..addRect(r7)..addRect(r8)
+
+/** Сообщение всем */
+function printAll(string msg)
+    if bj_FORCE_ALL_PLAYERS.containsPlayer(localPlayer)
+        DisplayTextToPlayer(localPlayer, 0.0, 0.0, msg)
+
+/** Сообщение всем на duration секунд */
+function printAll(string msg, real duration)
+    if bj_FORCE_ALL_PLAYERS.containsPlayer(localPlayer)
+        localPlayer.print(msg, duration)
+
+/** Запрет постройки типа t игроку */
+function player.forbid(int t)
+    SetPlayerTechMaxAllowed(this, t, 0)
+
+function player.coloredName() returns string
+    return "|c00" + Color[this.getId()] + this.getName() + "|r"
+
+/** Боевой юнит: не герой, не рабочий, не здание, не древний, не 'o00P' */
+function unit.isFighter() returns bool
+    return not this.isType(UNIT_TYPE_HERO) and not this.isType(UNIT_TYPE_PEON) and not this.isType(UNIT_TYPE_STRUCTURE) and not this.isType(UNIT_TYPE_ANCIENT) and this.getTypeId() != 'o00P'
+
+// ============================================================
+// Триггер: DeathGold — золото за убитого (не иллюзию) игрокам-людям; 'n02T' получает ещё столько же дерева
+// ============================================================
+
+@noinline
+function deathGold()
+    let k = GetKillingUnit()
+    let d = GetDyingUnit()
+    let p = k.getOwner()
+    if p.getId() >= 8 or k.getTypeId() == 'H003'
+        return
+    if not (d.isType(UNIT_TYPE_GIANT) or d.isType(UNIT_TYPE_TAUREN) or not d.isIllusion())
+        return
+    var gold = unitGold(d, d.getTypeId())
+    if k.getAbilityLevel('B01Q') > 0
+        gold = (gold * 1.5).toInt()
+    if k.getTypeId() == 'h07P' or k.getTypeId() == 'h07U'
+        gold *= 2
+    p.setGold(p.getGold() + gold)
+    goldText(d, p, gold)
+    if k.getTypeId() == 'n02T'
+        p.setLumber(p.getLumber() + gold)
+        goldText(d, p, gold)
+        text(d, localPlayer == p ? "|cff00FF00+" + gold.toString() + "|r" : "", 10.0, 3.50, 50.0)
+
+// ============================================================
+// Триггер: Proxod — юнит прошёл через чужой портал: награда его игроку (и «камню» той линии), юнит идёт обратно
+// ============================================================
+
+/** Награда за проход: первая кровь команде, золото игроку линии с камнем, юнит переставляется к своим воротам.
+    leftPassed — юнит левой команды прошёл справа (иначе — правой слева) */
+function passLane(unit u, player a, int food, bool leftPassed)
+    let y = u.getY().toInt()
+    let x = u.getX().toInt()
+    // первая кровь: +28 золота каждому в команде прошедшего
+    if not FirstBlood
+        FirstBlood = true
+        for i = (leftPassed ? 0 : 4) to (leftPassed ? 3 : 7)
+            players[i].setGold(players[i].getGold() + 28)
+        PingMinimapEx(x.toReal(), y.toReal(), 10.0, 100, 0, 0, false)
+        StartSound(LOL)
+        let side = leftPassed ? "left" : "right"
+        printAll("|cff80ff80A player of the " + side + " team named |r" + a.coloredName() + " |cff80ff80has passed through the opponent's portal!|r", 10.0)
+        printAll("|cff80ff80so the " + side + " team receives an extra 28 gold!|r", 10.0)
+    // хозяин линии у противника: по высоте прохода
+    var lane = 0
+    if y > 4800
+        lane = 3
+    else if y > 2200
+        lane = 2
+    else if y > -3300
+        lane = 1
+    let defender = players[leftPassed ? 4 + lane : lane]
+    if Rock[defender.getId()]
+        defender.setGold(defender.getGold() + food * 2)
+        DisplayTextToPlayer(defender, 0.0, 0.0, "|cffff0000You received:|r |cffffff00+" + (food * 2).toString() + " gold!|r")
+    // юнит возвращается к своим воротам; при «камне» (или у короля) — с 10 HP и 'A0GU'
+    SetUnitPosition(u, leftPassed ? -3500.0 : 2950.0, GetRandomReal(-300.0, 850.0))
+    if Rock[a.getId()] or a == players[leftPassed ? 8 : 9]
+        u.setHP(10.0)
+        u.addAbility('A0GU')
+    u.attackLane(y.toReal())
+    if not Rock[a.getId()]
+        a.setGold(a.getGold() + food * 2)
+        DisplayTextToPlayer(a, 0.0, 0.0, "|cffff0000You received:|r |cffffff00+" + (food * 2).toString() + " gold!|r")
+        let r1 = GetPlayerTechCount(a, 'R001', true)
+        if r1 > 0
+            u.addAbility('A09T')
+            u.setAbilityLevel('A09T', r1)
+        let r2 = GetPlayerTechCount(a, 'R002', true)
+        if r2 > 0
+            u.addAbility('A09U')
+            u.setAbilityLevel('A09U', r2)
+
+@noinline
+function proxod()
+    let u = GetTriggerUnit()
+    let a = u.getOwner()
+    let id = a.getId()
+    let x = u.getX().toInt()
+    let y = u.getY().toInt()
+    if y <= 1200 and y >= -500
+        return
+    if id == 12
+        SetUnitPosition(u, 2950.0, GetRandomReal(-300.0, 850.0))
+        u.issuePointOrder("attack", vec2(-3300.0, y.toReal()))
+    else if u.getTypeId() != 'e01Q'
+        let food = GetFoodUsed(UnitId(GetAbilityEffectById(u.getTypeId(), EFFECT_TYPE_TARGET, 0)))
+        if id > 3 and id != 8 and x < 0
+            passLane(u, a, food, false)
+        else if a.isLeftTeam() and x > 0
+            passLane(u, a, food, true)
+
+// ============================================================
+// Триггер: Build1 — здания сразу «готовы» (прогресс 99%), подкрашиваются по цене и застывают в позе атаки
+// ============================================================
+
+/** Цвет здания по его point value */
+function unit.tintByValue()
+    let v = GetUnitPointValueByType(this.getTypeId())
+    if v == 155 or v == 102 or v == 417 or v == 168 or v == 119
+        this.setVertexColor(255, 255, 0, 150)
+    else if v == 156 or v == 152
+        this.setVertexColor(255, 155, 155, 150)
+    else if v == 157
+        this.setVertexColor(255, 230, 210, 150)
+    else if v == 162
+        this.setVertexColor(155, 230, 55, 150)
+    else if v == 253 or v == 124
+        this.setVertexColor(255, 255, 55, 150)
+    else if v == 256
+        this.setVertexColor(255, 100, 100, 150)
+    else if v == 2
+        this.setVertexColor(255, 205, 100, 150)
+    else if v == 5
+        this.setVertexColor(255, 255, 80, 150)
+    else if v == 6
+        this.setVertexColor(155, 111, 80, 150)
+    else if v == 106 or v == 406
+        this.setVertexColor(255, 155, 0, 150)
+    else if v == 121 or v == 319 or v == 305
+        this.setVertexColor(255, 125, 125, 150)
+    else if v == 153
+        this.setVertexColor(255, 255, 100, 150)
+    else if v == 308 or v == 310 or v == 306 or v == 303 or v == 73 or v == 72
+        this.setVertexColor(255, 55, 55, 150)
+    else if v == 322 or v == 407
+        this.setVertexColor(55, 255, 55, 150)
+    else if v == 323
+        this.setVertexColor(155, 55, 55, 150)
+    else if v == 313
+        this.setVertexColor(0, 0, 0, 150)
+    else if v == 52
+        this.setVertexColor(0, 255, 125, 150)
+    else if v == 53
+        this.setVertexColor(20, 20, 20, 150)
+    else if v == 67
+        this.setVertexColor(80, 255, 0, 150)
+    else if v == 58 or v == 55
+        this.setVertexColor(55, 55, 255, 150)
+    else if v == 59
+        this.setVertexColor(255, 55, 255, 150)
+    else if v == 56
+        this.setVertexColor(80, 80, 80, 150)
+    else if v == 57
+        this.setVertexColor(255, 50, 50, 150)
+    else if v == 220
+        this.setVertexColor(255, 255, 155, 150)
+    else if v == 217
+        this.setVertexColor(100, 255, 100, 150)
+    else if v == 419
+        this.setVertexColor(155, 155, 255, 150)
+    else
+        this.setVertexColor(255, 255, 255, 180)
+
+@noinline
+function build1(unit u)
+    let t = u.getTypeId()
+    if not (u.isType(UNIT_TYPE_STRUCTURE) or u.isType(UNIT_TYPE_MECHANICAL)) or t == 'h08N' or t == 'h08X'
+        return
+    UnitSetConstructionProgress(u, 99)
+    UnitSetUpgradeProgress(u, 99)
+    SetUnitTimeScale(u, 0.0)
+    doAfter(0.5) ->
+        u.tintByValue()
+        if t == 'h07X' or t == 'h07Y' or t == 'h07Z'
+            skip
+        else if t == 'h04R' or t == 'h04S'
+            u.setAnimation("Morph Alternate")
+        else if t == 'h02G'
+            u.setAnimation("Attack Alternate")
+        else if t == 'h016'
+            u.setAnimation("Attack Slam Alternate")
+        else
+            u.setAnimation("Attack")
+
+// ============================================================
+// Триггер: CastGlobal — каждому новому бойцу способности по улучшениям и синергиям хозяина
+// ============================================================
+
+@noinline
+function castGlobal(unit u)
+    if u.isType(UNIT_TYPE_HERO) or u.isType(UNIT_TYPE_PEON) or u.isType(UNIT_TYPE_STRUCTURE) or u.isType(UNIT_TYPE_TAUREN) or u.getTypeId() == 'o00P'
+        return
+    let id = u.getOwner().getId()
+    if u.isType(UNIT_TYPE_SAPPER) and sinergiaDE[id] == 1
+        u.addAbility('A0DH')
+    let lvl = Builder[id].getAbilityLevel('A0CS')
+    if lvl == 1
+        u.addAbility('A01E')
+    else if lvl == 2
+        u.addAbility('A04G')
+    else if lvl == 3
+        u.addAbility('A09J')
+    let t = u.getTypeId()
+    if sinergiaDE4[id] >= 1 and (t == 'o009' or t == 'o00I' or t == 'o00A')
+        u.addAbility('A02A')
+
+// ============================================================
+// Триггер: Stop — приказ «smart» бойцу: снимается, юнит идёт в атаку; после 5 таких — уходит к королю команды
+// ============================================================
+
+@noinline
+function stop()
+    if GetIssuedOrderId() != OrderId("smart")
+        return
+    let u = GetTriggerUnit()
+    if not u.isFighter()
+        return
+    if u.getAbilityLevel('A0D8') < 1
+        u.addAbility('A0D8')
+    else
+        u.incAbilityLevel('A0D8')
+        if u.getAbilityLevel('A0D8') > 4
+            u.setOwner(players[u.getOwner().isLeftTeam() ? 8 : 9], true)
+    u.issueImmediateOrder("stop")
+    u.attackLane()
+
+// ============================================================
+// Триггер: Tree — раз в 3 с бойцам, которые стоят без приказа, — приказ идти в атаку; срубленные деревья у баз отрастают
+// ============================================================
+
+/** Раньше: всем юнитам метка 'A0BO', атака снимала её, и раз в 3 с все помеченные (= не атаковавшие 3 с) получали
+    новый attack-move — т.е. каждый боец на марше перестраивал путь каждые ~6 с. Теперь приказ получают только те,
+    у кого нет текущего приказа (стоят). */
+@noinline
+function tree()
+    forUnitsAll() u ->
+        if u.getCurrentOrder() == 0 and not u.isDummy() and u.isFighter() and not u.isType(UNIT_TYPE_SAPPER)
+            let id = u.getOwner().getId()
+            if id < 4 or id == 8 or ((u.getX() > 0 and id == 12 and u.getY() > 1200) or u.getY() < -500)
+                u.issuePointOrder("attack", vec2(2750.0, u.getY()))
+            else
+                u.issuePointOrder("attack", vec2(-3300.0, u.getY()))
+
+/** Деревья в 2500 от каждой базы (раньше им раз в 3 с чинили жизнь всем подряд) — отрастают по событию смерти */
+function watchTrees()
+    let seen = new HashMap<int, bool>()
+    let trg = CreateTrigger()
+        ..addAction(function regrowTree)
+    for a = 0 to 7
+        let b = Builder[a]
+        let r = Rect(b.getX() - 2500, b.getY() - 2500, b.getX() + 2500, b.getY() + 2500)
+        forDestructablesInRect(r) d ->
+            let id = d.getHandleId()
+            if not seen.has(id)
+                seen.put(id, true)
+                trg.registerDeathEvent(d)
+        r.remove()
+    destroy seen
+
+function regrowTree()
+    let d = GetTriggerDestructable()
+    doAfter(3.0) ->
+        DestructableRestoreLife(d, 200.0, true)
+
+// ============================================================
+// Триггер: CastAttack — после каста/призыва юнит (кроме особых) снова идёт в атаку
+// ============================================================
+
+@noinline
+function castAttack()
+    let u = GetTriggerUnit()
+    let t = u.getTypeId()
+    if u.isDummy() or t == 'H01Y' or t == 'H003' or t == 'e01R' or t == 'H08M' or t == 'e01S' or t == 'e01U' or t == 'h02T' or t == 'h090' or t == 'h08Y' or t == 'h08O' or t == 'h09D' or t == 'h08U' or t == 'h09M' or t == 'h09G' or t == 'e01X' or t == 'e01T' or t == 'e003' or t == 'H08V' or t == 'H08W' or t == 'e01Z' or t == 'H09T' or t == 'H0AJ' or t == 'H0AO'
+        return
+    u.attackLane()
+
+// ============================================================
+// Триггер: Build — здание достроено: сила игрока += цена; камень 'h02Q' включает оборону и запрещает камень сопернику
+// ============================================================
+
+@noinline
+function build()
+    let u = GetTriggerUnit()
+    let p = u.getOwner()
+    let id = p.getId()
+    let t = u.getTypeId()
+    if t == 'h02Q'
+        Rock[id] = true
+        printAll("|cffff00ff" + p.coloredName() + " |cffff00ff has placed a defensive stone and switches to defensive mode!|r")
+        SetPlayerTechMaxAllowed(players[id < 4 ? id + 4 : id - 4], 'h02Q', 0)
+    Force[id] += unitOwnGoldCost(t)
+    BuildUnit.add(u)
+
+// ============================================================
+// Триггер: Wisp — обучен рабочий: счётчик и обычная проходимость
+// ============================================================
+
+@noinline
+function wisp()
+    let t = GetTrainedUnit()
+    if t.isType(UNIT_TYPE_PEON)
+        Wisp[t.getOwner().getId()] += 1
+        t.setPathing(true)
+
+// ============================================================
+// Триггер: Upgreid — апгрейд здания завершён: сила += цена
+// ============================================================
+
+@noinline
+function upgreid()
+    let u = GetTriggerUnit()
+    Force[u.getOwner().getId()] += unitOwnGoldCost(u.getTypeId())
+
+// ============================================================
+// Триггер: ZapretBaza — рабочих, героев и древних, вышедших с базы, подтягивает обратно
+// ============================================================
+
+@noinline
+function zapretBaza()
+    let u = GetTriggerUnit()
+    if not (u.isType(UNIT_TYPE_PEON) or u.isType(UNIT_TYPE_HERO) or u.isType(UNIT_TYPE_ANCIENT) or u.getTypeId() == 'e01Q')
+        return
+    let x = u.getX().toInt()
+    let y = u.getY().toInt()
+    var yb = -5000
+    if y > 4600
+        yb = 5600
+    else if y > 1600
+        yb = 3060
+    else if y > -3600
+        yb = -2430
+    let xb = x < 0 ? -3100 : 2600
+    SetUnitPosition(u, x - (x - xb) * 0.03, y - (y - yb) * 0.03)
+
+// ============================================================
+// Триггер: ZapretWater — боец, зашедший в полосу между линиями, возвращается на середину своей базы
+// ============================================================
+
+@noinline
+function zapretWater()
+    let u = GetTriggerUnit()
+    if u.isType(UNIT_TYPE_PEON) or u.isType(UNIT_TYPE_HERO) or u.isType(UNIT_TYPE_ANCIENT) or u.getTypeId() == 'e01Q'
+        return
+    let y = u.getY().toInt()
+    var lane = 1
+    if y > 4300
+        lane = 4
+    else if y > 1500
+        lane = 3
+    else if y > -3700
+        lane = 2
+    let base = u.getOwner().getId() < 4 ? lane : lane + 4
+    // В оригинале здесь был RemoveRect(r) — он уничтожал глобальный регион базы (rct_BazaN), и следующий юнит,
+    // вошедший в полосу Stop, получал centerY = 0 и телепортировался в центр карты. В классике это «работало»
+    // (память удалённого rect'а ещё хранила координаты), в Reforged — нет.
+    SetUnitPosition(u, u.getX(), baseRect(base).getCenterY())
+
+/** Прямоугольник базы 1..8 (rct_Baza1..8) */
+function baseRect(int n) returns rect
+    if n == 1
+        return rct_Baza1
+    else if n == 2
+        return rct_Baza2
+    else if n == 3
+        return rct_Baza3
+    else if n == 4
+        return rct_Baza4
+    else if n == 5
+        return rct_Baza5
+    else if n == 6
+        return rct_Baza6
+    else if n == 7
+        return rct_Baza7
+    return rct_Baza8
+
+// ============================================================
+// Триггер: ZapretSummons — призванным ('A0F6') нельзя в зоны подкреплений: в центр карты
+// ============================================================
+
+@noinline
+function zapretSummons()
+    if GetTriggerUnit().getAbilityLevel('A0F6') == 1
+        SetUnitPosition(GetTriggerUnit(), 0.0, 0.0)
+
+// ============================================================
+// Триггер: Naim — наёмник куплен: инком по типу, юнит ставится на линию (по заряду артефакта продавца) и в группу Naim
+// ============================================================
+
+/** Прибавка к инкому за наёмника по типу; для прочих — по цене в дереве (1/20, при инкоме >= 300 — 1/30) */
+function mercenaryIncome(unit u, int currentIncome) returns int
+    let t = u.getTypeId()
+    if t == 'n03E'
+        return 5
+    else if t == 'n03D'
+        return 7
+    else if t == 'n03K'
+        return 8
+    else if t == 'n03R' or t == 'n03S'
+        return 10
+    else if t == 'n03M'
+        return 12
+    else if t == 'n03T'
+        return 15
+    else if t == 'n03I'
+        return 17
+    else if t == 'n03C'
+        return 22
+    else if t == 'n03U'
+        return 25
+    else if t == 'n03G'
+        return 30
+    else if t == 'n03A'
+        return 40
+    return unitOwnWoodCost(t) div (currentIncome < 300 ? 20 : 30)
+
+/** Страж Короля: ко вратам своей команды и в атаку */
+function kingGuard(unit u)
+    printAll(u.getOwner().coloredName() + "|cffc0c0c0 called for help from the |r|cffff8080King's Guard|r", 10.0)
+    SetUnitPosition(u, u.getOwner().isLeftTeam() ? -3500.0 : 2950.0, GetRandomReal(-300.0, 850.0))
+    u.attackLane()
+
+@noinline
+function naim()
+    let u = GetSoldUnit()
+    let seller = GetSellingUnit()
+    let sellerType = seller.getTypeId()
+    if sellerType == 'h001'
+        kingGuard(u)
+        return
+    if sellerType != 'h002' and sellerType != 'h04E'
+        return
+    let id = u.getOwner().getId()
+    // линия по заряду артефакта в первом слоте продавца; без него — чуть ниже продавца
+    let art = seller.itemInSlot(0).getCharges()
+    var y = (u.getY() - GetRandomInt(sellerType == 'h002' ? 780 : 350, sellerType == 'h002' ? 1080 : 650)).toInt()
+    if art == 1
+        y = GetRandomInt(-5850, -5550)
+    else if art == 2
+        y = GetRandomInt(-3300, -3000)
+    else if art == 3
+        y = GetRandomInt(2200, 2500)
+    else if art == 4
+        y = GetRandomInt(4800, 5100)
+    Income[id] += mercenaryIncome(u, Income[id])
+    SetUnitPosition(u, u.getX() + GetRandomInt(-50, 50), y.toReal())
+    Naim.add(u)
+
+// ============================================================
+// Триггер: NaimMid — Страж Короля обучен в 'h001'
+// ============================================================
+
+@noinline
+function naimMid()
+    if GetTriggerUnit().getTypeId() == 'h001'
+        kingGuard(GetTrainedUnit())
+
+// ============================================================
+// Триггер: ZapretHero — построено здание героя: остальные герои этому игроку запрещаются
+// ============================================================
+
+function isHeroBuilding(int t) returns bool
+    return t == 'h02P' or t == 'h025' or t == 'h027' or t == 'h02F' or t == 'h02H' or t == 'h01S' or t == 'h021' or t == 'h02O' or t == 'h01X' or t == 'h01Z' or t == 'h01T' or t == 'h023' or t == 'h02B' or t == 'h029' or t == 'h099' or t == 'h09J' or t == 'h09W' or t == 'h0AG'
+
+@noinline
+function zapretHero()
+    let u = GetTriggerUnit()
+    let p = u.getOwner()
+    if not isHeroBuilding(u.getTypeId()) or Hero[p.getId()]
+        return
+    p..forbid('h02P')..forbid('h02B')..forbid('h029')..forbid('h023')
+        ..forbid('h01T')..forbid('h01Z')..forbid('h02O')..forbid('h021')
+        ..forbid('h01S')..forbid('h02H')..forbid('h02F')..forbid('h027')
+        ..forbid('h025')..forbid('h01X')..forbid('h099')..forbid('h09J')
+        ..forbid('h09W')..forbid('h0AG')
+    Hero[p.getId()] = true
+
+// ============================================================
+// Триггер: Book — исследование 'R003': +30 к лимиту еды за первый уровень, +40 за 2-4
+// ============================================================
+
+@noinline
+function book()
+    if GetResearched() != 'R003'
+        return
+    let p = GetTriggerUnit().getOwner()
+    let lvl = GetPlayerTechCount(p, 'R003', true)
+    if lvl >= 1 and lvl <= 4
+        p.setState(PLAYER_STATE_RESOURCE_FOOD_CAP, p.getState(PLAYER_STATE_RESOURCE_FOOD_CAP) + (lvl == 1 ? 30 : 40))
+
+// ============================================================
+// Триггер: AntiKamen — особые здания: каждое строится один раз, всего не больше UnitS + 1
+// ============================================================
+
+function isSpecialBuilding(int t) returns bool
+    return t == 'h017' or t == 'h04D' or t == 'h055' or t == 'h05X' or t == 'h06L' or t == 'h08E'
+
+@noinline
+function antiKamen()
+    let u = GetTriggerUnit()
+    if not isSpecialBuilding(u.getTypeId())
+        return
+    let p = u.getOwner()
+    let id = p.getId()
+    SpecUnit[id] += 1
+    p.forbid(u.getTypeId())
+    if SpecUnit[id] > UnitS[id] + 1
+        p..forbid('h017')..forbid('h04D')..forbid('h055')
+            ..forbid('h05X')..forbid('h06L')..forbid('h08E')..forbid('h09Z')
+
+// ============================================================
+// Триггер: KamenMana — 'A02S': уровень растёт при достаточной силе игрока (5000, 8000, 10000, 12500, 15000, 17500, 20000)
+// ============================================================
+
+@noinline
+function kamenMana(unit u)
+    let lvl = u.getAbilityLevel('A02S')
+    let e = addEffect("Abilities\\Spells\\Items\\TomeOfRetraining\\TomeOfRetrainingCaster.mdl", u.getPos())
+    var need = 0
+    if lvl == 1
+        need = 5000
+    else if lvl == 2
+        need = 8000
+    else if lvl == 3
+        need = 10000
+    else if lvl == 4
+        need = 12500
+    else if lvl == 5
+        need = 15000
+    else if lvl == 6
+        need = 17500
+    else if lvl == 7
+        need = 20000
+    if need == 0
+        return
+    if Force[u.getOwner().getId()] >= need
+        u.incAbilityLevel('A02S')
+        addManaToUnits(u, lvl == 1 ? 1.0 : 2.0)
+        e.destr()
+    else
+        DisplayTextToPlayer(u.getOwner(), 0.0, 0.0, "|c00FF0000Not enough power!|r")
+
+// ============================================================
+// Триггер: KamenSpell — улучшения камня: каждая способность-кнопка поднимает свою пассивку до 3-го уровня
+// ============================================================
+
+/** Пассивка abil на камне: добавить или поднять уровень (до 3); возвращает новый уровень, 0 — уже максимум */
+function unit.upgradeStone(int abil) returns int
+    if this.getAbilityLevel(abil) >= 3
+        this.getOwner().print("|c00FF8080[This stone upgrade is already at maximum level!]|r", 30.0)
+        addManaToUnits(this, 1.0)
+        return 0
+    if this.getAbilityLevel(abil) == 0
+        this.addAbility(abil)
+    else
+        this.incAbilityLevel(abil)
+    addEffect("models\\kuxuan_baopoHolyAwakening.mdx", this, "origin").destr()
+    return this.getAbilityLevel(abil)
+
+@noinline
+function kamenSpell(unit u, int ab)
+    let id = u.getOwner().getId()
+    if ab == 'A02N'
+        u.upgradeStone('A02R')
+    else if ab == 'A02O'
+        u.upgradeStone('A02Q')
+    else if ab == 'A02P'
+        u.upgradeStone('A02T')
+    else if ab == 'A036'
+        u.upgradeStone('A037')
+    else if ab == 'A0ET'
+        if u.upgradeStone('A0EU') > 0
+            UnitS[id] += 1
+    else if ab == 'A0EV'
+        u.upgradeStone('S00Z')
+    else if ab == 'A0EW'
+        u.upgradeStone('A0EX')
+    else if ab == 'A0EY'
+        let lvl = u.upgradeStone('A0EZ')
+        if lvl == 1
+            Arthas[id].itemInSlot(2).remove()
+        else if lvl == 2
+            Arthas[id].itemInSlot(3).remove()
+        else if lvl == 3
+            LimitArt[id] += 1
+
+// ============================================================
+// Триггер: KamenStavit — камень 'h02Q' можно ставить только на белый мрамор
+// ============================================================
+
+@noinline
+function kamenStavit(unit u)
+    if u.getTypeId() != 'h02Q' or GetTerrainType(u.getX(), u.getY()) == 'Ywmb'
+        return
+    let p = u.getOwner()
+    u.remove()
+    Rock[p.getId()] = false
+    SetPlayerTechMaxAllowed(p, 'h02Q', 1)
+    Builder[p.getId()].issueImmediateOrder("stop")
+    DisplayTextToPlayer(p, 0.0, 0.0, "Can only be placed on white marble!!!")
+
+@noinline
+function onUnitEnter()
+    let u = getEnterLeaveUnit()
+    build1(u)
+    castGlobal(u)
+    kamenStavit(u)
+
+init
+    onAnyDeath() ->
+        deathGold()
+    CreateTrigger()
+        ..registerEnterRegion(regionOf(rct_Proxod1, rct_Proxod5), null)
+        ..addAction(function proxod)
+    // Build1 — на появление юнита и на начало стройки/апгрейда
+    onEnter(function onUnitEnter)
+    EventListener.add(EVENT_PLAYER_UNIT_CONSTRUCT_START) ->
+        build1(GetTriggerUnit())
+    EventListener.add(EVENT_PLAYER_UNIT_UPGRADE_START) ->
+        build1(GetTriggerUnit())
+    EventListener.add(EVENT_PLAYER_UNIT_ISSUED_POINT_ORDER) ->
+        stop()
+    EventListener.add(EVENT_PLAYER_UNIT_ISSUED_UNIT_ORDER) ->
+        stop()
+    EventListener.add(EVENT_PLAYER_UNIT_ISSUED_TARGET_ORDER) ->
+        stop()
+    doPeriodically(3.0) cb ->
+        tree()
+    // строители уже созданы (initGame идёт в init MapStart, до таймеров)
+    doAfter(0.0) ->
+        watchTrees()
+    EventListener.add(EVENT_PLAYER_UNIT_SPELL_FINISH) ->
+        castAttack()
+    EventListener.add(EVENT_PLAYER_UNIT_SUMMON) ->
+        castAttack()
+    EventListener.add(EVENT_PLAYER_UNIT_CONSTRUCT_FINISH) ->
+        build()
+        zapretHero()
+    EventListener.add(EVENT_PLAYER_UNIT_TRAIN_FINISH) ->
+        wisp()
+        naimMid()
+    EventListener.add(EVENT_PLAYER_UNIT_UPGRADE_FINISH) ->
+        upgreid()
+        antiKamen()
+    CreateTrigger()
+        ..registerLeaveRegion(regionOf(rct_Baza1, rct_Baza2, rct_Baza3, rct_Baza4, rct_Baza5, rct_Baza6, rct_Baza7, rct_Baza8), null)
+        ..addAction(function zapretBaza)
+    CreateTrigger()
+        ..registerEnterRegion(regionOf(rct_Stop1, rct_Stop2, rct_Stop3, rct_Stop4, rct_Stop5, rct_Stop6), null)
+        ..addAction(function zapretWater)
+    CreateTrigger()
+        ..registerEnterRegion(regionOf(rct_Posil1, rct_Posil2, rct_Posil3, rct_Posil4, rct_Posil5, rct_Posil6, rct_Posil7, rct_Posil8), null)
+        ..addAction(function zapretSummons)
+    EventListener.add(EVENT_PLAYER_UNIT_SELL) ->
+        naim()
+    EventListener.add(EVENT_PLAYER_UNIT_RESEARCH_FINISH) ->
+        book()
+    EventListener.onCast('A02S') (caster) ->
+        kamenMana(caster)
+    EventListener.onCast('A02N') (caster) ->
+        kamenSpell(caster, 'A02N')
+    EventListener.onCast('A02O') (caster) ->
+        kamenSpell(caster, 'A02O')
+    EventListener.onCast('A02P') (caster) ->
+        kamenSpell(caster, 'A02P')
+    EventListener.onCast('A036') (caster) ->
+        kamenSpell(caster, 'A036')
+    EventListener.onCast('A0ET') (caster) ->
+        kamenSpell(caster, 'A0ET')
+    EventListener.onCast('A0EV') (caster) ->
+        kamenSpell(caster, 'A0EV')
+    EventListener.onCast('A0EW') (caster) ->
+        kamenSpell(caster, 'A0EW')
+    EventListener.onCast('A0EY') (caster) ->
+        kamenSpell(caster, 'A0EY')

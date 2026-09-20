@@ -1,0 +1,24 @@
+package MapStart
+import MapGlobals
+import Artifacts
+import AutocastHuman
+import AutocastNaga
+import AutocastNightElf
+import AutocastOrc
+import AutocastOther
+import AutocastUndead
+import Builder
+import Commands
+import DamageSystem
+import HeroSpells
+import Initialization
+import King
+import MMD
+import Main
+import Scoreboard
+import Synergy
+
+// Бывшие триггеры с событием «Map initialization» (Zadania, Int) — запускаются после инициализации всех пакетов.
+init
+    zadania()
+    initGame()

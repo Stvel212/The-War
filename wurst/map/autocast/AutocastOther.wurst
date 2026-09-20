@@ -1,0 +1,630 @@
+package AutocastOther
+import Initialization
+import MapGlobals
+import ClosureEvents
+import UnitEvents
+import ClosureTimers
+import ClosureForGroups
+import DummyCaster
+import InstantDummyCaster
+import Orders
+import Dummies
+import UnitSearch
+import GroupUtils
+
+/** Даммик-кастер от юнита a: стоит на его месте за его игрока и живёт delay секунд */
+function unit.dummyCaster(real delay) returns DummyCaster
+    return new DummyCaster()
+        ..owner(this.getOwner())
+        ..origin(this.getPos())
+        ..delay(delay)
+
+/** Мгновенный каст abil (1-й уровень) по цели t от имени игрока; даммик стоит в точке at */
+function player.instantCast(int abil, int orderId, unit t, vec2 at)
+    InstantDummyCaster.castTarget(this, abil, 1, orderId, t, at)
+
+/** Лечение: первый союзник в радиусе 700 с HP <= 60% (null, если нет) */
+function unit.woundedAllyNearby() returns unit
+    let p = this.getOwner()
+    return firstUnitInRange(this.getPos(), 700.0, (u) -> u.isAllyOf(p) and u.isAlive() and (u.getHP() / u.getMaxHP()) <= 0.60)
+
+/** Союзник-гигант ближнего боя без баффа buff в радиусе 600 (случайный) */
+function unit.meleeGiantAllyNearby(int buffId) returns unit
+    let p = this.getOwner()
+    return randomUnitInRange(this.getPos(), 600.0, (u) -> u.isAllyOf(p) and u.isAlive() and u.getTypeId() != 'n03J' and u.isType(UNIT_TYPE_GIANT) and u.isType(UNIT_TYPE_MELEE_ATTACKER) and u.getAbilityLevel(buffId) == 0)
+
+// ============================================================
+// Триггер: Setka — 'h00P' при полной мане ловит сетью летающего врага ('A00W') без 'Bmlt'
+// ============================================================
+
+@noinline
+function setka()
+    let a = GetAttacker()
+    if a.getMana() != 60
+        return
+    let p = a.getOwner()
+    let t = firstUnitInRange(a.getPos(), 880.0, (u) -> u.isEnemyOf(p) and u.isAlive() and u.getAbilityLevel('A00W') == 1 and u.getAbilityLevel('Bmlt') < 1)
+    if t != null
+        a.setMana(0.0)
+        a.dummyCaster(6.0).castTarget('A013', 1, OrderIds.magicleash, t)
+
+// ============================================================
+// Триггер: PaladinHeal — раз в секунду каждый паладин из P лечит союзника рядом, которому не хватает > 300 HP
+// ============================================================
+
+@noinline
+function paladinHeal()
+    P.forEachIn() pal ->
+        if pal.getHP() < 1
+            P.remove(pal)
+        let p = pal.getOwner()
+        let t = firstUnitInRange(pal.getPos(), 600.0, (u) -> u.isAllyOf(p) and u.isAlive() and (u.getMaxHP() - u.getHP()) > 300)
+        pal.issueTargetOrder("holybolt", t)
+
+// ============================================================
+// Триггер: Magic2 — 'A01S': волна ('A01R') по направлению взгляда героя и 'A01M' на 7 секунд
+// ============================================================
+
+@noinline
+function magic2(unit c)
+    // даммик стоял лицом как герой и бил волной «в себя» — т.е. по направлению взгляда героя
+    c.dummyCaster(3.0).castPoint('A01R', 1, OrderIds.shockwave, c.getPos().polarOffset(c.getFacingAngle(), 100.0))
+    addEffect("units\\human\\phoenix\\phoenix.mdl", c.getPos()).destr()
+    c.addAbility('A01M')
+    doAfter(7.0) ->
+        c.removeAbility('A01M')
+
+// ============================================================
+// Триггер: InnerFire1 / InnerFire2 — жрецы при полной мане: внутренний огонь на случайного гиганта-рукопашника
+// ============================================================
+
+@noinline
+function innerFire(int abil)
+    let a = GetAttacker()
+    if a.getMana() != 60
+        return
+    let t = a.meleeGiantAllyNearby('Binf')
+    if t != null
+        a.setMana(0.0)
+        a.getOwner().instantCast(abil, OrderIds.innerfire, t, a.getPos())
+
+// ============================================================
+// Триггер: Molnia — каждая 6-я атака цепная молния по цели ('A03M' у 'n00T', иначе 'A03N')
+// ============================================================
+
+@noinline
+function molnia()
+    let s = GetAttacker()
+    let lvl = s.getAbilityLevel('A03L')
+    if lvl < 1 or lvl > 6
+        return
+    if lvl == 6
+        s.dummyCaster(2.0).castTarget(s.getTypeId() == 'n00T' ? 'A03M' : 'A03N', 1, OrderIds.chainlightning, GetTriggerUnit())
+        s.setAbilityLevel('A03L', 1)
+    else
+        s.incAbilityLevel('A03L')
+
+// ============================================================
+// Триггер: DamageRegen — 'o00M' при полной мане: 'A0EO' всем союзникам рядом с целью
+// ============================================================
+
+@noinline
+function damageRegen()
+    let a = GetAttacker()
+    if a.getMana() != 60
+        return
+    let p = a.getOwner()
+    a.setAnimation("spell")
+    a.setMana(0.0)
+    forUnitsInRange(GetTriggerUnit().getPos(), 300.0) u ->
+        if u.isAllyOf(p) and u.isAlive() and u.getAbilityLevel('Avul') == 0 and u.getAbilityLevel('B03E') == 0 and not u.isType(UNIT_TYPE_HERO) and not zapret_Necr(u)
+            p.instantCast('A0EO', OrderIds.innerfire, u, u.getPos())
+
+// ============================================================
+// Триггер: CastArmor — 'A04I': ледяная броня всем союзникам вокруг цели
+// ============================================================
+
+@noinline
+function castArmor(unit c)
+    let p = c.getOwner()
+    forUnitsInRange(GetSpellTargetUnit().getPos(), 600.0) u ->
+        if u.isAllyOf(p) and u.isAlive()
+            InstantDummyCaster.castTarget(p, 'A04H', 1, OrderIds.frostarmor, u, u.getPos())
+
+// ============================================================
+// Триггер: DeathNormal — 'u00K' при смерти бьёт убийцу половиной его HP (до 600) и оставляет двух 'n016' на минуту
+// ============================================================
+
+@noinline
+function deathNormal()
+    let d = GetDyingUnit()
+    let k = GetKillingUnit()
+    if not k.isType(UNIT_TYPE_HERO)
+        d.damageTarget(k, min(600.0, k.getHP() * 0.50), true, false, ATTACK_TYPE_NORMAL, DAMAGE_TYPE_FIRE, WEAPON_TYPE_WHOKNOWS)
+        addEffect("Objects\\Spawnmodels\\Demon\\DemonLargeDeathExplode\\DemonLargeDeathExplode.mdl", k.getPos()).destr()
+    for i = 1 to 2
+        CreateUnit(d.getOwner(), 'n016', d.getX(), d.getY(), 0.0)
+            ..setTimedLife(60.0, 'BHwe')
+            ..attackLane()
+    addEffect("Units\\Undead\\Abomination\\AbominationExplosion.mdl", d.getPos()).destr()
+
+// ============================================================
+// Триггер: CastBanshee — 'u00G' при полной мане калечит врагов вокруг цели
+// ============================================================
+
+@noinline
+function castBanshee()
+    let a = GetAttacker()
+    if a.getMana() < 60
+        return
+    let p = a.getOwner()
+    a.setMana(0.0)
+    forUnitsInRange(GetTriggerUnit().getPos(), 200.0) u ->
+        if u.isEnemyOf(p) and u.isAlive() and u.getAbilityLevel('Bcri') != 1
+            p.instantCast('A04L', OrderIds.cripple, u, u.getPos())
+
+// ============================================================
+// Триггер: Sycyb3 — 'n01I' при полной мане ревёт ('A047')
+// ============================================================
+
+@noinline
+function sycyb3()
+    let a = GetAttacker()
+    if a.getMana() != 60
+        return
+    a.setMana(0.0)
+    InstantDummyCaster.castImmediate(a.getOwner(), 'A047', 1, OrderIds.roar, a.getPos())
+
+// ============================================================
+// Триггер: Sycyb1 — инкубы 'n01K'/'n01U' при полной мане: «перст смерти» ('A055') по союзнику-гиганту без 'B02U'
+// ============================================================
+
+/** Кто из инкубов (Sycyb1) сейчас кастует 'A055' даммиком: раньше это различали по типу даммика ('e01O' / 'e00W'),
+    теперь даммик общий, а Sycyb2 срабатывает прямо во время приказа — читает отсюда */
+unit sycybCaster = null
+
+@noinline
+function sycyb1()
+    let a = GetAttacker()
+    if a.getMana() != 60
+        return
+    let p = a.getOwner()
+    let t = firstUnitInRange(a.getPos(), 600.0, (u) -> u.isAllyOf(p) and u.isAlive() and u.getTypeId() != 'n03J' and u.isType(UNIT_TYPE_GIANT) and u.isType(UNIT_TYPE_MELEE_ATTACKER) and u.getAbilityLevel('B02U') != 1)
+    if t != null
+        a.setMana(0.0)
+        sycybCaster = a
+        a.dummyCaster(5.0).castTarget('A055', 1, OrderIds.fingerofdeath, t)
+        sycybCaster = null
+
+// ============================================================
+// Триггер: Sycyb2 — цель 'A055' на 6 секунд получает 'S00D' и 'A05A' (от 'n01K') / 'A05B'
+// ============================================================
+
+@noinline
+function sycyb2()
+    let t = GetSpellTargetUnit()
+    let abil = sycybCaster != null and sycybCaster.getTypeId() == 'n01K' ? 'A05A' : 'A05B'
+    t.addAbility(abil)
+    t.addAbility('S00D')
+    doAfter(6.0) ->
+        t.removeAbility('S00D')
+        t.removeAbility(abil)
+
+// ============================================================
+// Триггер: Drevo — 'e00A' при полной мане опутывает цель ('A09K') и лечится на половину её максимума
+// ============================================================
+
+@noinline
+function drevo()
+    let a = GetAttacker()
+    let t = GetTriggerUnit()
+    if a.getMana() != 60 or t.getAbilityLevel('BEer') == 1
+        return
+    a.setMana(0.0)
+    a.dummyCaster(5.0).castTarget('A09K', 1, OrderIds.magicleash, t)
+    a.setHP(a.getHP() + t.getMaxHP() * 0.50)
+
+// ============================================================
+// Триггер: Attack Patma — 'A05M': топот ('A05O') на месте кастера
+// ============================================================
+
+@noinline
+function attackPatma(unit c)
+    InstantDummyCaster.castImmediate(c.getOwner(), 'A05O', 1, OrderIds.stomp, c.getPos())
+
+// ============================================================
+// Триггер: CastAntiAir / CastAntiAir1 — зенитчики при полной мане: ледяные стрелы по летающим
+// ============================================================
+
+/** Летающие враги (с 'A00W') в радиусе 880 от атакующего */
+function unit.airTargets() returns group
+    let p = this.getOwner()
+    return unitsInRange(this.getPos(), 880.0, (u) -> u.isEnemyOf(p) and u.isAlive() and u.getAbilityLevel('A00W') == 1)
+
+/** 'e00D': до двух случайных целей ('A05S'); 'e00G': одна случайная ('A05R') */
+@noinline
+function castAntiAir()
+    let a = GetAttacker()
+    let id = a.getTypeId()
+    if a.getMana() < 60
+        return
+    let g = a.airTargets()
+    if not g.isEmpty()
+        let picked = GetRandomSubGroup(id == 'e00D' ? 2 : 1, g)
+        picked.forEachFrom() t ->
+            a.dummyCaster(5.0).castTarget(id == 'e00D' ? 'A05S' : 'A05R', 1, OrderIds.thunderbolt, t)
+        picked.destr()
+        a.setMana(0.0)
+    g.release()
+
+// ============================================================
+// Триггер: CastGarpia — 'e014' при полной мане проклинает врагов вокруг цели
+// ============================================================
+
+@noinline
+function castGarpia()
+    let a = GetAttacker()
+    if a.getMana() < 60
+        return
+    let p = a.getOwner()
+    a.setMana(0.0)
+    forUnitsInRange(GetTriggerUnit().getPos(), 200.0) u ->
+        if u.isEnemyOf(p) and u.isAlive() and u.getAbilityLevel('Bcrs') != 1
+            p.instantCast('A067', OrderIds.curse, u, u.getPos())
+
+// ============================================================
+// Триггер: Heal / Heal2 — волна исцеления ('A066' у 'e017', 'A0DN' у 'n03S') по раненому союзнику
+// ============================================================
+
+@noinline
+function healingWave(int abil)
+    let a = GetAttacker()
+    if a.getMana() != 60
+        return
+    let t = a.woundedAllyNearby()
+    if t != null
+        a.setMana(0.0)
+        a.dummyCaster(3.0).castTarget(abil, 1, OrderIds.healingwave, t)
+
+// ============================================================
+// Триггер: Omolog — 'e008' при полной мане: омоложение на союзника с HP <= 80% без 'Brej'
+// ============================================================
+
+@noinline
+function omolog()
+    let a = GetAttacker()
+    if a.getMana() != 60
+        return
+    let p = a.getOwner()
+    let t = firstUnitInRange(a.getPos(), 700.0, (u) -> u.isAllyOf(p) and u.isAlive() and (u.getHP() / u.getMaxHP()) <= 0.8 and u.getAbilityLevel('Brej') != 1)
+    if t != null
+        a.setMana(0.0)
+        p.instantCast('A05I', OrderIds.rejuvination, t, a.getPos())
+
+// ============================================================
+// Триггер: Tinik — 'e00K' при атаке в ближнем бою с шансом 40% оглушает атакующего
+// ============================================================
+
+@noinline
+function tinik()
+    let c = GetTriggerUnit()
+    if not GetAttacker().isType(UNIT_TYPE_MELEE_ATTACKER) or GetRandomInt(1, 10) > 4
+        return
+    c.dummyCaster(1.0).castTarget('A0D4', 1, OrderIds.creepthunderbolt, GetAttacker())
+
+// ============================================================
+// Триггер: CastNaga — 'n028' (при полной мане) / 'n02O': ледяная броня на союзника-гиганта без 'B01N'
+// ============================================================
+
+@noinline
+function castNaga()
+    let a = GetAttacker()
+    let id = a.getTypeId()
+    if id == 'n028' and a.getMana() != 60
+        return
+    let p = a.getOwner()
+    a.setMana(0.0)
+    let t = firstUnitInRange(a.getPos(), 700.0, (u) -> u.isAllyOf(p) and u.isAlive() and u.isType(UNIT_TYPE_GIANT) and u.isType(UNIT_TYPE_MELEE_ATTACKER) and u.getAbilityLevel('B01N') != 1 and u.getTypeId() != 'n03J')
+    if t != null
+        p.instantCast(id == 'n02O' ? 'A06J' : 'A06K', OrderIds.frostarmor, t, a.getPos())
+
+// ============================================================
+// Триггер: FrostArmor — цель 'A06J' получает 'A06L' на 15 с, цель 'A06K' — 'A06M' на 24 с
+// ============================================================
+
+@noinline
+function frostArmor(int abil)
+    let t = GetSpellTargetUnit()
+    let mark = abil == 'A06J' ? 'A06L' : 'A06M'
+    if t.getAbilityLevel(mark) != 0
+        return
+    t.addAbility(mark)
+    doAfter(abil == 'A06J' ? 15.0 : 24.0) ->
+        t.removeAbility(mark)
+
+// ============================================================
+// Триггер: Crab — из 'n02E' выходят два 'n047'
+// ============================================================
+
+@noinline
+function crab()
+    let d = GetDyingUnit()
+    for i = 1 to 2
+        CreateUnit(d.getOwner(), 'n047', d.getX(), d.getY(), 0.0).attackLane()
+
+// ============================================================
+// Триггер: HealCrab — на месте 'n048' на 10 секунд остаётся аура 'A06R'
+// ============================================================
+
+@noinline
+function healCrab()
+    let d = GetDyingUnit()
+    auraDummy(d.getOwner(), d.getPos(), 'A06R', 0, 10.0)
+
+// ============================================================
+// Триггер: Water2 — убийство юнитом 'n02I' — топот ('A06U') на месте убитого
+// ============================================================
+
+@noinline
+function water2()
+    let k = GetKillingUnit()
+    InstantDummyCaster.castImmediate(k.getOwner(), 'A06U', 1, OrderIds.stomp, GetDyingUnit().getPos())
+
+// ============================================================
+// Триггер: Granade — 'A0F7': через 0.2 с удар ('A0F8') по месту цели
+// ============================================================
+
+@noinline
+function granade(unit u)
+    let t = GetSpellTargetUnit()
+    doAfter(0.2) ->
+        InstantDummyCaster.castImmediate(u.getOwner(), 'A0F8', 1, OrderIds.creepthunderclap, t.getPos())
+
+// ============================================================
+// Триггер: DamageDerevo / DamageDerevo1 — деревья лечатся с атаки на % от максимума HP цели (с потолком)
+// ============================================================
+
+@noinline
+function damageDerevo(real part, real cap)
+    let u = GetAttacker()
+    u.setHP(u.getHP() + min(cap, GetTriggerUnit().getMaxHP() * part))
+    addEffect("Abilities\\Spells\\Undead\\VampiricAura\\VampiricAuraTarget.mdl", u, "origin").destr()
+
+// ============================================================
+// Триггер: DerevoStan — 'n035': за каждые потерянные 400 HP уровень 'A07F' +1 и оглушение цели
+// ============================================================
+
+@noinline
+function derevoStan()
+    let u = GetAttacker()
+    let lvl = u.getAbilityLevel('A07F')
+    if lvl >= 1 and lvl <= 9 and u.getHP() <= u.getMaxHP() - 400 * lvl
+        u.setAbilityLevel('A07F', lvl + 1)
+        u.issueTargetOrder("thunderbolt", GetTriggerUnit())
+
+// ============================================================
+// Триггер: MagnatavrHP — с 'A0DD' шанс 20% снять 10% текущего HP цели
+// ============================================================
+
+@noinline
+function magnatavrHP()
+    let a = GetAttacker()
+    if a.getAbilityLevel('A0DD') != 1 or GetRandomInt(1, 100) > 20
+        return
+    let t = GetTriggerUnit()
+    a.damageTarget(t, t.getHP() * 0.1, true, false, ATTACK_TYPE_NORMAL, DAMAGE_TYPE_NORMAL, WEAPON_TYPE_WHOKNOWS)
+    addEffect("Abilities\\Spells\\Undead\\DeathandDecay\\DeathandDecayDamage.mdl", t, "origin").destr()
+
+// ============================================================
+// Триггер: VolkHeal — 'n043' за убийство лечится на 15% максимума HP убитого
+// ============================================================
+
+@noinline
+function volkHeal()
+    let k = GetKillingUnit()
+    k.setHP(k.getHP() + GetDyingUnit().getMaxHP() * 0.15)
+    addEffect("models\\Call of Dread Red.mdl", k, "origin").destr()
+
+// ============================================================
+// Триггер: VolkSpeed — на месте 'n041' на 2 секунды появляется носитель предмета 'I028'
+// ============================================================
+
+@noinline
+function volkSpeed()
+    let d = GetDyingUnit()
+    let holder = CreateUnit(d.getOwner(), 'e00Y', d.getX(), d.getY(), 0.0)
+    holder.addItemHandle(CreateItem('I028', holder.getX(), holder.getY()))
+    holder.setTimedLife(2.0, 'BHwe')
+
+// ============================================================
+// Триггер: HPArmor — 'n03T' при полной мане: внутренний огонь ('A0CW') союзникам вокруг цели
+// ============================================================
+
+@noinline
+function hpArmor()
+    let a = GetAttacker()
+    if a.getMana() != 60
+        return
+    let p = a.getOwner()
+    a.setMana(0.0)
+    forUnitsInRange(GetTriggerUnit().getPos(), 200.0) u ->
+        if u.isAllyOf(p) and u.isAlive() and u.getAbilityLevel('Avul') == 0 and u.getAbilityLevel('Binf') == 0
+            InstantDummyCaster.castTarget(p, 'A0CW', 1, OrderIds.innerfire, u, u.getPos())
+
+// ============================================================
+// Триггер: Armor — 'n03R' при полной мане: ледяная броня ('A04H') союзнику рядом с целью
+// ============================================================
+
+@noinline
+function armor()
+    let a = GetAttacker()
+    if a.getMana() != 60
+        return
+    let p = a.getOwner()
+    let c = GetTriggerUnit()
+    let t = firstUnitInRange(c.getPos(), 500.0, (u) -> u.isAllyOf(p) and u.isAlive() and u.getAbilityLevel('BUfa') != 1 and u.getAbilityLevel('Bfro') != 1)
+    if t != null
+        a.setMana(0.0)
+        InstantDummyCaster.castTarget(p, 'A04H', 1, OrderIds.frostarmor, t, c.getPos())
+
+// ============================================================
+// Триггер: AirAs — 'A0FL'/'A0FO': кровожадность себе и 2 ('n04B') / 4 случайным союзникам без 'B03T'
+// ============================================================
+
+@noinline
+function airAs(unit c)
+    let p = c.getOwner()
+    let strong = c.getTypeId() == 'n04B'
+    let lust = strong ? 'A0G1' : 'A0G2'
+    let g = unitsInRange(c.getPos(), 400.0, (u) -> u.isAllyOf(p) and u.isAlive() and u.getAbilityLevel('B03T') == 0)
+    let picked = GetRandomSubGroup(strong ? 2 : 4, g)
+    picked.forEachFrom() u ->
+        u.getOwner().instantCast(lust, OrderIds.bloodlust, u, u.getPos())
+    p.instantCast(lust, OrderIds.bloodlust, c, c.getPos())
+    picked.destr()
+    g.release()
+
+// ============================================================
+// Триггер: MolniaPurge — 'n04L' (15%) / 'n04M' (25%): рассеивание по цели
+// ============================================================
+
+@noinline
+function molniaPurge()
+    let u = GetAttacker()
+    let id = u.getTypeId()
+    let chance = id == 'n04L' ? 15 : 25
+    if GetRandomInt(1, 100) <= chance
+        let t = GetTriggerUnit()
+        InstantDummyCaster.castTarget(u.getOwner(), id == 'n04L' ? 'A0FZ' : 'A0G0', 1, OrderIds.purge, t, t.getPos())
+
+// ============================================================
+// Триггер: MolniaE — 'A0FN': муссон ('A0FM', 2-й уровень у 'n04G') на месте кастера
+// ============================================================
+
+@noinline
+function molniaE(unit u)
+    u.dummyCaster(14.0).castPoint('A0FM', u.getTypeId() == 'n04G' ? 2 : 1, OrderIds.monsoon, u.getPos())
+
+// ============================================================
+// Триггер: FireAoE — 'n04C' (25) / 'n04D' (45): с шансом 20% урон врагам вокруг цели; 'n04D' с шансом 15% 'A01M' на секунду
+// ============================================================
+
+@noinline
+function fireAoE()
+    let u = GetAttacker()
+    let id = u.getTypeId()
+    let p = u.getOwner()
+    let t = GetTriggerUnit()
+    if GetRandomInt(1, 100) <= 20
+        let dmg = id == 'n04C' ? 25.0 : 45.0
+        let g = unitsInRange(t.getPos(), 250.0, (e) -> e.isEnemyOf(p) and e.isAlive() and e.getAbilityLevel('Avul') == 0)
+        if not g.isEmpty()
+            g.forEachFrom() e ->
+                u.damageTarget(e, dmg, true, false, ATTACK_TYPE_NORMAL, DAMAGE_TYPE_MAGIC, WEAPON_TYPE_WHOKNOWS)
+            addEffect("models\\Pillar of Flame Orange.mdx", t.getPos()).destr()
+        g.release()
+    if id == 'n04D' and GetRandomInt(1, 100) <= 15
+        u.addAbility('A01M')
+        doAfter(1.0) ->
+            u.removeAbility('A01M')
+
+// ============================================================
+// Триггер: TornadoCast — 'n04B'/'n04E' при полной мане: торнадо на своём месте
+// ============================================================
+
+@noinline
+function tornadoCast()
+    let u = GetAttacker()
+    let id = u.getTypeId()
+    if u.getMana() != 60
+        return
+    u.setMana(0.0)
+    u.dummyCaster(11.0).castPoint(id == 'n04B' ? 'A0FL' : 'A0FO', 1, OrderIds.tornado, u.getPos())
+
+init
+    onAttackBy('h00P') ->
+        setka()
+    onAttackBy('h00A') ->
+        innerFire('A01X')
+    onAttackBy('h00C') ->
+        innerFire('A01Y')
+    onAnyAttack() ->
+        molnia()
+    onAttackBy('o00M') ->
+        damageRegen()
+    onAttackBy('u00G') ->
+        castBanshee()
+    onAttackBy('n01I') ->
+        sycyb3()
+    onAttackBy('n01K', 'n01U') ->
+        sycyb1()
+    onAttackBy('e00A') ->
+        drevo()
+    onAttackBy('e00D', 'e00G') ->
+        castAntiAir()
+    onAttackBy('e014') ->
+        castGarpia()
+    onAttackBy('e017') ->
+        healingWave('A066')
+    onAttackBy('e008') ->
+        omolog()
+    onAttacked('e00K') ->
+        tinik()
+    onAttackBy('n028', 'n02O') ->
+        castNaga()
+    onAttackBy('n039') ->
+        damageDerevo(0.02, 80.0)
+    onAttackBy('n038') ->
+        damageDerevo(0.03, 120.0)
+    onAttackBy('n035') ->
+        derevoStan()
+    onAnyAttack() ->
+        magnatavrHP()
+    onAttackBy('n03T') ->
+        hpArmor()
+    onAttackBy('n03S') ->
+        healingWave('A0DN')
+    onAttackBy('n03R') ->
+        armor()
+    onAttackBy('n04L', 'n04M') ->
+        molniaPurge()
+    onAttackBy('n04C', 'n04D') ->
+        fireAoE()
+    onAttackBy('n04B', 'n04E') ->
+        tornadoCast()
+    EventListener.onCast('A01S') (caster) ->
+        magic2(caster)
+    EventListener.onCast('A04I') (caster) ->
+        castArmor(caster)
+    EventListener.onCast('A055') (_caster) ->
+        sycyb2()
+    EventListener.onCast('A05M') (caster) ->
+        attackPatma(caster)
+    EventListener.onCast('A06J') (_caster) ->
+        frostArmor('A06J')
+    EventListener.onCast('A06K') (_caster) ->
+        frostArmor('A06K')
+    EventListener.onCast('A0F7') (caster) ->
+        granade(caster)
+    EventListener.onCast('A0FL') (caster) ->
+        airAs(caster)
+    EventListener.onCast('A0FO') (caster) ->
+        airAs(caster)
+    EventListener.onCast('A0FN') (caster) ->
+        molniaE(caster)
+    onDeathOf('u00K') ->
+        deathNormal()
+    onDeathOf('n02E') ->
+        crab()
+    onDeathOf('n048') ->
+        healCrab()
+    onKillBy('n02I') ->
+        water2()
+    onKillBy('n043') ->
+        volkHeal()
+    onDeathOf('n041') ->
+        volkSpeed()
+    doPeriodically(1.0) cb ->
+        paladinHeal()
+    onDeathOf('h03R') ->
+        P.remove(GetDyingUnit())

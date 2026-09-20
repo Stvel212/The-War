@@ -1,0 +1,177 @@
+package AutocastNightElf
+import Initialization
+import ClosureEvents
+import UnitEvents
+import ClosureTimers
+
+// ============================================================
+// Триггер: Kill — 'u00B' за убийство поднимает две тени убитого на 10 секунд
+// ============================================================
+
+@noinline
+function kill()
+    let k = GetKillingUnit()
+    let d = GetTriggerUnit()
+    if d.isType(UNIT_TYPE_HERO) or d.isType(UNIT_TYPE_SUMMONED) or d.isIllusion()
+        return
+    addEffect("Abilities\\Spells\\Undead\\AnimateDead\\AnimateDeadTarget.mdl", d, "origin").destr()
+    for i = 1 to 2
+        let u = CreateUnit(k.getOwner(), d.getTypeId(), d.getX(), d.getY(), 0.0)
+            ..addAbility('Aloc')
+            ..setVertexColor(55, 55, 55, 150)
+        u.attackLane()
+        if u.getTypeId() == 'e000' or u.getTypeId() == 'e001'
+            u.setMana(0.0)
+        doAfter(10.0) ->
+            u.remove()
+
+// ============================================================
+// Триггер: Renj — 'n01V' при HP <= 80% отбегает ('A05H'), через секунду снова в бой с 'A049' на 3 с; перезарядка 18 с
+// ============================================================
+
+@noinline
+function renj()
+    let t = GetTriggerUnit()
+    if t.getHP() / t.getMaxHP() > 0.80 or t.getAbilityLevel('A05G') != 1
+        return
+    t.removeAbility('A05G')
+    t.addAbility('A05H')
+    t.setHP(t.getHP() + 200)
+    t.issuePointOrder("move", vec2(t.getOwner().isLeftTeam() ? 2750.0 : -3300.0, t.getY()))
+    doAfter(1.0) ->
+        t.removeAbility('A05H')
+        t.attackLane()
+        t.addAbility('A049')
+    doAfter(4.0) ->
+        t.removeAbility('A049')
+    doAfter(18.0) ->
+        t.addAbility('A05G')
+
+// ============================================================
+// Триггер: DryidArmor / DryidArmor1 — дриады при полной мане вешают на цель метку на 5 секунд
+// ============================================================
+
+@noinline
+function dryidArmor(int abil)
+    let a = GetAttacker()
+    let t = GetTriggerUnit()
+    if t.getAbilityLevel(abil) != 0 or a.getMana() != 60
+        return
+    a.setMana(0.0)
+    t.addAbility(abil)
+    let fx = addEffect("Abilities\\Spells\\NightElf\\FaerieFire\\FaerieFireTarget.mdl", t, "head")
+    doAfter(5.0) ->
+        t.removeAbility(abil)
+        fx.destr()
+
+// ============================================================
+// Триггер: Archer — 'e00E'/'e00F': при полной мане 'A035' на 2-й уровень, потом 3-й, потом обратно 1-й
+// ============================================================
+
+@noinline
+function archer()
+    let a = GetAttacker()
+    if a.getMana() == 60
+        a.setAbilityLevel('A035', 2)
+        a.setMana(0.0)
+        addEffect("Abilities\\Spells\\Items\\SpellShieldAmulet\\SpellShieldCaster.mdl", a.getPos()).destr()
+    else if a.getAbilityLevel('A035') == 2
+        a.setAbilityLevel('A035', 3)
+    else if a.getAbilityLevel('A035') == 3
+        a.setAbilityLevel('A035', 1)
+
+// ============================================================
+// Триггер: Attack3 — 'A05W' растёт с атаками; на 5-м уровне 'A05X' = 2 и снимается 'A01M'
+// ============================================================
+
+@noinline
+function attack3()
+    let a = GetAttacker()
+    let lvl = a.getAbilityLevel('A05W')
+    if lvl < 1 or lvl > 4
+        return
+    a.incAbilityLevel('A05W')
+    if lvl + 1 == 5
+        a.setAbilityLevel('A05X', 2)
+        a.removeAbility('A01M')
+
+// ============================================================
+// Триггер: KillYou — убийство сбрасывает 'A05W' и переустанавливает 'A05V'
+// ============================================================
+
+@noinline
+function killYou()
+    let k = GetKillingUnit()
+    if k.getAbilityLevel('A05W') < 1
+        return
+    if k.getAbilityLevel('A05X') == 2
+        k.setAbilityLevel('A05X', 1)
+        k.addAbility('A01M')
+    k.setAbilityLevel('A05W', 1)
+    k.removeAbility('A05V')
+    k.addAbility('A05V')
+
+// ============================================================
+// Триггер: YellowDragon / YellowDragon1 — счётчик атак с растущим шансом «выстрелить» на максимальный уровень
+// ============================================================
+
+@noinline
+function yellowDragon(int abil, int maxLvl, int chanceDie)
+    let a = GetAttacker()
+    let lvl = a.getAbilityLevel(abil)
+    if lvl < maxLvl - 1
+        a.incAbilityLevel(abil)
+    else if lvl == maxLvl
+        a.setAbilityLevel(abil, 1)
+    if GetRandomInt(1, chanceDie) < lvl
+        a.setAbilityLevel(abil, maxLvl)
+
+// ============================================================
+// Триггер: Magnatavr2 — 'n01X' за убийство получает 'A050'+'A06A' на 7.5 секунды
+// ============================================================
+
+@noinline
+function magnatavr2()
+    let k = GetKillingUnit()
+    k.addAbility('A050')
+    k.addAbility('A06A')
+    doAfter(7.5) ->
+        k.removeAbility('A050')
+        k.removeAbility('A06A')
+
+// ============================================================
+// Триггер: CastRoar — на время каста 'A06B' (5 с) снимается 'A0IR'
+// ============================================================
+
+@noinline
+function castRoar()
+    if GetSpellAbilityId() != 'A06B'
+        return
+    let u = GetSpellAbilityUnit()
+    u.removeAbility('A0IR')
+    doAfter(5.0) ->
+        u.addAbility('A0IR')
+
+init
+    onAttacked('n01V') ->
+        renj()
+    onAttackBy('e00P') ->
+        dryidArmor('A04T')
+    onAttackBy('e00C') ->
+        dryidArmor('A05Q')
+    onAttackBy('e00E', 'e00F') ->
+        archer()
+    onAnyAttack() ->
+        attack3()
+    onAttackBy('e012') ->
+        yellowDragon('A062', 18, 34)
+    onAttackBy('e015') ->
+        yellowDragon('A063', 15, 20)
+    onKillBy('u00B') ->
+        kill()
+    onAnyDeath() ->
+        killYou()
+    onKillBy('n01X') ->
+        magnatavr2()
+    EventListener.add(EVENT_PLAYER_UNIT_SPELL_CAST) ->
+        castRoar()

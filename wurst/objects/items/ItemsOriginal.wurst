@@ -1,0 +1,10 @@
+package ItemsOriginal
+import ItemObjEditing
+
+@compiletime function create_w3t_afac()
+	new ItemDefinition('afac', 'afac')
+	..setTooltipExtended("")
+
+@compiletime function create_w3t_gcel()
+	new ItemDefinition('gcel', 'gcel')
+	..setTooltipExtended("")

@@ -1,0 +1,27 @@
+package Dummies
+import DummyRecycler
+import InstantDummyCaster
+import ClosureTimers
+
+/*
+    Даммики карты — из stdlib: кастующие — DummyCaster / InstantDummyCaster (см. места вызова),
+    а «носители» пассивных способностей (аура, Phoenix Fire), которым ничего не надо кастовать, — отсюда.
+    Бывший юнит 'e00W' («Даммик» с таймером жизни 'BHwe') больше не используется. */
+
+/** Даммик stdlib (из DummyRecycler или общий кастер InstantDummyCaster) — такие юниты триггеры карты пропускают */
+public function unit.isDummy() returns bool
+    let id = this.getTypeId()
+    return id == DUMMY_UNIT_ID or id == DUMMY_CASTER_UNIT_ID
+
+/** Даммик-носитель пассивной способности abilId уровня level (0 — не менять) на duration секунд;
+    стоит на pos за игрока owner, потом возвращается в DummyRecycler */
+public function auraDummy(player owner, vec2 pos, int abilId, int level, real duration) returns unit
+    let u = DummyRecycler.get(pos, angle(0))
+        ..setOwner(owner, false)
+        ..addAbility(abilId)
+    if level > 0
+        u.setAbilityLevel(abilId, level)
+    doAfter(duration) ->
+        u.removeAbility(abilId)
+        DummyRecycler.recycle(u)
+    return u

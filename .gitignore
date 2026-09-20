@@ -1,0 +1,5 @@
+/_build
+wurst.dependencies
+/.vscode
+/backup
+/wurst/war3map.j

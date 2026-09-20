@@ -1,0 +1,93 @@
+package UnitEvents
+import ClosureEvents
+import HashMap
+import LinkedList
+
+/*
+    Диспетчер событий по типу юнита. Раньше на каждую атаку любого юнита срабатывало ~90 обработчиков, и каждый
+    начинал с проверки «а мой ли это тип» (GetAttacker().getTypeId() == …). Теперь на событие один слушатель,
+    а обработчики лежат в HashMap «тип юнита → список»: на атаку выполняются только те, что подписаны на тип
+    атакующего и на тип атакуемого. Обработчики без привязки к типу (по способности/баффу) — в общем списке.
+    Порядок внутри одного списка — порядок регистрации (= порядок триггеров оригинала). */
+
+public interface UnitHandler
+    function run()
+
+class Handlers
+    HashMap<int, LinkedList<UnitHandler>> byType = new HashMap<int, LinkedList<UnitHandler>>()
+    LinkedList<UnitHandler> generic = new LinkedList<UnitHandler>()
+
+    function add(int typeId, UnitHandler h)
+        if not byType.has(typeId)
+            byType.put(typeId, new LinkedList<UnitHandler>())
+        byType.get(typeId).add(h)
+
+    function run(int typeId)
+        if byType.has(typeId)
+            for h in byType.get(typeId)
+                h.run()
+
+    function runGeneric()
+        for h in generic
+            h.run()
+
+constant attackBy = new Handlers()     // по типу атакующего (GetAttacker)
+constant attacked = new Handlers()     // по типу атакуемого (GetTriggerUnit)
+constant deathOf = new Handlers()      // по типу умершего (GetDyingUnit)
+constant killBy = new Handlers()       // по типу убийцы (GetKillingUnit)
+
+// ---- атака: EVENT_PLAYER_UNIT_ATTACKED ----
+
+/** Юнит типа t атакует (GetAttacker) */
+public function onAttackBy(int t, UnitHandler h)
+    attackBy.add(t, h)
+
+public function onAttackBy(int t1, int t2, UnitHandler h)
+    attackBy..add(t1, h)..add(t2, h)
+
+public function onAttackBy(int t1, int t2, int t3, UnitHandler h)
+    attackBy..add(t1, h)..add(t2, h)..add(t3, h)
+
+public function onAttackBy(int t1, int t2, int t3, int t4, UnitHandler h)
+    attackBy..add(t1, h)..add(t2, h)..add(t3, h)..add(t4, h)
+
+/** Юнита типа t атакуют (GetTriggerUnit) */
+public function onAttacked(int t, UnitHandler h)
+    attacked.add(t, h)
+
+public function onAttacked(int t1, int t2, UnitHandler h)
+    attacked..add(t1, h)..add(t2, h)
+
+/** Любая атака (обработчик сам проверяет способности/баффы) */
+public function onAnyAttack(UnitHandler h)
+    attackBy.generic.add(h)
+
+// ---- смерть: EVENT_PLAYER_UNIT_DEATH ----
+
+/** Умер юнит типа t (GetDyingUnit) */
+public function onDeathOf(int t, UnitHandler h)
+    deathOf.add(t, h)
+
+public function onDeathOf(int t1, int t2, UnitHandler h)
+    deathOf..add(t1, h)..add(t2, h)
+
+/** Убил юнит типа t (GetKillingUnit) */
+public function onKillBy(int t, UnitHandler h)
+    killBy.add(t, h)
+
+public function onKillBy(int t1, int t2, UnitHandler h)
+    killBy..add(t1, h)..add(t2, h)
+
+/** Любая смерть */
+public function onAnyDeath(UnitHandler h)
+    deathOf.generic.add(h)
+
+init
+    EventListener.add(EVENT_PLAYER_UNIT_ATTACKED) ->
+        attackBy.runGeneric()
+        attackBy.run(GetAttacker().getTypeId())
+        attacked.run(GetTriggerUnit().getTypeId())
+    EventListener.add(EVENT_PLAYER_UNIT_DEATH) ->
+        deathOf.runGeneric()
+        deathOf.run(GetDyingUnit().getTypeId())
+        killBy.run(GetKillingUnit().getTypeId())

@@ -1,0 +1,933 @@
+package Artifacts
+import Initialization
+import MapGlobals
+import ClosureTimers
+import ClosureEvents
+import ClosureForGroups
+import HashMap
+import RegisterEvents
+import DummyCaster
+import InstantDummyCaster
+import Orders
+import Dummies
+import UnitSearch
+import GroupUtils
+
+/*
+    Артефакт — предмет героя. Улучшается способностью «Улучшить артефакт» ('A007'): каждое улучшение даёт
+    предмету заряд и поднимает уровень его пассивной способности (бывший 680-строчный ArtefactUp).
+    Эффекты самих артефактов регистрируются через Artifact.onCast(abilId). */
+public class Artifact
+    static constant byItem = new HashMap<int, Artifact>()
+    int itemId
+    int abilId      // пассивка, уровень которой растёт с каждым улучшением (0 — нет)
+    int maxCharges
+    int gold        // сколько золота нужно для улучшения
+    int lifeMult    // 0 — списывается gold; иначе списывается (жизнь предмета * lifeMult), а userData предмета += udStep
+    int udStep
+
+    construct(int itemId, int abilId, int maxCharges, int gold)
+        this.itemId = itemId
+        this.abilId = abilId
+        this.maxCharges = maxCharges
+        this.gold = gold
+        byItem.put(itemId, this)
+
+    construct(int itemId, int abilId, int maxCharges, int gold, int lifeMult, int udStep)
+        this.itemId = itemId
+        this.abilId = abilId
+        this.maxCharges = maxCharges
+        this.gold = gold
+        this.lifeMult = lifeMult
+        this.udStep = udStep
+        byItem.put(itemId, this)
+
+    /** Улучшение предмета i, лежащего у героя u */
+    function upgrade(unit u, item i)
+        let p = u.getOwner()
+        if i.getCharges() >= maxCharges
+            DisplayTextToPlayer(p, 0.0, 0.0, "Fully upgraded")
+            return
+        if p.getGold() < gold
+            DisplayTextToPlayer(p, 0.0, 0.0, "Not enough gold")
+            return
+        var paid = gold
+        var value = i.getLife().toInt()
+        if lifeMult > 0
+            let same = u.itemInSlot(slotOf(u, itemId))
+            same.setUserData(same.getUserData() + udStep)
+            ArtG = (i.getLife() * lifeMult).toInt() // глобал: читается в ArtefactUp-совместимых местах
+            paid = ArtG
+            value = ArtG
+        p.setGold(p.getGold() - paid)
+        i.setCharges(i.getCharges() + 1)
+        if abilId != 0
+            u.incAbilityLevel(abilId)
+        addEffect("Abilities\\Spells\\Items\\AIsm\\AIsmTarget.mdl", u.getPos()).destr()
+        ForceItem[p.getId()] = ForceItem[p.getId()] + value
+
+    /** Улучшение по предмету: если предмет — артефакт из таблицы */
+    static function upgradeItem(unit u, item i)
+        let art = byItem.get(i.getTypeId())
+        if art != null
+            art.upgrade(u, i)
+
+    /** Эффект артефакта: срабатывает, когда любой юнит применяет способность abilId */
+    static function onCast(int abilId, OnCastListener listener)
+        EventListener.onCast(abilId, listener)
+
+    /** Реакция на событие любого юнита (общий триггер stdlib) */
+    static function onEvent(playerunitevent e, code handler)
+        registerPlayerUnitEvent(e, handler)
+
+    /** Заряды предмета данного типа в инвентаре (0, если предмета нет; при дублях — последний слот) */
+    static function charges(unit u, int itemId) returns int
+        var n = 0
+        for slot = 0 to 5
+            let itm = u.itemInSlot(slot)
+            if itm != null and itm.getTypeId() == itemId
+                n = itm.getCharges()
+        return n
+
+    /** Первый слот с предметом данного типа (7, если нет — как в оригинале) */
+    static function slotOf(unit u, int itemId) returns int
+        var slot = 0
+        while not (u.itemInSlot(slot).getTypeId() == itemId or slot == 7)
+            slot++
+        return slot
+
+    /** Даммик-кастер stdlib за игрока owner на pos, живёт life секунд (для снарядов, каналов и отложенного урона;
+        мгновенные способности — через InstantDummyCaster). Уровень способности передаётся в castX (0 → 1) */
+    static function dummy(player owner, vec2 pos, real life) returns DummyCaster
+        return new DummyCaster()
+            ..owner(owner)
+            ..origin(pos)
+            ..delay(life)
+
+// ============================================================
+// Артефакт: BuyArtefacts — EVENT_PLAYER_UNIT_SELL_ITEM
+// ============================================================
+
+/** Артефакты «на урон» — их можно купить не больше LimitArt */
+function isDamageArtifact(int id) returns bool
+    return id == 'I003' or id == 'I013' or id == 'I017' or id == 'I01B' or id == 'I01C' or id == 'I008' or id == 'I01J' or id == 'I01H' or id == 'I01E' or id == 'I01D'
+
+/** Артефакты «на стан» — их можно купить не больше LimitArt */
+function isStunArtifact(int id) returns bool
+    return id == 'I006' or id == 'I00E' or id == 'I00X' or id == 'I015' or id == 'I021' or id == 'I00J' or id == 'I00S'
+
+/** Магазин «Проданное» команды игрока */
+function player.soldShop() returns unit
+    return Magazin[ForceG[1].containsPlayer(this) ? 7 : 16]
+
+/** Лимит превышен: покупка отменяется, золото назад, предмет обратно в магазин команды */
+function refuseArtifact(unit seller, item i, player p, string kind)
+    let id = i.getTypeId()
+    DisplayTextToPlayer(p, 0.0, 0.0, "Artifact limit for " + kind + " in the amount of " + LimitArt[p.getId()].toString() + " pcs")
+    p.setGold(p.getGold() + i.getLife().toInt())
+    ForceItem[p.getId()] -= i.getLife().toInt()
+    let shop = p.soldShop()
+    AddItemToStock(shop, id, 1, 1)
+    if seller.getTypeId() == 'n03P'
+        // куплено в «Проданном»: пересоздать позицию, чтобы предмет там остался
+        RemoveItemFromStock(shop, id)
+        doAfter(0.01) ->
+            AddItemToStock(shop, id, 1, 1)
+    i.remove()
+
+@noinline
+function artBuyArtefacts()
+    let u = GetBuyingUnit()
+    let i = GetSoldItem()
+    let p = u.getOwner()
+    let idP = p.getId()
+    let m = GetTriggerUnit()
+    let id = i.getTypeId()
+    ForceItem[idP] += i.getLife().toInt()
+    if m.getTypeId() == 'n03P'
+        RemoveItemFromStock(m, id)
+    if isDamageArtifact(id)
+        ItemZapretD[idP] += 1
+        if ItemZapretD[idP] > LimitArt[idP]
+            ItemZapretD[idP] = LimitArt[idP]
+            refuseArtifact(m, i, p, "damage")
+    else if isStunArtifact(id)
+        ItemZapretS[idP] += 1
+        if ItemZapretS[idP] > LimitArt[idP]
+            ItemZapretS[idP] = LimitArt[idP]
+            refuseArtifact(m, i, p, "stun")
+
+// ============================================================
+// Артефакт: UpArt — EVENT_PLAYER_UNIT_USE_ITEM
+// ============================================================
+
+/** Артефакты с активной способностью: при использовании заряд возвращается (предмет не расходуется) */
+function isActiveArtifact(int id) returns bool
+    return id == 'I002' or id == 'I005' or id == 'I007' or id == 'I008' or id == 'I00D' or id == 'I00E' or id == 'I00I' or id == 'I00K' or id == 'I00M' or id == 'I00O' or id == 'I00P' or id == 'I00R' or id == 'I00S' or id == 'I00U' or id == 'I00Z' or id == 'I012' or id == 'I013' or id == 'I016' or id == 'I017' or id == 'I01B' or id == 'I01C' or id == 'I01D' or id == 'I01H' or id == 'I01J' or id == 'I01K' or id == 'I01L' or id == 'I01M' or id == 'I01N' or id == 'I01P' or id == 'I020' or id == 'I021' or id == 'I00T' or id == 'I025'
+
+@noinline
+function artUpArt()
+    let i = GetManipulatedItem()
+    if isActiveArtifact(i.getTypeId())
+        i.setCharges(i.getCharges() + 1)
+
+// ============================================================
+// Артефакт: AddArtas — способность 'A0ER'
+// ============================================================
+
+function artAddArtas(unit caster)
+    let i = GetSpellTargetItem()
+    let id = caster.getOwner().getId()
+    // в первый свободный из четырёх слотов Артаса; заряды сбрасываются до 1
+    var free = -1
+    for slot = 0 to 3
+        if free < 0 and Arthas[id].itemInSlot(slot) == null
+            free = slot
+    if free >= 0
+        Arthas[id].addItemHandle(i)
+        if i.getCharges() >= 1
+            i.setCharges(1)
+        Builder[id].removeItem(i)
+        return
+    DisplayTextToPlayer(caster.getOwner(), 0.0, 0.0, "Impossible")
+    caster.issueImmediateOrder("stop")
+
+// ============================================================
+// Артефакт: ZaradkaA — способность 'A058'
+// ============================================================
+
+function artZaradkaA(unit _caster)
+    if GetSpellTargetUnit().getAbilityLevel('A059') == 0
+        GetSpellTargetUnit().addAbility('A059')
+        addEffect("Abilities\\Spells\\Undead\\UnholyFrenzy\\UnholyFrenzyTarget.mdl", GetSpellTargetUnit(), "overhead")
+
+// ============================================================
+// Артефакт: StarfollA — способность 'A09V'
+// ============================================================
+
+function artStarfollA(unit caster)
+    Artifact.dummy(caster.getOwner(), vec2(GetSpellTargetX(), GetSpellTargetY()), 15.0)
+        ..castImmediate('A09W', 1, OrderIds.starfall)
+
+// ============================================================
+// Артефакт: StanA — способность 'A09X'
+// ============================================================
+
+function artStanA(unit caster)
+    let x = GetSpellTargetX()
+    let y = GetSpellTargetY()
+    for a = 1 to 8
+        Artifact.dummy(caster.getOwner(), vec2(x, y), 2.0)
+            ..castPoint('A09Y', 1, OrderIds.impale, vec2(x + 256 * Cos(a * 0.785385), y + 256 * Sin(a * 0.785385)))
+
+// ============================================================
+// Артефакт: TranqvilaA — способность 'A09Z'
+// ============================================================
+
+function artTranqvilaA(unit caster)
+    Artifact.dummy(caster.getOwner(), vec2(GetSpellTargetX(), GetSpellTargetY()), 16.0)
+        ..castImmediate('A0A0', 1, OrderIds.tranquility)
+
+// ============================================================
+// Артефакт: IceDamageA — способность 'A0A1'
+// ============================================================
+
+function artIceDamageA(unit caster)
+    let t = GetSpellTargetUnit()
+    let seconds = Artifact.charges(caster, 'I00D') + 1
+    // цель заморожена на seconds секунд; врагу за это время по 150 урона в секунду
+    t.pause()
+    let fx = addEffect("Abilities\\Spells\\Undead\\FreezingBreath\\FreezingBreathTargetArt.mdl", t, "chest")
+    doAfter(seconds.toReal()) ->
+        t.unpause()
+        fx.destr()
+    if not t.isAllyOf(caster.getOwner())
+        doPeriodicallyCounted(1.0, seconds) cb ->
+            if t.getHP() > 0
+                caster.damageTarget(t, 150.0, true, false, ATTACK_TYPE_NORMAL, DAMAGE_TYPE_ENHANCED, WEAPON_TYPE_WHOKNOWS)
+            else
+                cb.stop()
+
+// ============================================================
+// Артефакт: ProkachkaA — способность 'A0A4'
+// ============================================================
+
+function artProkachkaA(unit caster)
+    if not (GetSpellTargetUnit().isType(UNIT_TYPE_HERO) == false)
+        return
+    let c = Artifact.charges(caster, 'I00I')
+    if GetSpellTargetUnit().getAbilityLevel('A0AE') < 1
+        addEffect("Abilities\\Spells\\Items\\AIsp\\SpeedTarget.mdl", GetSpellTargetUnit(), "overhead")
+        GetSpellTargetUnit().addAbility('A0AE')
+        GetSpellTargetUnit().setAbilityLevel('A0AE', c)
+
+// ============================================================
+// Артефакт: StanMolotA — способность 'A0AB'
+// ============================================================
+
+function artStanMolotA(unit caster)
+    let p = caster.getOwner()
+    let lvl = Artifact.charges(caster, 'I00E')
+    forUnitsInRange(vec2(GetSpellTargetX(), GetSpellTargetY()), 225.0) u ->
+        if u.isEnemyOf(p) and u.isAlive()
+            Artifact.dummy(p, caster.getPos(), 1.0)
+                ..castTarget('A0AC', lvl, OrderIds.thunderbolt, u)
+
+// ============================================================
+// Артефакт: Hp DamageA — способность 'A0AG'
+// ============================================================
+
+function artHp_DamageA(unit caster)
+    let t = GetSpellTargetUnit()
+    let ally = t.isAllyOf(caster.getOwner())
+    // союзнику 8 секунд по +80 HP, врагу — по 80 урона; на это время метка 'A0GP'
+    let fx = addEffect(ally ? "Abilities\\Spells\\Items\\StaffOfSanctuary\\Staff_Sanctuary_Target.mdl" : "Abilities\\Spells\\Orc\\Voodoo\\VoodooAuraTarget.mdl", t, "chest")
+    t.addAbility('A0GP')
+    doPeriodicallyCounted(1.0, 8) cb ->
+        if ally
+            t.setHP(t.getHP() + 80)
+        else
+            caster.damageTarget(t, 80.0, true, false, ATTACK_TYPE_NORMAL, DAMAGE_TYPE_FIRE, WEAPON_TYPE_WHOKNOWS)
+        if cb.isLast()
+            t.removeAbility('A0GP')
+            fx.destr()
+
+// ============================================================
+// Артефакт: TotemHA — способность 'A0AI'
+// ============================================================
+
+function artTotemHA(unit caster)
+    CreateUnit(caster.getOwner(), 'o00K', GetSpellTargetX(), GetSpellTargetY(), 0.0).setTimedLife(10.0, 'BHwe')
+    let t = GetSpellTargetUnit()
+    t.addAbility('A0AJ')
+    let charges = Artifact.charges(caster, 'I00R')
+    if charges > 0
+        t.setAbilityLevel('A0AJ', charges)
+
+// ============================================================
+// Артефакт: ArmorMinusA — способность 'A0AN'
+// ============================================================
+
+function artArmorMinusA(unit caster)
+    let a = Artifact.charges(caster, 'I00U')
+    addEffect("Abilities\\Spells\\Other\\HowlOfTerror\\HowlCaster.mdl", caster.getPos())
+    auraDummy(caster.getOwner(), caster.getPos(), 'A0AO', a, 10.0)
+
+// ============================================================
+// Артефакт: IronSkinA — способность 'A0AL'
+// ============================================================
+
+function artIronSkinA(unit caster)
+    let u = caster
+    let t = GetSpellTargetUnit()
+    if t.getAbilityLevel('A0C4') == 0
+        t.addAbility('A0AM')
+        t.addAbility('S00T')
+        addEffect("Abilities\\Spells\\NightElf\\Taunt\\TauntCaster.mdl", t, "overhead").destr()
+        if u.getAbilityLevel('A0AL') == 2
+            t.setAbilityLevel('A0AM', 2)
+    else
+        DisplayTextToPlayer(u.getOwner(), 0.0, 0.0, "Not allowed! Anti-abuse")
+
+// ============================================================
+// Артефакт: StopAllA — способность 'A0AQ'
+// ============================================================
+
+function artStopAllA(unit _caster)
+    forUnitsInRange(vec2(GetSpellTargetX(), GetSpellTargetY()), 300.0) u ->
+        if (u.isType(UNIT_TYPE_TAUREN) or u.isType(UNIT_TYPE_GIANT)) and not u.isType(UNIT_TYPE_HERO) and u.isAlive() and u.getAbilityLevel('A0AR') < 1
+            u.addAbility('A0AR')
+            u.setMoveSpeed(0.0)
+            let fx2 = addEffect("Abilities\\Spells\\Other\\TalkToMe\\TalkToMe.mdl", u, "overhead")
+            let fx3 = addEffect("Abilities\\Spells\\Other\\Silence\\SilenceAreaBirth.mdl", u, "chest")
+            doAfter(2.5) ->
+                u.removeAbility('A0AR')
+                u.setMoveSpeed(u.getDefaultMovespeed())
+                fx2.destr()
+                fx3.destr()
+
+// ============================================================
+// Артефакт: MinaA — способность 'A0AW'
+// ============================================================
+
+function artMinaA(unit caster)
+    let target = vec2(GetSpellTargetX(), GetSpellTargetY())
+    InstantDummyCaster.castImmediate(caster.getOwner(), 'A0AX', 1, OrderIds.stomp, target)
+    addEffect("Units\\NightElf\\Wisp\\WispExplode.mdl", target).destr()
+
+// ============================================================
+// Артефакт: StompA — способность 'A0AZ'
+// ============================================================
+
+function artStompA(unit caster)
+    let x = GetSpellTargetX()
+    let y = GetSpellTargetY()
+    let lvl = Artifact.charges(caster, 'I017')
+    for b = 1 to 8
+        Artifact.dummy(caster.getOwner(), vec2(x, y), 2.0)
+            ..castPoint('A0B0', lvl, OrderIds.shockwave, vec2(x + 256 * Cos(b * 0.785385), y + 256 * Sin(b * 0.785385)))
+
+// ============================================================
+// Артефакт: ArtDopGoldaA — способность 'A0B3'
+// ============================================================
+
+function artArtDopGoldaA(unit caster)
+    let t = GetSpellTargetUnit()
+    let p = caster.getOwner()
+    // продажа юнита: 4 цены, если у него <= 500 HP (тогда он исчезает), иначе 2 цены
+    let gold = unitGold(t, caster.getTypeId()) * (t.getHP() <= 500 ? 4 : 2)
+    addEffect("Abilities\\Spells\\Other\\Transmute\\PileofGold.mdl", t.getPos()).destr()
+    p.setGold(p.getGold() + gold)
+    if t.getHP() <= 500
+        t.remove()
+    text(t, "|cffFFFF00+" + gold.toString() + "|r", 10.0, 3.50, 50.0)
+
+// ============================================================
+// Артефакт: DopHealA — способность 'A0B4'
+// ============================================================
+
+function artDopHealA(unit caster)
+    let p = caster.getOwner()
+    let c = Artifact.charges(caster, 'I01M')
+    var a = 200
+    if c == 3
+        a = 520
+    else if c == 2
+        a = 360
+    forUnitsInRange(vec2(GetSpellTargetX(), GetSpellTargetY()), 600.0) u ->
+        if u.isAllyOf(p) and u.isAlive() and (u.isType(UNIT_TYPE_TAUREN) or u.isType(UNIT_TYPE_GIANT))
+            addEffect("Abilities\\Spells\\Human\\Heal\\HealTarget.mdl", u, "origin").destr()
+            u.setHP(u.getHP() + a)
+
+// ============================================================
+// Артефакт: FullSellA — способность 'A0B6'
+// ============================================================
+
+function artFullSellA(unit caster)
+    let p = caster.getOwner()
+    ProdajaUnit = 0
+    // сначала собираем группу, потом удаляем — не удаляем юнитов прямо во время перебора
+    let g = unitsInRange(vec2(GetSpellTargetX(), GetSpellTargetY()), 250.0, (u) -> u.getOwner() == p and u.isAlive() and (u.isType(UNIT_TYPE_TAUREN) or u.isType(UNIT_TYPE_GIANT)) and not u.isType(UNIT_TYPE_HERO))
+    g.forEachFrom() u ->
+        var a = 2 * GetFoodUsed(UnitId(GetAbilityEffectById(u.getTypeId(), EFFECT_TYPE_TARGET, 0)))
+        if a == 0
+            a = getUnitFood(caster.getTypeId())
+        ProdajaUnit = ProdajaUnit + 1
+        if ProdajaUnit < 15
+            addEffect("Abilities\\Spells\\Other\\Transmute\\PileofGold.mdl", u.getPos()).destr()
+            p.setGold(p.getGold() + a)
+            text(u, "|cffFFFF00+" + a.toString() + "|r", 10.0, 3.50, 50.0)
+            u.remove()
+    g.release()
+
+// ============================================================
+// Артефакт: DoomA — способность 'A0B8'
+// ============================================================
+
+function artDoomA(unit caster)
+    let u = CreateUnit(caster.getOwner(), 'n03A', GetSpellTargetX(), GetSpellTargetY(), 0.0)
+    addEffect("Abilities\\Spells\\Other\\Doom\\DoomDeath.mdl", vec2(GetSpellTargetX(), GetSpellTargetY())).destr()
+    u.setTimedLife(60.0, 'BHwe')
+    u.addAbility('A0F6')
+
+// ============================================================
+// Артефакт: FenixA — способность 'A0BB'
+// ============================================================
+
+function artFenixA(unit caster)
+    let p = caster.getOwner()
+    let charges = Artifact.charges(caster, 'I013')
+    forUnitsInRange(vec2(GetSpellTargetX(), GetSpellTargetY()), 300.0) u ->
+        if u.isEnemyOf(p) and u.isAlive() and u.getAbilityLevel('Avul') == 0
+            let fenix = CreateUnit(p, 'e01K', caster.getX(), caster.getY(), 0.0)
+            if charges > 0
+                fenix.setTimedLife(charges.toReal() * 1.10, 'BHwe')
+            fenix.issueTargetOrder("attack", u)
+
+// ============================================================
+// Артефакт: WyhrA — способность 'A0BC'
+// ============================================================
+
+function artWyhrA(unit caster)
+    let u = CreateUnit(caster.getOwner(), 'e01L', GetSpellTargetX(), GetSpellTargetY(), 0.0)
+    u.setTimedLife(5.0, 'BHwe')
+    u.issueImmediateOrder("whirlwind")
+
+// ============================================================
+// Артефакт: MpColdA — способность 'A0BS'
+// ============================================================
+
+function artMpColdA(unit _caster)
+    addEffect("Abilities\\Spells\\Items\\AIma\\AImaTarget.mdl", GetSpellTargetUnit().getPos()).destr()
+    UnitResetCooldown(GetSpellTargetUnit())
+    GetSpellTargetUnit().setMana(GetSpellTargetUnit().getMaxMana())
+
+// ============================================================
+// Артефакт: BombaA — способность 'A0BE'
+// ============================================================
+
+function artBombaA(unit caster)
+    let u = CreateUnit(caster.getOwner(), 'e01M', caster.getX(), caster.getY(), 0.0)
+    let charges = Artifact.charges(caster, 'I01C')
+    if charges > 0
+        u.setTimedLife((charges * 2).toReal(), 'BHwe')
+    u.issuePointOrder("attackground", vec2(GetSpellTargetX(), GetSpellTargetY()))
+
+// ============================================================
+// Артефакт: TrainA — способность 'A0BT'
+// ============================================================
+
+/** Носитель предмета itemId в точке каста на life секунд (предмет-аура действует, пока носитель жив) */
+function itemHolder(player owner, int itemId, real life)
+    let u = CreateUnit(owner, 'e00Y', GetSpellTargetX(), GetSpellTargetY(), 0.0)
+    u.addItemHandle(CreateItem(itemId, u.getX(), u.getY()))
+    u.setTimedLife(life, 'BHwe')
+
+function artTrainA(unit caster)
+    itemHolder(caster.getOwner(), 'I01S', 2.0)
+
+// ============================================================
+// Артефакт: Teleport1A — способность 'A0AD'
+// ============================================================
+
+function artTeleport1A(unit caster)
+    let t = GetSpellTargetUnit()
+    if IsUnitPaused(t) or t.getAbilityLevel('A0C4') != 0 or t.getAbilityLevel('A0GP') != 0
+        return
+    // цель на 6 с неуязвима, обездвижена и помечена 'A0BX' (её заберёт Teleport2A); игроку выделяется маяк
+    t..addAbility('Avul')..addAbility('A0BX')..setMoveSpeed(1.0)
+    let beacon = CreateUnit(caster.getOwner(), 'e01N', t.getX(), t.getY(), 0.0)
+    if localPlayer == caster.getOwner()
+        ClearSelection()
+        SelectUnit(beacon, true)
+    beacon.setTimedLife(6.0, 'BHwe')
+    doAfter(6.0) ->
+        if t.getAbilityLevel('Avul') == 1
+            t..removeAbility('Avul')..removeAbility('A0BX')..setMoveSpeed(t.getDefaultMovespeed())
+
+// ============================================================
+// Артефакт: Teleport2A — способность 'A0BY'
+// ============================================================
+
+function artTeleport2A(unit caster)
+    let p = caster.getOwner()
+    let target = vec2(GetSpellTargetX(), GetSpellTargetY())
+    // сначала собираем группу, потом переносим — не двигаем юнитов прямо во время перебора
+    let g = unitsInRange(caster.getPos(), 200.0, (u) -> u.getAbilityLevel('A0BX') == 1 and u.isAllyOf(p))
+    addEffect("Abilities\\Spells\\Human\\MassTeleport\\MassTeleportCaster.mdl", caster.getPos()).destr()
+    g.forEachFrom() u ->
+        addEffect("Abilities\\Spells\\Human\\MassTeleport\\MassTeleportCaster.mdl", target).destr()
+        SetUnitPosition(u, target.x, target.y)
+        u..removeAbility('Avul')..setMoveSpeed(u.getDefaultMovespeed())..addAbility('A0F6')
+        u.attackLane()
+        // HP падает до 1%, потом 5 секунд по 0.5 с возвращается долями от прежнего процента
+        let percent = u.getHP() / u.getMaxHP() * 10
+        u.setHP(u.getMaxHP() * 0.01)
+        let fx = addEffect("Abilities\\Spells\\Items\\StaffOfSanctuary\\Staff_Sanctuary_Target.mdl", u, "chest")
+        doPeriodicallyCounted(0.5, 10) cb ->
+            if u.isAlive()
+                u.setHP(u.getHP() + u.getMaxHP() * percent * 0.01)
+            else
+                cb.stop()
+            if cb.isLast() or not u.isAlive()
+                fx.destr()
+    g.release()
+    caster.remove()
+
+// ============================================================
+// Артефакт: HealPA — способность 'A0BR'
+// ============================================================
+
+function artHealPA(unit caster)
+    let charges = Artifact.charges(caster, 'I00K')
+    itemHolder(caster.getOwner(), charges == 1 ? 'I01T' : (charges == 2 ? 'I01U' : 'I01V'), 1.0)
+
+// ============================================================
+// Артефакт: DopHPPA — способность 'A0C2'
+// ============================================================
+
+function artDopHPPA(unit caster)
+    let p = caster.getOwner()
+    forUnitsInRange(vec2(GetSpellTargetX(), GetSpellTargetY()), 300.0) u ->
+        if u.isAllyOf(p) and u.isAlive() and (u.isType(UNIT_TYPE_TAUREN) or u.isType(UNIT_TYPE_GIANT)) and not u.isType(UNIT_TYPE_HERO)
+            u.addAbility('A0D0')
+            addEffect("Abilities\\Spells\\Undead\\DeathPact\\DeathPactTarget.mdl", u, "chest").destr()
+
+// ============================================================
+// Артефакт: HPRegA — способность 'A0C3'
+// ============================================================
+
+function artHPRegA(unit caster)
+    let u = caster
+    let t = GetSpellTargetUnit()
+    if t.getAbilityLevel('A0AM') == 0
+        t.addAbility('A0C4')
+        if u.getAbilityLevel('A0C3') == 1
+            t.addAbility('A0D1')
+        else if u.getAbilityLevel('A0C3') == 2
+            t.addAbility('A0D2')
+        else
+            t.addAbility('A0D3')
+    else
+        DisplayTextToPlayer(u.getOwner(), 0.0, 0.0, "Not allowed! Anti-abuse")
+
+// ============================================================
+// Артефакт: SpeedA — способность 'A0CK'
+// ============================================================
+
+function artSpeedA(unit caster)
+    let charges = Artifact.charges(caster, 'I012')
+    itemHolder(caster.getOwner(), charges == 1 ? 'I01W' : (charges == 2 ? 'I01X' : 'I01Q'), 1.0)
+
+// ============================================================
+// Артефакт: VzryvA — EVENT_PLAYER_UNIT_DEATH
+// ============================================================
+
+/** У строителя или Артаса игрока лежит 'I01A' */
+function hasBombArtifact(int id) returns bool
+    var found = false
+    for c = 0 to 5
+        if Builder[id].itemInSlot(c).getTypeId() == 'I01A' or Arthas[id].itemInSlot(c).getTypeId() == 'I01A'
+            found = true
+    return found
+
+@noinline
+function artVzryvA()
+    if not hasBombArtifact(GetTriggerUnit().getOwner().getId())
+        return
+    if GetKillingUnit().isType(UNIT_TYPE_HERO) == false
+        GetTriggerUnit().damageTarget(GetKillingUnit(), 84.0, true, false, ATTACK_TYPE_NORMAL, DAMAGE_TYPE_ENHANCED, WEAPON_TYPE_WHOKNOWS)
+        addEffect("Abilities\\Spells\\Demon\\DemonBoltImpact\\DemonBoltImpact.mdl", GetKillingUnit().getPos()).destr()
+
+// ============================================================
+// Артефакт: GorelkaA — способность 'A0CA'
+// ============================================================
+
+function artGorelkaA(unit caster)
+    let charges = Artifact.charges(caster, 'I01D')
+    CreateUnit(caster.getOwner(), 'e01P', GetSpellTargetX(), GetSpellTargetY(), bj_UNIT_FACING).setTimedLife((5 + charges * 5).toReal(), 'BHwe')
+
+// ============================================================
+// Артефакт: DamageA — способность 'A0CC'
+// ============================================================
+
+function artDamageA(unit caster)
+    InstantDummyCaster.castImmediate(caster.getOwner(), 'A0CD', 1, OrderIds.creepthunderclap, vec2(GetSpellTargetX(), GetSpellTargetY()))
+
+// ============================================================
+// Артефакт: AttackSpeedA — способность 'A0CE'
+// ============================================================
+
+function artAttackSpeedA(unit caster)
+    let p = caster.getOwner()
+    forUnitsInRange(vec2(GetSpellTargetX(), GetSpellTargetY()), 300.0) u ->
+        if u.isAllyOf(p) and u.isAlive() and u.isType(UNIT_TYPE_GIANT)
+            u.addAbility('A06X')
+            addEffect("Abilities\\Spells\\Other\\Incinerate\\FireLordDeathExplode.mdl", u.getPos()).destr()
+
+// ============================================================
+// Артефакт: DamageHPA — способность 'A0CF'
+// ============================================================
+
+function artDamageHPA(unit caster)
+    let p = caster.getOwner()
+    let lvl = Artifact.charges(caster, 'I01H')
+    forUnitsInRange(vec2(GetSpellTargetX(), GetSpellTargetY()), 300.0) u ->
+        if not u.isAllyOf(p) and u.isAlive()
+            Artifact.dummy(p, u.getPos(), 30.0)
+                ..castTarget('A0CG', lvl, OrderIds.drain, u)
+
+// ============================================================
+// Артефакт: RacetuA — способность 'A0CH'
+// ============================================================
+
+function artRacetuA(unit caster)
+    let lvl = caster.getAbilityLevel('A0CH')
+    var abil = 'A0HP'
+    if lvl == 1
+        abil = 'A0CI'
+    else if lvl == 2
+        abil = 'A0HO'
+    auraDummy(caster.getOwner(), vec2(GetSpellTargetX(), GetSpellTargetY()), abil, 0, 7.0).setScale(0.1)
+
+// ============================================================
+// Артефакт: NeyazA — способность 'A0CJ'
+// ============================================================
+
+function artNeyazA(unit caster)
+    let t = GetSpellTargetUnit()
+    if t.isType(UNIT_TYPE_HERO)
+        return
+    // неуязвимость на 5 / 9 / 13 секунд по зарядам
+    let charges = Artifact.charges(caster, 'I01K')
+    let seconds = charges == 1 ? 5.0 : (charges == 2 ? 9.0 : 13.0)
+    t.addAbility('Avul')
+    let fx = addEffect("Abilities\\Spells\\Human\\DivineShield\\DivineShieldTarget.mdl", t, "chest")
+    doAfter(seconds) ->
+        t.removeAbility('Avul')
+        fx.destr()
+
+// ============================================================
+// Артефакт: SpheraA — способность 'A029'
+// ============================================================
+
+function artSpheraA(unit caster)
+    let target = GetSpellTargetUnit()
+    let a = Artifact.charges(caster, 'I020')
+    let targetBase = UnitId(GetAbilityEffectById(target.getTypeId(), EFFECT_TYPE_TARGET, 0))
+    forUnitsOfPlayer(target.getOwner()) u ->
+        if u.getAbilityLevel('Avul') == 0 and u.getAbilityLevel('A0DI') == 0 and UnitId(GetAbilityEffectById(u.getTypeId(), EFFECT_TYPE_TARGET, 0)) == targetBase and not u.isType(UNIT_TYPE_STRUCTURE) and not u.isType(UNIT_TYPE_HERO) and u.getTypeId() != 'e000'
+            u.addAbility('A0DI')
+            u.setAbilityLevel('A0DI', a)
+            let fx2 = addEffect("Abilities\\Spells\\Orc\\LightningShield\\LightningShieldTarget.mdl", u, "origin")
+            doAfter(10.0) ->
+                u.removeAbility('A0DI')
+                fx2.destr()
+
+// ============================================================
+// Артефакт: LassoA — способность 'A08Y'
+// ============================================================
+
+function artLassoA(unit caster)
+    let p = caster.getOwner()
+    let lvl = Artifact.charges(caster, 'I021')
+    forUnitsInRange(vec2(GetSpellTargetX(), GetSpellTargetY()), 300.0) u ->
+        if (u.isType(UNIT_TYPE_TAUREN) or u.isType(UNIT_TYPE_GIANT)) and u.isEnemyOf(p) and not u.isType(UNIT_TYPE_HERO) and u.isAlive() and not u.isType(UNIT_TYPE_SAPPER)
+            Artifact.dummy(p, u.getPos(), 5.0)
+                ..castTarget('A0CU', lvl, OrderIds.magicleash, u)
+
+// ============================================================
+// Артефакт: KillA — способность 'A0EN'
+// ============================================================
+
+function artKillA(unit _caster)
+    if GetSpellTargetUnit().getTypeId() != 'n03G' or GetSpellTargetUnit().getTypeId() != 'n03A'
+        GetSpellTargetUnit().remove()
+        GetSpellTargetUnit().kill()
+
+// ============================================================
+// Артефакт: DamageRezA — способность 'A0EP'
+// ============================================================
+
+function artDamageRezA(unit caster)
+    let p = caster.getOwner()
+    let g = unitsInRange(vec2(GetSpellTargetX(), GetSpellTargetY()), 600.0, (u) -> u.isAllyOf(p) and u.isAlive() and u.getAbilityLevel('Avul') == 0 and u.getAbilityLevel('A0EQ') == 0 and not u.isType(UNIT_TYPE_HERO) and not zapret_Necr(u))
+    var count = 16
+    if caster.getAbilityLevel('A0EP') == 1
+        count = 8
+    else if caster.getAbilityLevel('A0EP') == 2
+        count = 12
+    let g1 = GetRandomSubGroup(count, g)
+    g1.forEachFrom() u ->
+        u.addAbility('A0EQ')
+        addEffect("models\\Armor Stimulus Orange.mdx", u, "overhead")
+    g.release()
+    g1.destr()
+
+// ============================================================
+// Артефакт: GolemA — EVENT_PLAYER_UNIT_SUMMON
+// ============================================================
+
+@noinline
+function artGolemA()
+    if not (GetSummonedUnit().getTypeId() == 'n03G')
+        return
+    GetSummonedUnit().addAbility('A0F6')
+
+// ============================================================
+// Артефакт: DarkBuy — EVENT_PLAYER_UNIT_SELL_ITEM
+// ============================================================
+
+@noinline
+function artDarkBuy()
+    let i = GetSoldItem()
+    if i.getTypeId() == 'I02A'
+        DarkItem[GetBuyingUnit().getOwner().getId()] = true
+
+// ============================================================
+// Артефакт: DarkSell — EVENT_PLAYER_UNIT_DROP_ITEM
+// ============================================================
+
+@noinline
+function artDarkSell()
+    let i = GetManipulatedItem()
+    if i.getTypeId() == 'I02A'
+        DarkItem[GetTriggerUnit().getOwner().getId()] = false
+
+// ============================================================
+// Артефакт: DarkA — EVENT_PLAYER_UNIT_DEATH
+// ============================================================
+
+@noinline
+function artDarkA()
+    let k = GetKillingUnit()
+    if not (k.getAbilityLevel('B03O') == 1 or k.getAbilityLevel('B03Q') == 1 or k.getAbilityLevel('B03P') == 1)
+        return
+    let d = GetTriggerUnit()
+    let id = d.getOwner().getId()
+    if not DarkItem[id]
+        return
+    // каждый третий убитый встаёт тенью на 4 / 7 / 10 секунд (по баффу убитого)
+    Dark[id] += 1
+    if Dark[id] < 3
+        return
+    Dark[id] = 0
+    addEffect("Abilities\\Spells\\Undead\\AnimateDead\\AnimateDeadTarget.mdl", d, "origin").destr()
+    let u = CreateUnit(d.getOwner(), d.getTypeId(), d.getX(), d.getY(), 0.0)
+        ..addAbility('Aloc')
+        ..setVertexColor(55, 55, 55, 150)
+    u.attackLane()
+    let life = d.getAbilityLevel('B03O') == 1 ? 4.0 : (d.getAbilityLevel('B03Q') == 1 ? 7.0 : 10.0)
+    doAfter(life) ->
+        u.remove()
+
+// ============================================================
+// Регистрация
+// ============================================================
+
+init
+    // таблица улучшений артефактов (бывший ArtefactUp: 53 одинаковых ветки)
+    new Artifact('I001', 'A042', 3, 325)
+    new Artifact('I009', 'S00I', 3, 350)
+    new Artifact('I002', 'A058', 3, 100)
+    new Artifact('I00D', 'A0A1', 3, 100)
+    new Artifact('I00E', 0, 3, 220)
+    new Artifact('I00I', 0, 3, 110)
+    new Artifact('I00M', 'A0AG', 3, 175)
+    new Artifact('I00Q', 'A0AH', 3, 150)
+    new Artifact('I00R', 0, 3, 300)
+    new Artifact('I00S', 'A0AK', 3, 250)
+    new Artifact('I00U', 'A0AO', 3, 350)
+    new Artifact('I00Y', 'A0AS', 3, 350)
+    new Artifact('I010', 'A0AT', 3, 400)
+    new Artifact('I011', 'A0AU', 3, 200)
+    new Artifact('I016', 'A0AY', 3, 150)
+    new Artifact('I017', 0, 3, 300)
+    new Artifact('I019', 'A0B1', 3, 350)
+    new Artifact('I01L', 'A0B3', 2, 200)
+    new Artifact('I01M', 'A0B4', 3, 200)
+    new Artifact('I01N', 'A0B5', 3, 155)
+    new Artifact('I01P', 'A0B7', 3, 150)
+    new Artifact('I013', 0, 3, 200)
+    new Artifact('I01B', 'A0BC', 2, 350)
+    new Artifact('I01C', 0, 3, 320)
+    new Artifact('I005', 'A0BS', 3, 135)
+    new Artifact('I007', 'A0BT', 3, 250)
+    new Artifact('I008', 'A0BW', 3, 150)
+    new Artifact('I00K', 0, 3, 100)
+    new Artifact('I00P', 'A0C2', 3, 150)
+    new Artifact('I00O', 'A0C3', 3, 150)
+    new Artifact('I012', 0, 3, 250)
+    new Artifact('I01D', 0, 3, 175)
+    new Artifact('I01H', 0, 3, 250)
+    new Artifact('I01J', 'A0CH', 3, 245)
+    new Artifact('I01K', 0, 3, 200)
+    new Artifact('I01R', 'A095', 3, 400)
+    new Artifact('I01Y', 'A0CS', 3, 300)
+    new Artifact('I020', 'A029', 3, 200)
+    new Artifact('I021', 0, 3, 275)
+    new Artifact('I025', 'A0EP', 3, 320)
+    new Artifact('I00T', 'A0AL', 2, 200)
+    new Artifact('I02A', 'A0FG', 3, 400)
+    new Artifact('I00B', 'S00J', 2, 2040, 3, 1360)
+    new Artifact('I00L', 'S00M', 2, 1050, 3, 700)
+    new Artifact('I004', 'S00H', 2, 1560, 3, 1040)
+    new Artifact('I00G', 'S00L', 2, 1500, 3, 1000)
+    new Artifact('I00W', 'S00N', 2, 1500, 3, 1000)
+    new Artifact('I014', 'S00O', 2, 1800, 3, 1200)
+    new Artifact('I00C', 'S00K', 2, 1875, 3, 1250)
+    new Artifact('I01Z', 'S00U', 2, 2100, 3, 1400)
+    new Artifact('I026', 'S00Y', 2, 1800, 3, 1200)
+    new Artifact('I027', 'S010', 2, 1950, 3, 1300)
+    new Artifact('I029', 'S011', 2, 1875, 3, 1250)
+    Artifact.onCast('A007') (caster) ->
+        Artifact.upgradeItem(caster, GetSpellTargetItem())
+    // способности артефактов
+    Artifact.onCast('A0ER') (caster) ->
+        artAddArtas(caster)
+    Artifact.onCast('A058') (caster) ->
+        artZaradkaA(caster)
+    Artifact.onCast('A09V') (caster) ->
+        artStarfollA(caster)
+    Artifact.onCast('A09X') (caster) ->
+        artStanA(caster)
+    Artifact.onCast('A09Z') (caster) ->
+        artTranqvilaA(caster)
+    Artifact.onCast('A0A1') (caster) ->
+        artIceDamageA(caster)
+    Artifact.onCast('A0A4') (caster) ->
+        artProkachkaA(caster)
+    Artifact.onCast('A0AB') (caster) ->
+        artStanMolotA(caster)
+    Artifact.onCast('A0AG') (caster) ->
+        artHp_DamageA(caster)
+    Artifact.onCast('A0AI') (caster) ->
+        artTotemHA(caster)
+    Artifact.onCast('A0AN') (caster) ->
+        artArmorMinusA(caster)
+    Artifact.onCast('A0AL') (caster) ->
+        artIronSkinA(caster)
+    Artifact.onCast('A0AQ') (caster) ->
+        artStopAllA(caster)
+    Artifact.onCast('A0AW') (caster) ->
+        artMinaA(caster)
+    Artifact.onCast('A0AZ') (caster) ->
+        artStompA(caster)
+    Artifact.onCast('A0B3') (caster) ->
+        artArtDopGoldaA(caster)
+    Artifact.onCast('A0B4') (caster) ->
+        artDopHealA(caster)
+    Artifact.onCast('A0B6') (caster) ->
+        artFullSellA(caster)
+    Artifact.onCast('A0B8') (caster) ->
+        artDoomA(caster)
+    Artifact.onCast('A0BB') (caster) ->
+        artFenixA(caster)
+    Artifact.onCast('A0BC') (caster) ->
+        artWyhrA(caster)
+    Artifact.onCast('A0BS') (caster) ->
+        artMpColdA(caster)
+    Artifact.onCast('A0BE') (caster) ->
+        artBombaA(caster)
+    Artifact.onCast('A0BT') (caster) ->
+        artTrainA(caster)
+    Artifact.onCast('A0AD') (caster) ->
+        artTeleport1A(caster)
+    Artifact.onCast('A0BY') (caster) ->
+        artTeleport2A(caster)
+    Artifact.onCast('A0BR') (caster) ->
+        artHealPA(caster)
+    Artifact.onCast('A0C2') (caster) ->
+        artDopHPPA(caster)
+    Artifact.onCast('A0C3') (caster) ->
+        artHPRegA(caster)
+    Artifact.onCast('A0CK') (caster) ->
+        artSpeedA(caster)
+    Artifact.onCast('A0CA') (caster) ->
+        artGorelkaA(caster)
+    Artifact.onCast('A0CC') (caster) ->
+        artDamageA(caster)
+    Artifact.onCast('A0CE') (caster) ->
+        artAttackSpeedA(caster)
+    Artifact.onCast('A0CF') (caster) ->
+        artDamageHPA(caster)
+    Artifact.onCast('A0CH') (caster) ->
+        artRacetuA(caster)
+    Artifact.onCast('A0CJ') (caster) ->
+        artNeyazA(caster)
+    Artifact.onCast('A029') (caster) ->
+        artSpheraA(caster)
+    Artifact.onCast('A08Y') (caster) ->
+        artLassoA(caster)
+    Artifact.onCast('A0EN') (caster) ->
+        artKillA(caster)
+    Artifact.onCast('A0EP') (caster) ->
+        artDamageRezA(caster)
+    // триггеры на другие события
+    Artifact.onEvent(EVENT_PLAYER_UNIT_SELL_ITEM, function artBuyArtefacts)
+    Artifact.onEvent(EVENT_PLAYER_UNIT_USE_ITEM, function artUpArt)
+    Artifact.onEvent(EVENT_PLAYER_UNIT_DEATH, function artVzryvA)
+    Artifact.onEvent(EVENT_PLAYER_UNIT_SUMMON, function artGolemA)
+    Artifact.onEvent(EVENT_PLAYER_UNIT_SELL_ITEM, function artDarkBuy)
+    Artifact.onEvent(EVENT_PLAYER_UNIT_DROP_ITEM, function artDarkSell)
+    Artifact.onEvent(EVENT_PLAYER_UNIT_DEATH, function artDarkA)

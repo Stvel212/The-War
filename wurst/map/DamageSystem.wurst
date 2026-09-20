@@ -1,0 +1,92 @@
+package DamageSystem
+import DamageEvent
+import InstantDummyCaster
+import Orders
+
+/*
+    Модификаторы урона (бывший DamageOne на Damage Engine): слушатель stdlib DamageEvent срабатывает на каждый
+    урон после брони, как и бывшее событие DamageModifierEvent = 1. Итог обязательно записывается через
+    DamageEvent.setAmount — при переносе с JASS этого не было (и источник/цель читались из пустых глобалов),
+    так что модификаторы просто не работали. */
+
+/** Множитель k, если у юнита способность abil на уровне lvl, иначе 1 */
+function unit.mult(int abil, int lvl, real k) returns real
+    return this.getAbilityLevel(abil) == lvl ? k : 1.0
+
+/** Общие модификаторы (любой урон) — по цели */
+function reduction(unit c) returns real
+    var k = c.mult('A0GU', 1, 1.45)
+    if c.getAbilityLevel('A0DD') == 1 or c.getAbilityLevel('B03E') == 1 or c.getAbilityLevel('A0F2') == 1 or c.getAbilityLevel('A0GJ') == 1
+        k *= 0.90
+    k *= c.mult('A0EQ', 1, 0.85)
+    k *= c.mult('B03H', 1, 0.95)
+    k *= c.mult('B03I', 2, 0.90)
+    k *= c.mult('B03J', 3, 0.85)
+    if c.getAbilityLevel('A06H') > 0
+        k *= 1 - 0.03 * c.getAbilityLevel('A06H')
+    return k
+
+/** Модификаторы магического урона — по цели c и источнику u */
+function spellReduction(unit u, unit c) returns real
+    var k = 1.0
+    let id = c.getTypeId()
+    if id == 'n01B' or id == 'n01N' or id == 'n01R'
+        k *= 0.83
+    if id == 'e00H' or id == 'e020'
+        k *= 0.67
+    if id == 'n02A'
+        k *= 0.70
+    k *= c.mult('A0DK', 1, 0.82)
+    k *= u.mult('A0DH', 1, 1.35)
+    k *= u.mult('A0F1', 1, 1.15)
+    k *= u.mult('A0GK', 1, 1.1)
+    k *= u.mult('A0FB', 1, 1.3)
+    k *= c.mult('A0DJ', 1, 0.70)
+    k *= c.mult('A01E', 1, 0.90)
+    k *= c.mult('A04G', 1, 0.85)
+    if c.getAbilityLevel('A09J') == 1 or c.getAbilityLevel('A0DG') == 1
+        k *= 0.80
+    if c.getAbilityLevel('A0BI') == 1 or c.getAbilityLevel('A0BK') == 1 or c.getAbilityLevel('A0BL') == 1 or id == 'n02C' or id == 'n03G' or c.getAbilityLevel('A0DL') == 1
+        k *= 0.50
+    return k
+
+/** Отражение: цель c возвращает урон источнику u */
+function reflect(unit c, unit u, real amount)
+    DamageEvent.setNextDamageFromCode()
+    c.damageTarget(u, amount, true, false, ATTACK_TYPE_NORMAL, DAMAGE_TYPE_NORMAL, WEAPON_TYPE_WHOKNOWS)
+
+@noinline
+function onDamage()
+    let u = DamageEvent.getSource()
+    let c = DamageEvent.getTarget()
+    if c == null
+        return
+    var amount = DamageEvent.getAmount() * reduction(c)
+    // ледяной лучник калечит всех, кого бьёт
+    if u.getTypeId() == 'h00O'
+        InstantDummyCaster.castTarget(u.getOwner(), 'A01C', 1, OrderIds.cripple, c, u.getPos())
+    // 'A07A': первые 15 ударов не проходят
+    if c.getAbilityLevel('A07A') >= 1 and c.getAbilityLevel('A07A') < 16
+        amount = 0.0
+        c.incAbilityLevel('A07A')
+    if DamageEvent.getType() == DamageType.SPELL
+        amount *= spellReduction(u, c)
+    // 'B01D' у цели: источник лечится на нанесённое
+    if c.getAbilityLevel('B01D') == 1
+        u.setHP(u.getHP() + amount)
+    let fromUnit = not u.isType(UNIT_TYPE_HERO)
+    let id = c.getTypeId()
+    // отражения и блоки (не от героев)
+    if fromUnit and ((id == 'n009' and GetRandomInt(1, 100) <= 15) or (id == 'n008' and GetRandomInt(1, 100) <= 30))
+        reflect(c, u, amount)
+        amount = 0.0
+    else if fromUnit and ((c.getAbilityLevel('B02D') == 1 and id != 'n008' and GetRandomInt(1, 100) <= 15) or (id == 'e020' and GetRandomInt(1, 100) <= 30))
+        addEffect("Abilities\\Spells\\Human\\Defend\\DefendCaster.mdl", c, "chest").destr()
+        amount = 0.0
+    if c.getAbilityLevel('B03R') == 1 or c.getAbilityLevel('B03S') == 1
+        amount = 0.0
+    DamageEvent.setAmount(amount)
+
+init
+    DamageEvent.addListener() ->
+        onDamage()
