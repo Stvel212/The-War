@@ -31,6 +31,8 @@ public int array allTiers
 public int array repickLast
 public timerdialog timerD = null
 public bool array hasHero
+/** У игрока особые строитель, база и Артас по нику (Initialization.createWorker) — скины профиля на них не надеваются */
+public bool array nickSkin
 public unit array kings
 public unit array builders
 public unit array arthas
@@ -59,8 +61,9 @@ public sound LOL = null
 public sound knightNoGold = null
 public int prodajaUnit = 0
 public int artG = 0
-public unit array magazin
 public int array countPlayer
+/** Режим игры — игроков в большей команде на старте (1 = 1x1 … 4 = 4x4); countPlayer потом уменьшается при выходах */
+public int teamSize = 0
 public real array kickX
 public real array kickY
 public int array kickT

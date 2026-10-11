@@ -1,0 +1,237 @@
+package CreepWaves
+import GameMode
+import Initialization
+import ClosureTimers
+import UnitEvents
+import PveWaveTables
+import LinkedList
+
+/*
+    Волны монстров PvE и PvEvP — таблицы Just Fight 5.6 (PveWaveTables, юниты переведены на юниты The War):
+    1 — по одному типу (уровень 1), 2 — по одному типу с элитными добавками (уровень 2), 3 — по два типа (уровень 3),
+    4 — отряды до 7 типов (уровень 4); уровень 5 и бесконечный берут случайную из четырёх, PvEvP — случайную из 1-2
+    каждую волну. Количество — на одного игрока, появляются у его портала порциями раз в 0.5 с (как в оригинале).
+    После таблицы (с 70-й волны) — Терминаторы, сколько — по таблице: 1/2/3 (таблица 1), 3/5/7 (2, 3),
+    3/5/7/9/11/13 до 300-й (4). Дальше конца таблицы волн нет. */
+
+public constant TERMINATOR = 'nPB5'
+
+/** Слушатели появления монстра волны: (монстр, игрок, против которого он идёт) */
+public interface CreepSpawnHook
+    function run(unit u, int pid)
+
+constant spawnHooks = new LinkedList<CreepSpawnHook>()
+
+public function onCreepSpawn(CreepSpawnHook hook)
+    spawnHooks.add(hook)
+
+/** Монстр волны против игрока pid готов (направление, приказ): слушатели — свойства бесконечного режима */
+function spawned(unit u, int pid)
+    for hook in spawnHooks
+        hook.run(u, pid)
+
+/** Игрок, против которого идут монстры линии lane к стороне goesLeft */
+function targetPlayer(int lane, bool goesLeft) returns int
+    return (goesLeft ? 0 : 4) + lane
+/** Порции появления, с */
+constant TICK = 0.5
+
+function tableWaves(int t) returns int
+    if t == 1
+        return WAVES_1
+    if t == 2
+        return WAVES_2
+    if t == 3
+        return WAVES_3
+    return WAVES_4
+
+/** Первая запись волны w таблицы t (записи волны — до первой записи волны w + 1) */
+function firstEntry(int t, int w) returns int
+    if t == 1
+        return waveFirst1[w]
+    if t == 2
+        return waveFirst2[w]
+    if t == 3
+        return waveFirst3[w]
+    return waveFirst4[w]
+
+function entryType(int t, int i) returns int
+    if t == 1
+        return waveType1[i]
+    if t == 2
+        return waveType2[i]
+    if t == 3
+        return waveType3[i]
+    return waveType4[i]
+
+function entryCount(int t, int i) returns int
+    if t == 1
+        return waveCount1[i]
+    if t == 2
+        return waveCount2[i]
+    if t == 3
+        return waveCount3[i]
+    return waveCount4[i]
+
+function entryTick(int t, int i) returns int
+    if t == 1
+        return waveTick1[i]
+    if t == 2
+        return waveTick2[i]
+    if t == 3
+        return waveTick3[i]
+    return waveTick4[i]
+
+function entryStat(int t, int i) returns int
+    if t == 1
+        return waveStat1[i]
+    if t == 2
+        return waveStat2[i]
+    if t == 3
+        return waveStat3[i]
+    return waveStat4[i]
+
+/** Терминаторов на игрока в волне w таблицы t (после обычных волн; 0 — волн больше нет) */
+public function terminatorsPerPlayer(int t, int w) returns int
+    // Терминаторы — с 70-й (в таблице 3 нет 69-й волны: она пустая)
+    if w <= tableWaves(t) or w < 70
+        return 0
+    if t == 4
+        if w <= 80
+            return 3
+        if w <= 100
+            return 5
+        if w <= 120
+            return 7
+        if w <= 150
+            return 9
+        if w <= 200
+            return 11
+        return w <= 300 ? 13 : 0
+    if w > 120
+        return 0
+    let late = w >= 90 ? 2 : (w >= 81 ? 1 : 0)
+    return t == 1 ? 1 + late : 3 + 2 * late
+
+/** Есть ли в таблице t волна w (обычная или Терминаторы) */
+public function waveExists(int t, int w) returns bool
+    return w <= tableWaves(t) or terminatorsPerPlayer(t, w) > 0
+
+/** Состав волны для анонса: «Юнит x N; Юнит x M» (на игрока, mult — во сколько раз больше) */
+public function waveDescription(int t, int w, int mult) returns string
+    if w > tableWaves(t)
+        let n = terminatorsPerPlayer(t, w)
+        return n > 0 ? GetObjectName(TERMINATOR) + " x " + n * mult : "-"
+    var s = ""
+    for i = firstEntry(t, w) to firstEntry(t, w + 1) - 1
+        s += (s == "" ? "" : "; ") + GetObjectName(entryType(t, i)) + " x " + entryCount(t, i) * mult
+    return s
+
+// ---- характеристики Just Fight ----
+// Юнит The War даёт волне вид и способности, а числа — профиль юнита Just Fight (PveWaveTables.stat*). Поля,
+// не изменённые в Just Fight (-1), — как у его базового типа: их один раз читаем с временного юнита этого типа.
+
+bool array profileResolved
+int array resHp
+int array resDamage
+int array resDice
+int array resSides
+real array resArmor
+real array resCooldown
+real array resRange
+real array resSpeed
+int array resAttackType
+int array resDefenseType
+
+function pick(int value, int fallback) returns int
+    return value >= 0 ? value : fallback
+
+function pickReal(real value, real fallback) returns real
+    return value >= 0. ? value : fallback
+
+/** Значения профиля p: заданные в Just Fight, остальные — с образца базового типа */
+function resolveProfile(int p)
+    if profileResolved[p]
+        return
+    profileResolved[p] = true
+    let sample = CreateUnit(Player(PLAYER_NEUTRAL_PASSIVE), statBase[p], 0., 0., 0.)
+    resHp[p] = pick(statHp[p], BlzGetUnitMaxHP(sample))
+    resDamage[p] = pick(statDamage[p], BlzGetUnitBaseDamage(sample, 0))
+    resDice[p] = pick(statDice[p], BlzGetUnitDiceNumber(sample, 0))
+    resSides[p] = pick(statSides[p], BlzGetUnitDiceSides(sample, 0))
+    resArmor[p] = pickReal(statArmor[p], BlzGetUnitArmor(sample))
+    resCooldown[p] = pickReal(statCooldown[p], BlzGetUnitAttackCooldown(sample, 0))
+    resRange[p] = pickReal(statRange[p].toReal(), BlzGetUnitWeaponRealField(sample, UNIT_WEAPON_RF_ATTACK_RANGE, 0))
+    resSpeed[p] = pickReal(statSpeed[p].toReal(), GetUnitDefaultMoveSpeed(sample))
+    resAttackType[p] = pick(statAttackType[p], BlzGetUnitWeaponIntegerField(sample, UNIT_WEAPON_IF_ATTACK_ATTACK_TYPE, 0))
+    resDefenseType[p] = pick(statDefenseType[p], BlzGetUnitIntegerField(sample, UNIT_IF_DEFENSE_TYPE))
+    sample.remove()
+
+/** Числа юнита Just Fight по профилю p (0 — оставить юнит The War как есть) */
+public function applyJfStats(unit u, int p)
+    if p <= 0 or p > STAT_PROFILES
+        return
+    resolveProfile(p)
+    u.setMaxHP(resHp[p])
+    u.setHP(resHp[p].toReal())
+    BlzSetUnitBaseDamage(u, resDamage[p], 0)
+    BlzSetUnitDiceNumber(u, resDice[p], 0)
+    BlzSetUnitDiceSides(u, resSides[p], 0)
+    BlzSetUnitArmor(u, resArmor[p])
+    BlzSetUnitAttackCooldown(u, resCooldown[p], 0)
+    BlzSetUnitWeaponRealField(u, UNIT_WEAPON_RF_ATTACK_RANGE, 0, resRange[p])
+    u.setMoveSpeed(resSpeed[p])
+    BlzSetUnitWeaponIntegerField(u, UNIT_WEAPON_IF_ATTACK_ATTACK_TYPE, 0, resAttackType[p])
+    BlzSetUnitIntegerField(u, UNIT_IF_DEFENSE_TYPE, resDefenseType[p])
+
+/** Монстр: направление, без «лагеря», числа юнита Just Fight (профиль stat > 0), приказ */
+public function setupCreep(unit u, bool goesLeft, int stat)
+    u.setCreepDirection(goesLeft)
+    u.removeGuardPosition()
+    applyJfStats(u, stat)
+    u.setPathing(true)
+    u.attackLane()
+
+/** Точка появления монстров на линии lane, идущих к стороне goesLeft (у портала игрока) */
+public function spawnPoint(int lane, bool goesLeft) returns vec2
+    // центр «портала» (Just Fight: GetRectCenter) — расталкивает их сама игра
+    return vec2(spawnX(goesLeft), laneY(lane))
+
+/** count монстров типа typeId порциями по perTick раз в TICK */
+function spawnStream(int typeId, int count, int perTick, int stat, player owner, int lane, bool goesLeft)
+    if count <= 0
+        return
+    let portion = max(1, perTick)
+    let calls = (count + portion - 1) div portion
+    doPeriodicallyCounted(TICK, calls) cb ->
+        // getCount() считает вниз: последняя порция (1) — остаток
+        let n = cb.getCount() == 1 ? count - (calls - 1) * portion : portion
+        for k = 1 to n
+            let pos = spawnPoint(lane, goesLeft)
+            let u = CreateUnit(owner, typeId, pos.x, pos.y, goesLeft ? 180. : 0.)
+            setupCreep(u, goesLeft, stat)
+            spawned(u, targetPlayer(lane, goesLeft))
+
+/** Волна w таблицы t против одного игрока: монстры владельца owner на линии lane к стороне goesLeft */
+public function spawnTableWave(int t, int w, player owner, int lane, bool goesLeft)
+    if w > tableWaves(t)
+        let n = terminatorsPerPlayer(t, w)
+        spawnStream(TERMINATOR, n, 1, 0, owner, lane, goesLeft)
+        return
+    for i = firstEntry(t, w) to firstEntry(t, w + 1) - 1
+        spawnStream(entryType(t, i), entryCount(t, i), entryTick(t, i), entryStat(t, i), owner, lane, goesLeft)
+
+/** Один элитный монстр (таблица 2, волны 31-60): до 49-й — из ранних, дальше — из поздних */
+public function spawnElite(int w, player owner, int lane, bool goesLeft)
+    let i = GetRandomInt(0, 12)
+    let pos = spawnPoint(lane, goesLeft)
+    let typeId = w >= 50 ? eliteLate[i] : eliteEarly[i]
+    let u = CreateUnit(owner, typeId, pos.x, pos.y, goesLeft ? 180. : 0.)
+    setupCreep(u, goesLeft, w >= 50 ? eliteLateStat[i] : eliteEarlyStat[i])
+    spawned(u, targetPlayer(lane, goesLeft))
+
+init
+    onAnyDeath() ->
+        let d = GetDyingUnit()
+        if d.isCreep()
+            forgetCreep(d)

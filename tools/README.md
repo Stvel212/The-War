@@ -40,3 +40,12 @@
 - `W3iModes.java` — не одноразовый, вызывается из `build.cmd` после `Localize`: переписывает `war3map.w3i` из формата 25 (TFT)
   в 31 (Reforged) и ставит «поддерживаемые режимы графики» = только SD (классика) — в HD/Reforged-графике карта не запускается
   (`W3iModes карта.w3x sd|hd|both`; `--dump файл.w3i` печатает поля).
+- `jf/gen_pve_waves.sh` — таблицы волн PvE/PvEvP `wurst/map/PveWaveTables.wurst` из карты Just Fight 5.6.2:
+  `bash tools/jf/gen_pve_waves.sh ".../3082_Just_Fight!_[5.6.2_A1].w3x"`. Читает защищённый скрипт карты по имени
+  (`ReadMpq.java`, jmpq из wurstscript.jar), объекты — `grill exportobjects`, разбирает функции-таблицы волн и
+  сопоставляет юниты Just Fight юнитам The War (`ext.awk`, `match2.awk`: тот же базовый тип и ближайшее здоровье
+  среди юнитов бараков, казарма -> её юнит), характеристики юнитов Just Fight (`stats.awk`: профили stat*),
+  пишет пакет (`gen.awk`). Юниты без двойника в The War (другая модель или другие способности — `abcls.awk`,
+  `unitabil.awk`) копирует целиком `CopyJfUnits.java` в `wurst/objects/units/UnitsPveJf.wurst` (новые ID ?J??,
+  ссылки на улучшения Just Fight очищаются), импорт моделей из корня архива Just Fight — в imports/models (пути текстур —
+  `PatchMdxTextures.java`, текстуры в imports/textures). Перезапускать после изменения юнитов бараков.

@@ -1,0 +1,349 @@
+package ArthasJf
+import MapGlobals
+import GameMode
+import Profile
+import Skins
+import Initialization
+import Main
+import UnitEvents
+import DamageEvent
+import ClosureEvents
+import ClosureTimers
+import StandardTextTags
+import OnUnitEnterLeave
+import Dummies
+
+/*
+    Артас = «Mini War God Assistant» Just Fight 5.6 (h0B1). Перенесено:
+    - Благословение Бога (A0HD → 'AAB1'): уровень 0..36 в профиле, повышение с L до L + 1 — blessingCost(L) энергии (как в оригинале: 100·L заслуг). Уровень L:
+      +min(L, 18) к урону Артаса, выше 18 — ещё +0.5% скорости атаки за уровень; за победу (PvP) +L энергии (Profile).
+    - Формы помощника (h0B2…h0DR) — скины Артаса (Skins, группа «Arthas»); как в оригинале, прибавка формы
+      действует с начала игры по надетому тогда скину (смена — со следующей игры):
+      Буревестник — дальность атаки 300; Земля — +60 скорости; Огонь — +15% скорости атаки; Лил'идан — в PvE
+      урон ×2; Джаггернаут — молния на оружии; Ветрокрылая — в PvE 10% на атаку стать многоцелевой ('AAB4');
+      Алхимик — в PvE золото за убитых Артасом; Тёмная следопытка — в PvE 4% на удар +5000 урона (по героям-боссам 1000).
+    - Генератор энергии — помощь (A0K7 → 'AAB3', только PvE): мгновенно запускает свой барак (не героя).
+    - Таланты (A0GX/A0H3 → 'AAB5' «Молитва», 21 талант A06Z…A0ES → 'AT01'…'AT21'): первая молитва PRAY_FIRST_COST
+      энергии, дальше PRAY_COST — случайный из 21 вместо прежнего, хранится в профиле. Ауры — сами способности на
+      Артасе, остальное здесь: 02 +6 здоровья бойцам, 03 +3 дерева / 06 +2 / 21 +3 золота за раунд, 10 +12 дерева
+      на старте, 14 — 20% на 1 золото за убитого. Эпический (21) закреплён: перебросить — после «-unlock».
+    Не перенесено (привязано к магазину и серверу Just Fight): голосовые сообщения, титулы. */
+
+public constant BLESSING_MAX = 36
+constant BLESSING_COST_STEP = 100
+
+/** Цена повышения Благословения с уровня level (Just Fight: уровень ×100 заслуг; с 0 — как с 1) */
+public function blessingCost(int level) returns int
+    return BLESSING_COST_STEP * max(1, level)
+constant BLESSING = 'AAB1'
+constant ASSIST = 'AAB3'
+constant MULTISHOT = 'AAB4'
+constant PRAY = 'AAB5'
+constant PRAY_FIRST_COST = 600
+constant PRAY_COST = 100
+public constant TALENTS = 21
+constant TALENT_LIFE = 2
+constant TALENT_LUMBER = 3
+constant TALENT_GOLD = 6
+constant TALENT_SUBSIDY = 10
+constant TALENT_KILL_GOLD = 14
+constant TALENT_EPIC = 21
+/** Способности талантов 1..21 (индекс 0 — нет таланта) */
+constant talentAbils = [0, 'AT01', 'AT02', 'AT03', 'AT04', 'AT05', 'AT06', 'AT07', 'AT08', 'AT09', 'AT10', 'AT11',
+    'AT12', 'AT13', 'AT14', 'AT15', 'AT16', 'AT17', 'AT18', 'AT19', 'AT20', 'AT21']
+/** Игрок написал «-unlock» — эпический талант можно перебросить (на эту игру, как в оригинале) */
+bool array epicUnlocked
+
+/** Формы по источнику вида скина */
+constant FORM_NONE = 0
+constant FORM_STORM = 1
+constant FORM_EARTH = 2
+constant FORM_FIRE = 3
+constant FORM_ILLIDAN = 4
+constant FORM_JUGGERNAUT = 5
+constant FORM_WINDRUNNER = 6
+constant FORM_ALCHEMIST = 7
+constant FORM_DARK_RANGER = 8
+
+/** Форма игрока на эту игру (по скину на начало игры) */
+int array form
+/** Прибавки Благословения, уже выданные Артасу игрока (урон и скорость атаки) */
+int array blessingDamage
+real array blessingSpeed
+/** Исходная перезарядка атаки Артаса и прибавка скорости формы */
+real array baseCooldown
+real array formSpeed
+bool array ready
+
+function formOf(int source) returns int
+    switch source
+        case 'hAF1'
+            return FORM_STORM
+        case 'hAF2'
+            return FORM_EARTH
+        case 'hAF3'
+            return FORM_FIRE
+        case 'Eevi'
+            return FORM_ILLIDAN
+        case 'Obla'
+            return FORM_JUGGERNAUT
+        case 'Hvwd'
+            return FORM_WINDRUNNER
+        case 'Nalc'
+            return FORM_ALCHEMIST
+        case 'Nbrn'
+            return FORM_DARK_RANGER
+        default
+            return FORM_NONE
+
+/** Юнит u — Артас своего владельца с формой f */
+function unit.isArthasForm(int f) returns bool
+    let pid = this.getOwner().getId()
+    return pid < 8 and this == arthas[pid] and form[pid] == f
+
+function blessingDamageAt(int level) returns int
+    return min(level, 18)
+
+function blessingSpeedAt(int level) returns real
+    return level > 18 ? 0.005 * (level - 18) : 0.
+
+function blessingText(int level) returns string
+    var s = "|cff99ccffCurrent level: " + level + " / " + BLESSING_MAX + "|r"
+    if level > 0
+        s += "|n+" + blessingDamageAt(level) + " Arthas attack damage"
+        if level > 18
+            s += ", +" + (blessingSpeedAt(level) * 100.).toString(1) + "% attack speed"
+        s += "|nPvP win: +" + level + " energy"
+    if level < BLESSING_MAX
+        let next = level + 1
+        s += "|n|n|cffc0c0c0Next level (" + blessingCost(level) + " energy):|n+" + blessingDamageAt(next) + " Arthas attack damage"
+        if next > 18
+            s += ", +" + (blessingSpeedAt(next) * 100.).toString(1) + "% attack speed"
+        s += "|nPvP win: +" + next + " energy|r"
+    else
+        s += "|n|n|cff00ff00Maximum level|r"
+    return s
+
+function prayText(int talent) returns string
+    var s = "|cffffff00Gives Arthas a random talent out of " + TALENTS + " (2 rare, 1 epic) in place of the current one; it is saved in your profile.|r"
+    s += "|n|n|cff00ffffCurrent talent: |r" + (talent > 0 ? GetAbilityName(talentAbils[talent]) : "none")
+    s += "|n|cffffcc00Cost: " + (talent > 0 ? PRAY_COST : PRAY_FIRST_COST) + " energy|r"
+    if talent == TALENT_EPIC
+        s += "|n|cffff9900The epic talent is locked: type -unlock to be able to replace it.|r"
+    return s
+
+/** Подсказки кнопок у самого игрока (у каждого свои уровень и талант) */
+function updateTooltip(player p)
+    if localPlayer == p
+        BlzSetAbilityExtendedTooltip(BLESSING, blessingText(p.profile().blessing), 0)
+        BlzSetAbilityExtendedTooltip(PRAY, prayText(p.profile().talent), 0)
+
+/** Талант игрока, если он есть (профиль хранит 0..21) */
+function player.talent() returns int
+    let t = this.profile().talent
+    return t >= 1 and t <= TALENTS ? t : 0
+
+/** Надпись «+N» ресурса над Артасом, видна только владельцу */
+function resourceText(int pid, int amount, bool lumber)
+    let u = arthas[pid]
+    if u != null
+        if lumber
+            lumberText(u, players[pid], amount)
+        else
+            goldText(u, players[pid], amount)
+
+/** Начало раунда: таланты-доходы (Just Fight: каждый раунд, у всех режимов) */
+function talentIncome()
+    for pid = 0 to 7
+        let p = players[pid]
+        if ready[pid]
+            let t = p.talent()
+            if t == TALENT_LUMBER
+                p.addLumber(3)
+                resourceText(pid, 3, true)
+            else if t == TALENT_GOLD or t == TALENT_EPIC
+                let gold = t == TALENT_EPIC ? 3 : 2
+                p.addGold(gold)
+                resourceText(pid, gold, false)
+
+function onUnlock()
+    epicUnlocked[GetTriggerPlayer().getId()] = true
+    DisplayTextToPlayer(GetTriggerPlayer(), 0., 0., "|cff00ff00The epic talent can now be replaced by a prayer.|r")
+
+/** «Молитва»: случайный талант вместо прежнего (первая — дороже), эпический закреплён до «-unlock» */
+function onPray(unit caster)
+    let p = caster.getOwner()
+    let pid = p.getId()
+    if pid >= 8
+        return
+    let old = p.talent()
+    if old == TALENT_EPIC and not epicUnlocked[pid]
+        DisplayTextToPlayer(p, 0., 0., "|cff00ff00The epic talent is locked. Type |cffffcc00-unlock|r|cff00ff00 to be able to replace it.|r")
+        return
+    let cost = old > 0 ? PRAY_COST : PRAY_FIRST_COST
+    if not p.spendEnergy(cost)
+        DisplayTextToPlayer(p, 0., 0., "|cffff8080Not enough energy:|r the prayer costs |cff00ffff" + cost + " energy|r.")
+        return
+    let t = GetRandomInt(1, TALENTS)
+    if old > 0
+        caster.removeAbility(talentAbils[old])
+    caster.addAbility(talentAbils[t])
+    p.profile().talent = t
+    p.saveProfile()
+    updateTooltip(p)
+    addEffect("Abilities\\Spells\\Human\\ReviveHuman\\ReviveHuman.mdl", caster.getPos()).destr()
+    DisplayTextToPlayer(p, 0., 0., "Prayer answered, current talent: " + GetAbilityName(talentAbils[t]))
+
+/** Скорость атаки Артаса: исходная перезарядка / (1 + форма + Благословение) */
+function applySpeed(int pid)
+    let u = arthas[pid]
+    if baseCooldown[pid] > 0.
+        u.setAttackCooldown(baseCooldown[pid] / (1. + formSpeed[pid] + blessingSpeed[pid]), 0)
+
+/** Довести прибавки Благословения Артаса до уровня профиля */
+function applyBlessing(int pid)
+    let level = players[pid].profile().blessing
+    let dmg = blessingDamageAt(level)
+    wDammiAtt(arthas[pid], dmg - blessingDamage[pid])
+    blessingDamage[pid] = dmg
+    blessingSpeed[pid] = blessingSpeedAt(level)
+    applySpeed(pid)
+
+function applyForm(int pid)
+    let u = arthas[pid]
+    switch form[pid]
+        case FORM_STORM
+            BlzSetUnitWeaponRealField(u, UNIT_WEAPON_RF_ATTACK_RANGE, 0, 300.)
+            u.setAcquireRange(max(GetUnitAcquireRange(u), 300.))
+        case FORM_EARTH
+            u.setMoveSpeed(u.getMoveSpeed() + 60.)
+        case FORM_FIRE
+            formSpeed[pid] = 0.15
+        case FORM_JUGGERNAUT
+            addEffect("Abilities\\Spells\\Items\\AIlb\\AIlbTarget.mdl", u, "weapon")
+        default
+
+/** Начало игры (первый раунд, Артасы уже заменены на «именные»): формы, Благословение, помощь в PvE */
+function setup()
+    for pid = 0 to 7
+        let p = players[pid]
+        let u = arthas[pid]
+        if u != null and p.isIngame()
+            let s = p.equippedSkin(FAMILY_ARTHAS)
+            form[pid] = s >= 0 ? formOf(skinSource[s]) : FORM_NONE
+            baseCooldown[pid] = u.getAttackCooldown(0)
+            u.addAbility(BLESSING)
+            u.addAbility(PRAY)
+            if isPve()
+                u.addAbility(ASSIST)
+            let t = p.talent()
+            if t > 0
+                u.addAbility(talentAbils[t])
+            if t == TALENT_SUBSIDY
+                p.addLumber(12)
+                resourceText(pid, 12, true)
+            applyForm(pid)
+            applyBlessing(pid)
+            updateTooltip(p)
+            ready[pid] = true
+
+function onBlessing(unit caster)
+    let p = caster.getOwner()
+    let pid = p.getId()
+    if pid >= 8
+        return
+    let level = p.profile().blessing
+    if level >= BLESSING_MAX
+        DisplayTextToPlayer(p, 0., 0., "|cff00ff00God's Blessing is already at the maximum level.|r")
+        return
+    let cost = blessingCost(level)
+    if not p.spendEnergy(cost)
+        DisplayTextToPlayer(p, 0., 0., "|cffff8080Not enough energy:|r God's Blessing costs |cff00ffff" + cost + " energy|r.")
+        return
+    p.profile().blessing = level + 1
+    p.saveProfile()
+    if ready[pid]
+        applyBlessing(pid)
+    updateTooltip(p)
+    addEffect("Abilities\\Spells\\Human\\Resurrect\\ResurrectTarget.mdl", caster, "origin").destr()
+    DisplayTextToPlayer(p, 0., 0., "|cff00ffffGod's Blessing|r is now level |cffffcc00" + (level + 1) + "|r!")
+
+/** Помощь: свой барак (не героя) сразу выпускает бойцов */
+function onAssist(unit caster)
+    let p = caster.getOwner()
+    let target = GetSpellTargetUnit()
+    if target == null or target.getOwner() != p or not buildUnits.has(target) or isHeroBuilding(target.getTypeId())
+        DisplayTextToPlayer(p, 0., 0., "|cffff8080Choose one of your own barracks (not a hero building).|r")
+        doAfter(0.) ->
+            BlzEndUnitAbilityCooldown(caster, ASSIST)
+        return
+    addEffect("Abilities\\Spells\\Human\\ManaFlare\\ManaFlareBoltImpact.mdl", target.getPos()).destr()
+    spawnFrom(target)
+
+init
+    onRound() r ->
+        if r == 1
+            doAfter(0.) ->
+                setup()
+    onProfileChange() p ->
+        if ready[p.getId()]
+            updateTooltip(p)
+    EventListener.onCast(BLESSING) (caster) ->
+        onBlessing(caster)
+    EventListener.onCast(ASSIST) (caster) ->
+        onAssist(caster)
+    EventListener.onCast(PRAY) (caster) ->
+        onPray(caster)
+    onRound() r ->
+        if r >= 2
+            talentIncome()
+    // Аура жизни: +6 здоровья новым бойцам игрока
+    onEnter() ->
+        let u = getEnterLeaveUnit()
+        let pid = u.getOwner().getId()
+        if pid < 8 and ready[pid] and players[pid].talent() == TALENT_LIFE and not u.isType(UNIT_TYPE_STRUCTURE)
+            and not u.isType(UNIT_TYPE_HERO) and not u.isType(UNIT_TYPE_PEON) and not u.isDummy()
+            wDammiHP(u, 6)
+    // эпический талант можно перебросить (Just Fight: «unlock»)
+    let unlock = CreateTrigger()..addAction(function onUnlock)
+    for i = 0 to 7
+        unlock.registerPlayerChatEvent(players[i], "-unlock", true)
+    // Ветрокрылая: на каждую атаку с шансом 10% атака по нескольким целям (Just Fight: A0IX, только PvE)
+    onAnyAttack() ->
+        let a = GetAttacker()
+        if isPve() and a.isArthasForm(FORM_WINDRUNNER)
+            if GetRandomInt(1, 10) == 1
+                a.addAbility(MULTISHOT)
+            else
+                a.removeAbility(MULTISHOT)
+    DamageEvent.addListener() ->
+        let source = DamageEvent.getSource()
+        let target = DamageEvent.getTarget()
+        if isPve() and source != null and target != null and DamageEvent.getType() == DamageType.ATTACK
+            var amount = DamageEvent.getAmount()
+            // Лил'идан: «запечатанная сила» — в PvE урон ×2
+            if source.isArthasForm(FORM_ILLIDAN)
+                amount *= 2.
+            // Тёмная следопытка: 1 из 25 — ещё 5000 урона (по героям-боссам — 1000)
+            if source.isArthasForm(FORM_DARK_RANGER) and GetRandomInt(1, 25) == 1
+                let extra = target.isType(UNIT_TYPE_HERO) ? 1000 : 5000
+                amount += extra
+                standardTextTag(source.getPos(), "+" + extra + "!")..setColor(255, 0, 0, 255)
+            DamageEvent.setAmount(amount)
+    // Алхимик: в PvE золото за каждого убитого Артасом (не призванного и не иллюзию)
+    onAnyDeath() ->
+        let k = GetKillingUnit()
+        let d = GetDyingUnit()
+        if isPve() and k != null and k.isArthasForm(FORM_ALCHEMIST) and not d.isType(UNIT_TYPE_SUMMONED) and not d.isIllusion()
+            let gold = unitGold(d, d.getTypeId())
+            if gold > 0
+                let p = k.getOwner()
+                p.addGold(gold)
+                goldText(k, p, gold)
+                addEffect("Abilities\\Spells\\Items\\ResourceItems\\ResourceEffectTarget.mdl", k, "chest").destr()
+        // Награда за убийство: 20% на 1 золото за убитого (не призванного) любым бойцом игрока
+        if k != null and not d.isType(UNIT_TYPE_SUMMONED)
+            let pid = k.getOwner().getId()
+            if pid < 8 and ready[pid] and players[pid].talent() == TALENT_KILL_GOLD and GetRandomInt(1, 10) <= 2
+                players[pid].addGold(1)
+                resourceText(pid, 1, false)

@@ -3,6 +3,8 @@ import Initialization
 import MapGlobals
 import ClosureEvents
 import ClosureTimers
+import Profile
+import GameMode
 
 // ============================================================
 // Триггер: LeaveGame — вышедший отдаёт контроль команде и переходит в «выбывшие»
@@ -58,6 +60,7 @@ function multiboardIcon(int row, int col, string icon)
     0.5 с для 8 игроков склеивались бы новые строки — в JASS строки интернируются и не освобождаются, таблица строк
     росла бы всю игру; а слоты/маркеры силы пересчитываются только при изменении power. */
 int array lastForce
+string array lastAvatar
 int array lastGrades
 int array lastIncome
 int array lastForceItem
@@ -76,6 +79,9 @@ int array lastHeal
 int array lastAgi
 int array lastInt
 int array lastStr
+/** PvE: здоровье генератора игрока, % (-1 — разрушен) и номер волны в строке Злого Бога */
+int array lastGenerator
+int lastWave = -1
 
 /** Сила изменилась: освобождаются слоты строителя и обновляются юниты-маркеры */
 function onForceChanged(int a, int value)
@@ -150,20 +156,54 @@ function updateResourceText(int a)
     textR[a].setText("|cffFFFF00 Gold: " + gold + "|r|n|cff00FF00 Lumber: " + lumber
         + "|r|n|cffD2691E Food: " + foodUsed + "/" + foodCap + "|r", 10)
 
+/** PvE: здоровье генератора игрока a в столбце «Generator» (бывший «Stone»: камня в PvE нет) */
+function updateGenerator(int a, int row)
+    let gen = generators[a]
+    // 1..100: живой генератор не показывает 0%, а округление вверх давало 101% (HP чуть больше максимума)
+    let pct = generatorAlive[a] and gen != null ? min(100, max(1, (100. * gen.getHP() / gen.getMaxHP()).round())) : -1
+    if row != 0 and pct != lastGenerator[a]
+        lastGenerator[a] = pct
+        let color = pct > 50 ? "|cff00ff00" : (pct > 20 ? "|cffffcc00" : "|cffff4040")
+        multiboardItem(row, 6, pct < 0 ? "|cffff4040destroyed|r" : color + pct + "%|r")
+
+/** PvE: строка Злого Бога — здоровье и номер волны (лечений и улучшений у него нет) */
+function updateEvilGod()
+    let god = kings[2]
+    let hp = god != null and god.isAlive() ? god.getHP().toInt() : 0
+    if hp != lastKingHP[2]
+        lastKingHP[2] = hp
+        multiboardItem(kingS[2], 1, "|c0000FF00Health: " + hp + "|r")
+    let wave = max(0, round - 1)
+    if wave != lastWave
+        lastWave = wave
+        multiboardItem(kingS[4], 1, "|cffffcc00" + wave + "|r")
+
 @noinline
 function multiboardUpdate()
     for a = 0 to 7
         let row = multiboardId[a + 1]
         if row != 0
             updatePlayerRow(a)
-        if boom[a] != lastBoom[a]
-            lastBoom[a] = boom[a]
-            multiboardIcon(row, 5, boom[a] ? "icons\\BTNY.blp" : "ReplaceableTextures\\CommandButtons\\BTNCancel.blp")
-        if rock[a] != lastRock[a]
-            lastRock[a] = rock[a]
-            multiboardIcon(row, 6, rock[a] ? "icons\\BTNY.blp" : "ReplaceableTextures\\CommandButtons\\BTNCancel.blp")
+            // аватарка профиля у ника (Profile): меняется после загрузки профиля и при выборе
+            let avatar = players[a].avatarIcon()
+            if avatar != lastAvatar[a]
+                lastAvatar[a] = avatar
+                udg_Board.getItem(row, 0)
+                    ..setStyle(true, true)
+                    ..setIcon(avatar)
+                    ..release()
+            if boom[a] != lastBoom[a]
+                lastBoom[a] = boom[a]
+                multiboardIcon(row, 5, boom[a] ? "icons\\BTNY.blp" : "ReplaceableTextures\\CommandButtons\\BTNCancel.blp")
+            if isPve()
+                updateGenerator(a, row)
+            else if rock[a] != lastRock[a]
+                lastRock[a] = rock[a]
+                multiboardIcon(row, 6, rock[a] ? "icons\\BTNY.blp" : "ReplaceableTextures\\CommandButtons\\BTNCancel.blp")
         updateResourceText(a)
-    for a = 1 to 2
+    if isPve()
+        updateEvilGod()
+    for a = 1 to (isPve() ? 1 : 2)
         let king = kings[a]
         let hp = king.getHP().toInt()
         if hp != lastKingHP[a]
@@ -210,12 +250,17 @@ function iconCell(int row, int col, string icon, real width)
         ..setWidth(width)
         ..release()
 
-@noinline
-function multiboardCreate()
-    // строки: игроки 1-4, король 1 + его улучшения, игроки 5-8, король 2 + его улучшения
+/** Строки таблицы. PvP/PvEvP: игроки 1-4, король 1 + его улучшения, игроки 5-8, король 2 + его улучшения.
+    PvE — одна команда: Бог Войны + улучшения, все игроки, Злой Бог + номер волны. Возвращает число строк */
+function layoutRows() returns int
     var b = 1
+    if isPve()
+        kingS[1] = b
+        kingS[3] = b + 1
+        b += 2
     for a = 1 to 8
-        if a == 5
+        multiboardId[a] = 0
+        if a == 5 and not isPve()
             kingS[1] = b
             kingS[3] = b + 1
             b += 2
@@ -223,52 +268,63 @@ function multiboardCreate()
             multiboardId[a] = b
             multiboardIdR[b] = a
             b++
-        if a == 8
-            kingS[2] = b
-            kingS[4] = b + 1
-            b += 2
+    kingS[2] = b
+    kingS[4] = b + 1
+    return b + 2
+
+/** Построить таблицу заново (при старте и в PvE после выбора режима) */
+function buildBoard()
+    if udg_Board != null
+        udg_Board.display(false)
+        DestroyMultiboard(udg_Board)
+    let rows = layoutRows()
     udg_Board = CreateMultiboard()
-        ..setRowCount(b)
+        ..setRowCount(rows)
         ..setColumnCount(7)
         ..setTitle("The War Reborn " + modeString)
-    bj_lastCreatedMultiboard = CreateMultiboard()
-    headerCell(0, "Player", 0.07)
+    headerCell(0, "Player", 0.10)
     headerCell(1, "Income", 0.05)
     headerCell(2, "Power", 0.05)
     headerCell(3, "Grades", 0.05)
-    headerCell(4, "Mid Up", 0.04)
-    headerCell(5, "Blast", 0.03)
-    headerCell(6, "Stone", 0.04)
+    headerCell(4, "Mid Up", 0.05)
+    headerCell(5, "Blast", 0.04)
+    // PvE: камня нет — вместо него здоровье генератора энергии игрока
+    headerCell(6, isPve() ? "Generator" : "Stone", isPve() ? 0.065 : 0.04)
     for a = 1 to 8
         let row = multiboardId[a]
         if row != 0
             let p = players[a - 1]
-            wDammiHP(kings[1], 1050)
-            wDammiHP(kings[2], 1050)
-            forceG[5].addPlayer(p)
-            let team = a <= 4 ? 1 : 2
-            heals[team] += 1
-            countPlayer[team] += 1
-            textCell(row, 0, "|c00" + colorCode[a - 1] + p.getName() + "|r", 0.07)
+            textCell(row, 0, "|c00" + colorCode[a - 1] + p.getName() + "|r", 0.10)
             textCell(row, 1, "|cff33FF33+" + income[a - 1] + "|r", 0.05)
             textCell(row, 2, power[a - 1] + "/" + powerItem[a - 1], 0.05)
             textCell(row, 3, wispCount[a - 1] + "/" + GetPlayerTechCount(players[a], 'R000', false), 0.05)
-            textCell(row, 4, "", 0.04)
+            textCell(row, 4, "", 0.05)
             iconCell(row, 5, boom[a] ? "" : "ReplaceableTextures\\CommandButtons\\BTNCancel.blp", 0.04)
-            iconCell(row, 6, rock[a] ? "" : "ReplaceableTextures\\CommandButtons\\BTNCancel.blp", 0.04)
+            if isPve()
+                textCell(row, 6, "", 0.065)
+            else
+                iconCell(row, 6, rock[a] ? "" : "ReplaceableTextures\\CommandButtons\\BTNCancel.blp", 0.04)
     for a = 1 to 2
-        textCell(kingS[a], 0, "|cffFFD700King " + a + " |r", 0.08)
-        textCell(kingS[a], 1, "|c0000FF00Health: " + kings[a].getHP().toInt() + "|r", 0.08)
-        textCell(kingS[a], 2, "|cffFFff00Heals:" + heals[a] + "|r", 0.06)
+        let evilGod = isPve() and a == 2
+        let name = isPve() ? (evilGod ? "|cffff0000Evil God|r" : "|cffFFD700War God|r") : "|cffFFD700King " + a + " |r"
+        textCell(kingS[a], 0, name, 0.11)
+        textCell(kingS[a], 1, "|c0000FF00Health: " + (kings[a] != null ? kings[a].getHP().toInt() : 0) + "|r", 0.08)
+        textCell(kingS[a], 2, evilGod ? "" : "|cffFFff00Heals:" + heals[a] + "|r", 0.06)
         for col = 3 to 6
             textCell(kingS[a], col, "", 0.02)
-        textCell(kingS[a + 2], 0, "|cffFFA500Upgrades: |r", 0.06)
-        iconCell(kingS[a + 2], 1, "ReplaceableTextures\\CommandButtons\\BTNAttack.blp", 0.02)
-        textCell(kingS[a + 2], 2, "0", 0.03)
-        iconCell(kingS[a + 2], 3, "ReplaceableTextures\\CommandButtons\\BTNAnimalWarTraining.blp", 0.02)
-        textCell(kingS[a + 2], 4, "0", 0.03)
-        iconCell(kingS[a + 2], 5, "ReplaceableTextures\\CommandButtons\\BTNHealOff.blp", 0.02)
-        textCell(kingS[a + 2], 6, "0", 0.03)
+        if evilGod
+            // у Злого Бога нет лечений и улучшений — номер волны
+            textCell(kingS[4], 0, "|cffFFA500Wave:|r", 0.09)
+            for col = 1 to 6
+                textCell(kingS[4], col, "", col == 1 ? 0.04 : 0.02)
+        else
+            textCell(kingS[a + 2], 0, "|cffFFA500Upgrades: |r", 0.09)
+            iconCell(kingS[a + 2], 1, "ReplaceableTextures\\CommandButtons\\BTNAttack.blp", 0.02)
+            textCell(kingS[a + 2], 2, "0", 0.03)
+            iconCell(kingS[a + 2], 3, "ReplaceableTextures\\CommandButtons\\BTNAnimalWarTraining.blp", 0.02)
+            textCell(kingS[a + 2], 4, "0", 0.03)
+            iconCell(kingS[a + 2], 5, "ReplaceableTextures\\CommandButtons\\BTNHealOff.blp", 0.02)
+            textCell(kingS[a + 2], 6, "0", 0.03)
     udg_Board.display(false)
     udg_Board.display(true)
     MultiboardMinimize(udg_Board, true)
@@ -276,6 +332,7 @@ function multiboardCreate()
     // кеш «последних показанных значений» сбрасывается, чтобы первое обновление записало всё
     for a = 0 to 7
         lastForce[a] = -1
+        lastAvatar[a] = ""
         lastGrades[a] = -1
         lastIncome[a] = -1
         lastForceItem[a] = -1
@@ -286,14 +343,32 @@ function multiboardCreate()
         lastGold[a] = -1
         lastBoom[a] = not boom[a]
         lastRock[a] = not rock[a]
+        lastGenerator[a] = -2
     for a = 1 to 2
         lastKingHP[a] = -1
         lastHeal[a] = -1
         lastAgi[a] = -1
         lastInt[a] = -1
         lastStr[a] = -1
+    lastWave = -1
+
+@noinline
+function multiboardCreate()
+    for a = 1 to 8
+        if isInGame(players[a - 1])
+            let p = players[a - 1]
+            wDammiHP(kings[1], 1050)
+            wDammiHP(kings[2], 1050)
+            forceG[5].addPlayer(p)
+            let team = a <= 4 ? 1 : 2
+            heals[team] += 1
+            countPlayer[team] += 1
+    teamSize = max(countPlayer[1], countPlayer[2])
+    bj_lastCreatedMultiboard = CreateMultiboard()
+    buildBoard()
     doPeriodically(0.5) cb ->
         multiboardUpdate()
+
 
 init
     markerForce[0] = 600
@@ -320,5 +395,9 @@ init
     markerType[10] = 'e01B'
     EventListener.add(EVENT_PLAYER_LEAVE) ->
         leaveGame()
+    onRound() r ->
+        // PvE — одна команда: таблица строится заново (при старте режим ещё не выбран)
+        if r == 1 and isPve() and udg_Board != null
+            buildBoard()
     doAfter(1.0) ->
         multiboardCreate()

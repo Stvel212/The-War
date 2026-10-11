@@ -1,0 +1,51 @@
+package AbilitiesEnergy
+import AbilityObjEditing
+
+/*
+    Кнопки энергий на Генераторе энергии в PvE (как в Just Fight: A0JL «Activate Energy» и A0JK… — энергии на
+    генераторе h0BN). 'AEN0'..'AEN7' — 8 энергий (уровень способности = уровень энергии, 40 уровней), 'AENA' —
+    активировать новую. Канал без цели и без эффекта: щелчок обрабатывает Energies (покупка за энергию профиля),
+    подсказки по уровням пишет он же. У каждой кнопки свой приказ — каналы на одном юните не должны совпадать. */
+
+public constant ENERGY_ACTIVATE = 'AENA'
+public constant ENERGY_MAX_ABIL_LEVEL = 40
+
+constant ICONS = ["BTNChestOfGold", "BTNBundleOfLumber", "BTNSummonWaterElemental", "BTNImmolationOn",
+    "BTNEarthquake", "BTNCyclone", "BTNThunderclap", "BTNChainLightning"]
+constant ORDERS = ["absorb", "ancestralspirit", "battleroar", "berserk", "bladestorm", "darkconversion", "chemicalrage",
+    "cloudoffog", "corporealform"]
+
+/** Способность энергии kind (0..7) */
+public function energyAbility(int kind) returns int
+    return 'AEN0' + kind
+
+function energyButton(int id, string icon, string order, int levels, int x, int y)
+    let a = new AbilityDefinitionIllidanChannel(id)
+        ..setHeroAbility(false)
+        ..setLevels(levels)
+        ..setIconNormal("ReplaceableTextures\\CommandButtons\\" + icon + ".blp")
+        ..setButtonPositionNormalX(x)
+        ..setButtonPositionNormalY(y)
+        ..setHotkeyNormal("")
+        ..setRequirements("")
+        ..setArtCaster("")
+        ..setArtEffect("")
+        ..setArtTarget("")
+        ..setName("Energy")
+        ..setEditorSuffix("(PvE generator)")
+    for lvl = 1 to levels
+        a..setTargetType(lvl, 0)
+        ..setOptions(lvl, 1)
+        ..setBaseOrderID(lvl, order)
+        ..setFollowThroughTime(lvl, 0.)
+        ..setArtDuration(lvl, 0.)
+        ..setCooldown(lvl, 0.3)
+        ..setManaCost(lvl, 0)
+        ..setDisableOtherAbilities(lvl, false)
+        ..setCastRange(lvl, 0.)
+
+@compiletime function create_energy_buttons()
+    // энергии: два верхних ряда по 4, внизу — «Благословение» генератора (APBL, 0:2) и активация (3:2)
+    for kind = 0 to 7
+        energyButton(energyAbility(kind), ICONS[kind], ORDERS[kind], ENERGY_MAX_ABIL_LEVEL, kind mod 4, kind div 4)
+    energyButton(ENERGY_ACTIVATE, "BTNManaFlare", ORDERS[8], 1, 3, 2)

@@ -1,0 +1,138 @@
+package SkinsUi
+import TableUi
+import Profile
+import Skins
+import BaseShortcuts
+
+/*
+    Окно скинов (открывается кнопкой «Skins» в окне профиля): сверху группы (строитель, главное здание, Артас,
+    герои бараков), под ними скины выбранной группы — первым «свой вид», дальше купленные и нет. Купленный скин —
+    клик надевает (подсвечен надетый), некупленный затемнён — клик покупает за монеты профиля и сразу надевает.
+    Окно строится при первом открытии (клик синхронный — у всех клиентов одинаково) и обновляется по
+    onProfileChange (монеты, покупки, надетые). */
+
+constant PAD = 0.014
+constant FAM_ICON = 0.032
+constant FAM_COLS = 9
+constant SKIN_ICON = 0.04
+constant SKIN_COLS = 7
+constant GAP = 0.004
+constant TOOLTIP_WIDTH = 0.22
+
+bool array built
+bool array windowOpen
+/** Что открыть по «Back» (окно профиля) */
+BackHandler array backTo
+framehandle array windows
+framehandle array coinsText
+int array currentFamily
+/** [pid * MAX_FAMILIES + f] */
+constant MAX_FAMILIES = 32
+framehandle array page
+framehandle array familyMark
+framehandle array defaultMark
+/** [pid * MAX_SKINS + s] */
+framehandle array skinMark
+framehandle array skinScrim
+
+function skinTip(player p, int s) returns string
+    let head = "|cffffcc00" + skinName[s] + "|r (" + familyName[skinFamily[s]] + ")|n"
+    if p.ownsSkin(s)
+        return head + (p.equippedSkin(skinFamily[s]) == s ? "|cff00ff00Equipped|r" : "Owned - click to equip")
+    return head + "Cost: |cffffcc00" + skinCost[s] + "|r coins - click to buy"
+
+function refresh(player p)
+    let pid = p.getId()
+    if not built[pid]
+        return
+    coinsText[pid].setText("Coins: |cffffcc00" + p.profile().coins + "|r")
+    for f = 0 to familyCount - 1
+        let mark = p.equippedSkin(f)
+        defaultMark[pid * MAX_FAMILIES + f].setVisible(mark < 0)
+        familyMark[pid * MAX_FAMILIES + f].setVisible(f == currentFamily[pid])
+        page[pid * MAX_FAMILIES + f].setVisible(f == currentFamily[pid])
+    for s = 0 to skinCount - 1
+        skinMark[pid * MAX_SKINS + s].setVisible(p.equippedSkin(skinFamily[s]) == s)
+        let scrim = skinScrim[pid * MAX_SKINS + s]
+        scrim.setVisible(not p.ownsSkin(s))
+        scrim.cornerTooltip(skinTip(p, s), TOOLTIP_WIDTH)
+
+function showFamily(player p, int f)
+    currentFamily[p.getId()] = f
+    refresh(p)
+
+function buildWindow(player owner, framehandle parent) returns framehandle
+    let pid = owner.getId()
+    let famRows = (familyCount + FAM_COLS - 1) div FAM_COLS
+    let famW = FAM_COLS * FAM_ICON + (FAM_COLS - 1) * GAP
+    let skinRows = 2
+    let h = PAD + 0.024 + GAP + famRows * (FAM_ICON + GAP) + 0.01 + skinRows * (SKIN_ICON + GAP) + PAD + 0.006
+    let window = panel(parent, 2. * PAD + famW, h)
+        ..clearAllPoints()
+        ..setAbsPoint(FRAMEPOINT_CENTER, vec2(0.3, 0.35))
+    let title = h3(window, "Skins")
+        ..setPoint(FRAMEPOINT_TOPLEFT, window, FRAMEPOINT_TOPLEFT, PAD, -PAD)
+    coinsText[pid] = p(window, "")
+        ..setPoint(FRAMEPOINT_LEFT, title, FRAMEPOINT_RIGHT, 0.02, 0.)
+    let close = textButton(window, "X", 0.022, 0.022)
+        ..setPoint(FRAMEPOINT_TOPRIGHT, window, FRAMEPOINT_TOPRIGHT, -0.006, -0.006)
+    close.onClick() ->
+        windowOpen[pid] = false
+        windows[pid].hide()
+    // назад — в окно профиля (его открывает ProfileUi через backTo)
+    let back = textButton(window, "Back", 0.06, 0.022)
+        ..setPoint(FRAMEPOINT_TOPRIGHT, close, FRAMEPOINT_TOPLEFT, -0.006, 0.)
+    back.onClick() ->
+        windowOpen[pid] = false
+        windows[pid].hide()
+        backTo[pid].run()
+    let famTop = -PAD - 0.024 - GAP
+    let skinTop = famTop - famRows * (FAM_ICON + GAP) - 0.01
+    for f = 0 to familyCount - 1
+        let family = f
+        let fam = iconButton(window, BlzGetAbilityIcon(familyIcon[f]), FAM_ICON)
+            ..setPoint(FRAMEPOINT_TOPLEFT, window, FRAMEPOINT_TOPLEFT, PAD + (f mod FAM_COLS) * (FAM_ICON + GAP), famTop - (f div FAM_COLS) * (FAM_ICON + GAP))
+            ..cornerTooltip(familyName[f])
+        familyMark[pid * MAX_FAMILIES + f] = selectionHighlight(fam)
+        fam.onClick(() -> showFamily(owner, family))
+        // страница группы: «свой вид» и скины
+        let pg = container(window, SKIN_COLS * (SKIN_ICON + GAP), 2. * (SKIN_ICON + GAP))
+            ..setPoint(FRAMEPOINT_TOPLEFT, window, FRAMEPOINT_TOPLEFT, PAD, skinTop)
+        page[pid * MAX_FAMILIES + f] = pg
+        let def = iconButton(pg, BlzGetAbilityIcon(familyIcon[f]), SKIN_ICON)
+            ..setPoint(FRAMEPOINT_TOPLEFT, pg, FRAMEPOINT_TOPLEFT)
+            ..cornerTooltip("|cffffcc00Default|r (" + familyName[f] + ")", TOOLTIP_WIDTH)
+        defaultMark[pid * MAX_FAMILIES + f] = selectionHighlight(def)
+        def.onClick(() -> owner.equipSkin(family, -1))
+        var slot = 1
+        for s = 0 to skinCount - 1
+            if skinFamily[s] == f
+                let index = s
+                let b = iconButton(pg, BlzGetAbilityIcon(skinSource[s]), SKIN_ICON)
+                    ..setPoint(FRAMEPOINT_TOPLEFT, pg, FRAMEPOINT_TOPLEFT, (slot mod SKIN_COLS) * (SKIN_ICON + GAP), -(slot div SKIN_COLS) * (SKIN_ICON + GAP))
+                    ..cornerTooltip(skinName[s], TOOLTIP_WIDTH)
+                skinMark[pid * MAX_SKINS + s] = selectionHighlight(b)
+                b.onClick(() -> owner.equipSkin(index))
+                // не куплен: затемнён, клик по затемнению — покупка
+                let scrim = disabledOverlay(b)
+                scrim.onClick(() -> owner.buySkin(index))
+                skinScrim[pid * MAX_SKINS + s] = scrim
+                slot++
+    return window
+
+/** Открыть/закрыть окно скинов игрока p (клик — синхронный) */
+public interface BackHandler
+    function run()
+
+public function toggleSkinsWindow(player p, framehandle parent, BackHandler back)
+    let pid = p.getId()
+    backTo[pid] = back
+    if not built[pid]
+        windows[pid] = buildWindow(p, parent)..hide()
+        built[pid] = true
+        refresh(p)
+    windowOpen[pid] = not windowOpen[pid]
+    windows[pid].setVisible(windowOpen[pid])
+
+init
+    onProfileChange(p -> refresh(p))

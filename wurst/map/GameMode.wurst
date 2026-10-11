@@ -1,0 +1,306 @@
+package GameMode
+import MapGlobals
+import LinkedList
+import Dummies
+
+/*
+    Режим игры (выбирает хост в начале, см. ModeSelect) и всё, что от него зависит на нижнем уровне:
+    куда идут юниты по линии, кто владеет монстрами, что делает монстр, прорвавшийся через портал.
+    - PVP — классика: юниты идут через всю линию к противнику, прошедшие через портал — к чужому королю.
+    - PVE (копия Just Fight 5.6 «PvE Mode»): все 8 игроков — одна команда; левый король — Бог Войны, на месте
+      правого — Злой Бог с Забытыми на средней линии. Бойцы игроков идут через всю линию, как в PvP, прошедшие портал —
+      по средней линии на Злого Бога. Монстры появляются у центра на половине каждого игрока и ломают его генератор;
+      без генератора прорываются к воротам Злого Бога и идут на Бога Войны. Смерть Бога Войны — поражение.
+    - PVEVP («LTD», Just Fight 5.6: «Battle Chess (PvEvP)»): команды против друг друга, но каждый игрок держит
+      свою половину линии против монстров волны; наёмники уходят монстрами к противнику, прорвавшиеся — к королю.
+    Сами режимы — в пакетах Pve и Pvevp; здесь только состояние и правила, нужные пакетам ниже по иерархии. */
+
+public enum GameModeKind
+    PVP
+    PVE
+    PVEVP
+
+public var gameMode = GameModeKind.PVP
+/** Уровень PvE: 1..PVE_LEVELS, PVE_ENDLESS — бесконечный («Хаотическая Пустота») */
+public var pveLevel = 0
+public constant PVE_LEVELS = 5
+public constant PVE_ENDLESS = 6
+/** Режим сам запускает следующий раунд (PvEvP: свой таймер волны), Wave не перезапускает таймер */
+public var manualRounds = false
+/** Длина раунда, с: в PvE и PvEvP — всегда она, в PvP — она + удлинение с 30-го раунда */
+public constant ROUND_TIME = 38
+
+public function isPve() returns bool
+    return gameMode == GameModeKind.PVE
+
+public function isPvevp() returns bool
+    return gameMode == GameModeKind.PVEVP
+
+/** Название режима для таблицы и сообщений */
+public function modeTitle() returns string
+    if isPve()
+        return pveLevel == PVE_ENDLESS ? "PvE Endless" : "PvE " + pveLevel
+    if isPvevp()
+        return "PvEvP"
+    return "PvP"
+
+// ============================================================
+// Хуки раунда: режимы получают каждый раунд после того, как Wave выдал награды и юнитов
+// ============================================================
+
+public interface RoundHook
+    function run(int round)
+
+constant roundHooks = new LinkedList<RoundHook>()
+
+public function onRound(RoundHook hook)
+    roundHooks.add(hook)
+
+public function fireRoundHooks(int round)
+    for hook in roundHooks
+        hook.run(round)
+
+// ============================================================
+// Монстры: владельцы — свободные слоты (12+), не нейтралы: у тех ИИ лагеря возвращает юнитов на место
+// ============================================================
+
+/** PvE: Злой Бог — враг всех игроков */
+public constant CREEP_PVE = 12
+/** PvEvP: монстры против левой команды (союзны правой) и против правой (союзны левой) */
+public constant CREEP_VS_LEFT = 13
+public constant CREEP_VS_RIGHT = 14
+
+public function player.isCreepOwner() returns bool
+    let id = this.getId()
+    return id >= CREEP_PVE and id <= CREEP_VS_RIGHT
+
+public function unit.isCreep() returns bool
+    return this.getOwner().isCreepOwner()
+
+/** Монстры, идущие влево (к левым базам и королю 1); остальные — вправо */
+constant creepsLeft = CreateGroup()
+
+public function unit.setCreepDirection(bool goesLeft)
+    if goesLeft
+        creepsLeft.add(this)
+    else
+        creepsLeft.remove(this)
+
+public function unit.creepGoesLeft() returns bool
+    return creepsLeft.has(this)
+
+/** Монстр погиб/удалён — убрать из группы (группа держит ссылку на юнит) */
+public function forgetCreep(unit u)
+    creepsLeft.remove(u)
+
+// ============================================================
+// Линии
+// ============================================================
+
+/** Концы линий: цель атаки левой команды (у правых баз) и правой (у левых баз) */
+public constant LEFT_END_X = -3300.
+public constant RIGHT_END_X = 2750.
+/** Середина линий (центр rct_PVE) */
+public constant LANE_CENTER_X = -256.
+/** PvEvP: где держат линию бойцы левой и правой команды */
+public constant HOLD_LEFT_X = -1500.
+public constant HOLD_RIGHT_X = 1000.
+/** Средняя линия (к королям): по высоте */
+public constant MID_LOW_Y = -500.
+public constant MID_HIGH_Y = 1200.
+public constant LANES = 4
+/** PvE: генераторы энергии игроков — по центру линии на месте портала базы (дудады-порталы D000-D007 на
+    x = -3180 / 2670; как в Just Fight: портал скрыт, пока цел генератор); строитель отходит от него вглубь линии */
+public constant GENERATOR_LEFT_X = -3180.
+public constant GENERATOR_RIGHT_X = 2670.
+/** Порталы игроков (дудады на базе OZsp, по два: у базы на линии и у ворот средней линии) — по номеру игрока */
+constant portalDoodads = ['D001', 'D000', 'D002', 'D003', 'D004', 'D005', 'D006', 'D007']
+/** Порталы игроков у ворот средней линии: у левого короля и у правого */
+constant LEFT_GATE_PORTAL_POS = vec2(-3570., 250.)
+constant RIGHT_GATE_PORTAL_POS = vec2(3045., 250.)
+/** Охватывает порталы у ворот на средней линии, но не порталы линий (до них больше 2500) */
+constant GATE_PORTAL_RADIUS = 900.
+
+/** Показать или скрыть оба портала игрока pid (Just Fight: SetDoodadAnimationRectBJ("hide"/"show", 'OZsp', …)) */
+public function showPortal(int pid, bool show)
+    SetDoodadAnimation(0., 0., 100000., portalDoodads[pid], false, show ? "show" : "hide", false)
+    if isPve()
+        hideGatePortals(pid)
+
+/** PvE: порталы только на линиях — у ворот средней линии (второй экземпляр дудада игрока, у Бога Войны и у Злого
+    Бога) всегда спрятаны */
+public function hideGatePortals(int pid)
+    hidePortalAt(pid, LEFT_GATE_PORTAL_POS)
+    hidePortalAt(pid, RIGHT_GATE_PORTAL_POS)
+
+function hidePortalAt(int pid, vec2 pos)
+    SetDoodadAnimation(pos.x, pos.y, GATE_PORTAL_RADIUS, portalDoodads[pid], false, "hide", false)
+
+/** Игрок, против которого идёт монстр (по половине линии и высоте) */
+public function unit.creepTargetPlayer() returns int
+    return (this.getX() < LANE_CENTER_X ? 0 : 4) + laneAt(this.getY())
+/** PvE и PvEvP: где появляются монстры игрока — края rct_PVE на его половине линии (в Just Fight — ±768 от центра) */
+public constant PVE_SPAWN_LEFT_X = -1024.
+public constant PVE_SPAWN_RIGHT_X = 512.
+/** PvE: порталы в конце половины линии (там же выходят монстры) — бойцы игроков, дойдя, переносятся на среднюю
+    линию к Богу Войны (Just Fight: ILLLLII); вход — в Main, участки добавляет addLanePortal */
+public constant pvePortals = CreateRegion()
+/** Цвета порталов по номеру игрока (модели imports/models/Void Teleport <цвет> To.mdx, как у порталов баз) */
+constant portalModels = ["Red ", "Blue ", "Teal ", "", "Yellow ", "Orange ", "Green ", "Pink "]
+
+/** Портал на половине линии игрока pid там, где выходят его монстры (spawnX: в конце половины, в PvE и PvEvP
+    одинаково); teleport — PvE: бойцы игрока, войдя, переносятся на мид */
+public function addLanePortal(int pid, bool teleport)
+    let x = spawnX(pid < 4)
+    let y = laneY(pid mod 4)
+    if teleport
+        let r = Rect(x - 120., y - 700., x + 120., y + 700.)
+        pvePortals.addRect(r)
+        r.remove()
+    addEffect("models\\Void Teleport " + portalModels[pid] + "To.mdl", vec2(x, y))
+/** PvE: генератор игрока цел (пока цел — монстры его линии идут ломать генератор, а не прорываются) */
+public bool array generatorAlive
+/** PvE: генераторы игроков (по номеру игрока) */
+public unit array generators
+/** Ворота средней линии: у левого короля (Бог Войны в PvE) и у правого (Злой Бог в PvE) */
+public constant LEFT_GATE_X = -3500.
+public constant RIGHT_GATE_X = 2950.
+/** PvE: куда бойцы игроков переносятся с линий — средняя линия за Богом Войны, между воротами и королём */
+public constant PVE_TELEPORT_X = -3350.
+
+/** Высота линии 0..3 (снизу вверх) — как у баз в initGame */
+public function laneY(int lane) returns real
+    if lane == 0
+        return -4990.
+    else if lane == 1
+        return -2400.
+    else if lane == 2
+        return 3050.
+    return 5620.
+
+public function isMidLane(real y) returns bool
+    return y >= MID_LOW_Y and y <= MID_HIGH_Y
+
+/** Куда идёт юнит по линии на высоте y (attack-move) */
+public function unit.laneTarget(real y) returns vec2
+    let owner = this.getOwner()
+    let id = owner.getId()
+    if owner.isCreepOwner()
+        // PvE: монстр идёт к генератору игрока своей половины линии, пока тот цел (Just Fight: IL1IIlI)
+        if isPve() and not isMidLane(y)
+            let pid = (this.creepGoesLeft() ? 0 : 4) + laneAt(y)
+            if generatorAlive[pid]
+                return vec2(this.creepGoesLeft() ? GENERATOR_LEFT_X : GENERATOR_RIGHT_X, y)
+        return vec2(this.creepGoesLeft() ? LEFT_END_X : RIGHT_END_X, y)
+    let left = id < 4 or id == 8
+    // PvE: на линиях — к порталу в конце своей половины (оттуда на мид); на средней линии все бойцы игроков и стража
+    // Бога Войны идут на Злого Бога (он стоит на месте правого короля)
+    if isPve() and id < 9
+        if isMidLane(y)
+            return vec2(RIGHT_END_X, y)
+        if id < 8
+            return vec2(left ? PVE_SPAWN_LEFT_X : PVE_SPAWN_RIGHT_X, y)
+    // PvEvP: бойцы держат свою половину линии; на средней линии Стража Короля идёт к чужому королю, как в PvP
+    if id < 8 and isPvevp() and not isMidLane(y)
+        return vec2(left ? HOLD_LEFT_X : HOLD_RIGHT_X, y)
+    return vec2(left ? RIGHT_END_X : LEFT_END_X, y)
+
+/** Где появляются монстры волны, идущие влево (goesLeft) или вправо: «порталы» Just Fight (ILIlI, ±768 от центра,
+    центр прямоугольника) — и в PvE, и в PvEvP одни и те же */
+public function spawnX(bool goesLeft) returns real
+    return goesLeft ? PVE_SPAWN_LEFT_X : PVE_SPAWN_RIGHT_X
+
+/** Ближайшая к высоте y линия 0..3 */
+public function laneAt(real y) returns int
+    var best = 0
+    for lane = 1 to LANES - 1
+        if (laneY(lane) - y).abs() < (laneY(best) - y).abs()
+            best = lane
+    return best
+
+/** Игрок слота id в игре и человек */
+function isHuman(int id) returns bool
+    let p = players[id]
+    return p.isIngame() and p.getController() == MAP_CONTROL_USER
+
+/** PvEvP: наёмник уходит монстром к противнику — на ту же линию (если там противника нет — на линию случайного
+    противника в игре), из центра против его половины. Цвет остаётся цветом купившего */
+public function unit.becomeSend()
+    let buyer = this.getOwner().getId()
+    let buyerLeft = buyer < 4 or buyer == 8
+    let enemyBase = buyerLeft ? 4 : 0
+    // как в Just Fight: к случайному противнику в игре (не обязательно на той же линии)
+    var lane = GetRandomInt(0, LANES - 1)
+    for k = 0 to LANES - 1
+        let l = (lane + k) mod LANES
+        if isHuman(enemyBase + l)
+            lane = l
+            break
+    // покупатель слева — монстр идёт вправо, против правой команды
+    let goesLeft = not buyerLeft
+    this.setOwner(players[goesLeft ? CREEP_VS_LEFT : CREEP_VS_RIGHT], false)
+    this.setCreepDirection(goesLeft)
+    SetUnitPosition(this, spawnX(goesLeft), laneY(lane))
+    let target = this.laneTarget(this.getY())
+    if not this.issuePointOrder("attack", target)
+        this.issuePointOrder("move", target)
+
+/** Боец игрока на линии (не на средней) — те же, кого водит Tree (Main.isFighter, не сапёр), кроме наёмников,
+    ждущих волны. Артас — ancient, строитель — герой, рабочие — peon: они не бойцы */
+public function unit.isLaneFighter() returns bool
+    let id = this.getOwner().getId()
+    return id < 8 and this.isAlive() and not this.isType(UNIT_TYPE_HERO) and not this.isType(UNIT_TYPE_STRUCTURE)
+        and not this.isType(UNIT_TYPE_PEON) and not this.isType(UNIT_TYPE_ANCIENT) and not this.isType(UNIT_TYPE_SAPPER)
+        and this.getTypeId() != 'o00P' and not this.isDummy() and not naimGroup.has(this) and not isMidLane(this.getY())
+
+/** Боец уходит с поля (волна кончилась): эффект телепорта и удаление (не смерть — без награды за убийство) */
+public function unit.recallFighter()
+    addEffect("Abilities\\Spells\\Human\\MassTeleport\\MassTeleportCaster.mdl", this.getPos()).destr()
+    this.remove()
+
+/** Монстр прорвался (PvE: вошёл на базу без генератора или в портал; PvEvP: дошёл до портала своей стороны или
+    волна кончилась по времени). PvE — как в Just Fight: к воротам Злого Бога и по средней линии к Богу Войны
+    (левый король); PvEvP — на среднюю линию у короля своей стороны и к нему */
+public function creepBreakthrough(unit u)
+    if isPve()
+        u.setCreepDirection(true)
+        SetUnitPosition(u, RIGHT_GATE_X, GetRandomReal(-300., 850.))
+    else
+        SetUnitPosition(u, u.creepGoesLeft() ? -1600. : 1100., GetRandomReal(-300., 850.))
+    let goesLeft = u.creepGoesLeft()
+    let target = vec2(goesLeft ? LEFT_END_X : RIGHT_END_X, u.getY())
+    if not u.issuePointOrder("attack", target)
+        u.issuePointOrder("move", target)
+
+// ============================================================
+// Союзы
+// ============================================================
+
+/** Союз p и q в обе стороны: passive (не атакуют друг друга), с помощью и общим обзором при full */
+public function setAllied(player p, player q, bool full)
+    for pair = 0 to 1
+        let a = pair == 0 ? p : q
+        let b = pair == 0 ? q : p
+        a.setPlayerAlliance(b, ALLIANCE_PASSIVE, true)
+        a.setPlayerAlliance(b, ALLIANCE_HELP_REQUEST, full)
+        a.setPlayerAlliance(b, ALLIANCE_HELP_RESPONSE, full)
+        a.setPlayerAlliance(b, ALLIANCE_SHARED_XP, full)
+        a.setPlayerAlliance(b, ALLIANCE_SHARED_SPELLS, full)
+        a.setPlayerAlliance(b, ALLIANCE_SHARED_VISION, full)
+
+public function setEnemies(player p, player q)
+    for pair = 0 to 1
+        let a = pair == 0 ? p : q
+        let b = pair == 0 ? q : p
+        a.setPlayerAlliance(b, ALLIANCE_PASSIVE, false)
+        a.setPlayerAlliance(b, ALLIANCE_HELP_REQUEST, false)
+        a.setPlayerAlliance(b, ALLIANCE_HELP_RESPONSE, false)
+        a.setPlayerAlliance(b, ALLIANCE_SHARED_XP, false)
+        a.setPlayerAlliance(b, ALLIANCE_SHARED_SPELLS, false)
+        a.setPlayerAlliance(b, ALLIANCE_SHARED_VISION, false)
+
+/** Название таблицы по режиму (таблица может быть ещё не создана — тогда её заголовок возьмёт modeString) */
+public function updateBoardTitle()
+    modeString = modeTitle()
+    if udg_Board != null
+        udg_Board.setTitle("The War Reborn " + modeString)

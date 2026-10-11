@@ -1,0 +1,144 @@
+package UnitsPveVoid
+import AbilityObjEditing
+import ItemObjEditing
+
+/*
+    Бесконечный режим PvE — «Хаотическая Пустота» Just Fight 5.6 (h0E4 и его способности A0NX…A0O4, A0O0):
+    у каждого игрока пульт 'hPCV' с маной «Хаотической Пустоты» (до 8000) и предметом очков 'IPCV'.
+    - Сложность монстров (APV1-APV4, ур. 0-3): Тирания, Хаос-ген, Прочный панцирь, Турбулентность Пустоты —
+      новые монстры игрока с шансом 20% получают свойство; за убийство такого — мана и очки.
+    - Вызов вожака (APV5, 7 вожаков 'nPL1'-'nPL7' по очереди): появится в начале следующего раунда.
+    - Обмен маны (APV6 / APV7): 700 маны -> 300 золота / 100 дерева.
+    - Технологии Пустоты A-D (APV8-APVB, ур. 0-8, 300 золота и 100 дерева): новым бойцам игрока с шансом 10%
+      урон / скорость атаки / здоровье / броня; пары технологий от 5-го уровня — особые свойства.
+    Сами эффекты — пакет ChaoticVoid. */
+
+/** Кнопка пульта: мгновенный канал (уникальный приказ на пульте), подсказка по уровню — tip(уровень - 1) */
+function voidButton(int id, string order, string icon, int x, int y, int levels, string name, string description, int manaCost, real cooldown)
+	let a = new AbilityDefinitionIllidanChannel(id)
+		..setLevels(levels)
+		..setName(name)
+		..setIconNormal("ReplaceableTextures\\CommandButtons\\" + icon + ".blp")
+		..setButtonPositionNormalX(x)
+		..setButtonPositionNormalY(y)
+		..setArtEffect("")
+		..setArtTarget("")
+		..setArtCaster("")
+		..setEditorSuffix("(PvE Пустота)")
+	for lvl = 1 to levels
+		a..setTooltipNormal(lvl, levels > 1 ? name + " (ур. " + (lvl - 1) + ")" : name)
+			..setTooltipNormalExtended(lvl, description)
+			..setManaCost(lvl, manaCost)
+			..setCooldown(lvl, cooldown)
+			..setTargetType(lvl, 0)
+			..setOptions(lvl, 1)
+			..setFollowThroughTime(lvl, 0.)
+			..setArtDuration(lvl, 0.)
+			..setDisableOtherAbilities(lvl, false)
+			..setBaseOrderID(lvl, order)
+
+@compiletime function create_w3a_VoidButtons()
+	let irreversible = "|n|n|cffff8080Действие необратимо — оцените свои силы.|r"
+	voidButton('APV1', "bloodlust", "BTNBloodLustOn", 0, 0, 4, "Тирания",
+		"Повышает уровень Тирании монстров: новые монстры получают её с шансом 20%.|n|n|cffff9900Ур. 1: +10 урона и +30% скорости атаки (7 маны Пустоты за убийство)|nУр. 2: +20 урона и +60% скорости атаки (14 маны)|nУр. 3: +30 урона и +90% скорости атаки (21 маны)|r" + irreversible, 0, 3.)
+	voidButton('APV2', "purge", "BTNPurge", 1, 0, 4, "Хаос-ген",
+		"Повышает уровень Хаос-гена монстров: новые монстры получают его с шансом 20%.|n|n|cffff9900Ур. 1: 10% уклонения, после смерти 500 магического урона убийце (7 маны Пустоты за убийство)|nУр. 2: 20% уклонения, 1000 урона (14 маны)|nУр. 3: 30% уклонения, 1500 урона (21 маны)|r" + irreversible, 0, 3.)
+	voidButton('APV3', "defend", "BTNDefend", 2, 0, 4, "Прочный панцирь",
+		"Повышает уровень Прочного панциря монстров: новые монстры получают его с шансом 20%.|n|n|cffff9900Ур. 1: +300 здоровья и +6 брони (7 маны Пустоты за убийство)|nУр. 2: +600 здоровья и +12 брони (14 маны)|nУр. 3: +900 здоровья и +18 брони (21 маны)|r" + irreversible, 0, 3.)
+	voidButton('APV4', "blink", "BTNBlink", 3, 0, 4, "Турбулентность Пустоты",
+		"Повышает уровень Турбулентности монстров: новые монстры получают её с шансом 20%.|n|n|cffff9900Ур. 1: атакованный бойцом дальнего боя монстр переносится к нему (один раз) и получает 15% шанс утроенного удара (7 маны Пустоты за убийство)|nУр. 2: 30% шанс (14 маны)|nУр. 3: 45% шанс (21 маны)|r" + irreversible, 0, 3.)
+	voidButton('APV5', "roar", "BTNHeroMountainKing", 0, 1, 7, "Вызов вожака",
+		"Вызвать вожака: он появится на вашей линии в начале следующего раунда, за убийство — богатая награда (200 · номер вожака маны и очков Пустоты). Каждый вожак — один раз, по очереди: Отчуждённый Бог, Убийца теней, Демон, Владыка Ада, Древняя Медуза, Гоблинская броня, Повелитель Бездны." + irreversible, 0, 300.)
+	voidButton('APV6', "rejuvination", "BTNChestOfGold", 1, 1, 1, "Больше золота", "700 маны Пустоты -> 300 золота.", 700, 0.5)
+	voidButton('APV7', "replenish", "BTNBundleOfLumber", 2, 1, 1, "Больше дерева", "700 маны Пустоты -> 100 дерева.", 700, 0.5)
+	let techCost = "|cffffff00Цена: 300 золота и 100 дерева|r|n|n"
+	let combos = "|n|n|cffccffccСочетания (обе технологии от 5-го уровня, новым бойцам с шансом 10%):|nA + B — Меткость: дальнему бою 15% шанс двойного урона|nA + C — Кровожадность: ближнему бою 30% вампиризма|nA + D — Псионика: юнитам с маной атака с шансом 20% восполняет ману|nB + C — Твёрдая кожа: ближнему бою 50% шанс снизить урон на 50|nB + D — Святой щит: дальнему бою 20% шанс неуязвимости на 2 с|nC + D — Уклонение: ближнему бою 25% уклонения|r"
+	voidButton('APV8', "slow", "BTNSteelMelee", 0, 2, 9, "Технология Пустоты A", techCost + "Новые бойцы с шансом 10% получают +10% урона за уровень." + combos, 0, 3.)
+	voidButton('APV9', "spiritlink", "BTNGlove", 1, 2, 9, "Технология Пустоты B", techCost + "Новые бойцы с шансом 10% получают +10% скорости атаки за уровень." + combos, 0, 3.)
+	voidButton('APVA', "stoneform", "BTNPeriapt", 2, 2, 9, "Технология Пустоты C", techCost + "Новые бойцы с шансом 10% получают +100 здоровья за уровень." + combos, 0, 3.)
+	voidButton('APVB', "taunt", "BTNHumanArmorUpOne", 3, 2, 9, "Технология Пустоты D", techCost + "Новые бойцы с шансом 10% получают +2 брони за уровень." + combos, 0, 3.)
+
+@compiletime function create_w3u_hPCV()
+	new BuildingDefinition('hPCV', 'hhou')
+	..setName("Хаотическая Пустота")
+	..setTooltipBasic("Хаотическая Пустота")
+	..setTooltipExtended("Пульт бесконечного режима: сложность монстров, вожаки, обмен маны и технологии Пустоты.")
+	..setModelFile("Units\\Creeps\\ForgottenOne\\ForgottenOne.mdl")
+	..setIconGameInterface("ReplaceableTextures\\CommandButtons\\BTNForgottenOne.blp")
+	..setScalingValue(0.5)
+	..setSelectionScale(2.2)
+	..setNormalAbilities("Avul,AInv,APV1,APV2,APV3,APV4,APV5,APV6,APV7,APV8,APV9,APVA,APVB")
+	..setManaMaximum(8000)
+	..setManaInitialAmount(0)
+	..setManaRegeneration(0.)
+	..setUpgradesUsed("")
+	..setGoldCost(0)
+	..setLumberCost(0)
+	..setRepairGoldCost(0)
+	..setRepairLumberCost(0)
+	..setBuildTime(1)
+	..setFoodProduced(0)
+	..setFoodCost(0)
+	..setPathingMap("")
+	..setCollisionSize(0.)
+	..setNameEditorSuffix("(PvE Пустота)")
+
+@compiletime function create_w3t_IPCV()
+	new ItemDefinition('IPCV', 'pghe')
+	..setName("Очки Хаотической Пустоты")
+	..setTooltipBasic("Очки Хаотической Пустоты")
+	..setTooltipExtended("Заряды — ваши очки бесконечного режима: монстры, монстры со свойствами, вожаки и Забытые.")
+	..setDescription("Очки бесконечного режима.")
+	..setInterfaceIcon("ReplaceableTextures\\CommandButtons\\BTNSpellBookBLS.blp")
+	..setAbilities("")
+	..setNumberofCharges(0)
+	..setActivelyUsed(false)
+	..setCanBeDropped(false)
+	..setDroppedWhenCarrierDies(false)
+	..setPerishable(false)
+	..setCanBeSoldToMerchants(false)
+	..setIncludeAsRandomChoice(false)
+	..setGoldCost(0)
+	..setLumberCost(0)
+
+/** Вожак (h0E5…u00X Just Fight: те же числа; их особые способности кастовал бы ИИ — у владельца монстров его нет) */
+function leader(int id, int base, string name, string model, int hp, int armor, int damage, int sides, real cooldown, int range, AttackType attackType)
+	new UnitDefinition(id, base)
+		..setName(name)
+		..setTooltipBasic(name)
+		..setTooltipExtended("")
+		..setModelFile(model)
+		..setNormalAbilities("")
+		..setHitPointsMaximumBase(hp)
+		..setDefenseBase(armor)
+		..setArmorType(ArmorType.Hero)
+		..setAttack1DamageBase(damage)
+		..setAttack1DamageNumberofDice(1)
+		..setAttack1DamageSidesperDie(sides)
+		..setAttack1CooldownTime(cooldown)
+		..setAttack1Range(range)
+		..setAttack1AttackType(attackType)
+		..setAttack1TargetsAllowed("ground,structure,debris,air,item,ward")
+		..setSpeedBase(200)
+		..setAcquisitionRange(900.0)
+		..setSightRadiusNight(1000)
+		..setCanFlee(false)
+		..setUnitClassification("giant")
+		..setScalingValue(1.5)
+		..setManaMaximum(60)
+		..setManaInitialAmount(60)
+		..setGoldCost(0)
+		..setLumberCost(0)
+		..setFoodCost(0)
+		..setBuildTime(1)
+		..setUpgradesUsed("")
+		..setNameEditorSuffix("(PvE вожак)")
+
+@compiletime function create_w3u_Leaders()
+	leader('nPL1', 'hmpr', "Отчуждённый Бог", "units\\human\\HeroMountainKing\\HeroMountainKing.mdl", 5160, 7, 114, 25, 0.9, 225, AttackType.Hero)
+	leader('nPL2', 'oshm', "Отчуждённый Убийца теней", "units\\orc\\HeroShadowHunter\\HeroShadowHunter.mdl", 3868, 8, 188, 22, 1.0, 420, AttackType.Hero)
+	leader('nPL3', 'even', "Отчуждённый Демон", "units\\nightelf\\HeroDemonHunter\\HeroDemonHunter.mdl", 6800, 9, 382, 10, 0.9, 128, AttackType.Chaos)
+	leader('nPL4', 'ugho', "Отчуждённый Владыка Ада", "units\\undead\\HeroDeathKnight\\HeroDeathKnight.mdl", 12000, 10, 426, 11, 1.2, 200, AttackType.Hero)
+	leader('nPL5', 'nnsw', "Отчуждённая Древняя Медуза", "units\\naga\\LadyVashj\\LadyVashj.mdl", 7880, 12, 566, 7, 0.9, 500, AttackType.Hero)
+	leader('nPL6', 'hrtt', "Отчуждённая Гоблинская броня", "Units\\Creeps\\HeroTinker\\HeroTinker.mdl", 16800, 15, 836, 6, 1.6, 180, AttackType.Hero)
+	leader('nPL7', 'ugho', "Отчуждённый Повелитель Бездны", "units\\demon\\Mannoroth\\Mannoroth.mdl", 27700, 20, 1160, 10, 1.5, 200, AttackType.Chaos)

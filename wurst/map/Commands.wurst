@@ -2,6 +2,8 @@ package Commands
 import Initialization
 import MapGlobals
 import ClosureTimers
+import Profile
+import GameMode
 
 /** Админы карты: им доступны -control и -kick */
 function player.isAdmin() returns bool
@@ -17,12 +19,12 @@ function player.coloredName() returns string
     return "|c00" + colorCode[this.getId()] + this.getName() + "|r"
 
 // ============================================================
-// Команда: -up N — отдалить камеру на N (0..1200)
+// Команда: -up N — отдалить камеру на N (0..600, т.е. до 3000: дальше видны плашки ярлыков BaseHeroes)
 // ============================================================
 
 function cmdCamera(player p, string msg)
     let dist = msg.substring(3, 7).toInt()
-    if dist >= 0 and dist <= 1200 and localPlayer == p
+    if dist >= 0 and dist <= 600 and localPlayer == p
         SetCameraField(CAMERA_FIELD_TARGET_DISTANCE, 2400 + dist.toReal(), 2.0)
 
 // ============================================================
@@ -133,6 +135,56 @@ function cmdMyKick(player p, string msg)
     if p.getName() == "Stvel" or p.getName() == "LordofKodoes" or p.getName() == "WorldEdit"
         kickPlayer(msg.substring(6, 7).toInt())
 
+// ============================================================
+// Тест профиля: -xp N, -coins N, -energy N — только в одиночной игре; сразу сохраняет профиль (Profile)
+// ============================================================
+
+function cmdProfileTest(player p, string msg)
+    if not bj_isSinglePlayer
+        DisplayTextToPlayer(p, 0., 0., "Test commands work only in single player")
+        return
+    let space = msg.indexOf(" ")
+    let amount = space > 0 ? msg.substring(space + 1).toInt() : 0
+    if amount <= 0
+        return
+    var what = " coins"
+    if msg.startsWith("-xp")
+        p.addXp(amount)
+        what = " XP"
+    else if msg.startsWith("-energy")
+        p.addEnergy(amount)
+        what = " energy"
+    else
+        p.addCoins(amount)
+    p.saveProfile()
+    DisplayTextToPlayer(p, 0., 0., "Profile: +" + amount + what + ", level " + p.profileLevel() + ", saved")
+
+// ============================================================
+// Тест режимов: -pvelevel N — пройдено уровней PvE (открывает уровни при выборе режима), -round N — следующий раунд
+// будет N (волна N - 1: Терминаторы с 71-го), -next — следующий раунд сразу. Только в одиночной игре
+// ============================================================
+
+function cmdModeTest(player p, string msg)
+    if not bj_isSinglePlayer
+        DisplayTextToPlayer(p, 0., 0., "Test commands work only in single player")
+        return
+    let space = msg.indexOf(" ")
+    let n = space > 0 ? msg.substring(space + 1).toInt() : -1
+    if msg == "-next"
+        if round > 0
+            roundTimer.start(0.1, null)
+        return
+    if n < 0
+        return
+    if msg.startsWith("-pvelevel")
+        p.profile().pveBeaten = min(n, PVE_LEVELS)
+        p.profileChanged()
+        p.saveProfile()
+        DisplayTextToPlayer(p, 0., 0., "PvE levels beaten: " + p.profile().pveBeaten + ", saved")
+    else if n >= 2
+        round = n - 1
+        DisplayTextToPlayer(p, 0., 0., "Next round: " + n)
+
 @noinline
 function onChat()
     let p = GetTriggerPlayer()
@@ -155,6 +207,10 @@ function onChat()
         cmdKickAfk(msg)
     else if msg.substring(0, 5) == "-kick"
         cmdMyKick(p, msg)
+    else if msg.startsWith("-xp ") or msg.startsWith("-coins ") or msg.startsWith("-energy ")
+        cmdProfileTest(p, msg)
+    else if msg.startsWith("-pvelevel ") or msg.startsWith("-round ") or msg == "-next"
+        cmdModeTest(p, msg)
 
 init
     // один чат-триггер на всех: игроки 0-7 и наблюдатели 10-11 (им доступна только камера, см. onChat)

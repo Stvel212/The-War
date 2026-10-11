@@ -1,0 +1,130 @@
+package EnergyUi
+import TableUi
+import Profile
+import Energies
+import BaseShortcuts
+import SkinsUi
+
+/*
+    Окно энергий PvE (открывается кнопкой «Energies» в окне профиля, как окно скинов): монеты, кнопка
+    «Activate» (цена и шанс в подсказке) и 8 энергий — уровень под иконкой, клик повышает уровень за монеты;
+    закрытые затемнены. Окно строится при первом открытии (клик синхронный) и обновляется по onProfileChange. */
+
+constant PAD = 0.014
+constant ICON = 0.04
+constant GAP = 0.006
+constant TOOLTIP_WIDTH = 0.24
+
+bool array built
+bool array windowOpen
+BackHandler array backTo
+framehandle array windows
+framehandle array energyText
+framehandle array infoText
+framehandle array activateButton
+/** Слот особого здания (супер-юнита) в PvE за энергию — Energies.buySuperSlot */
+framehandle array superButton
+/** [pid * ENERGY_KINDS + вид] */
+framehandle array levelText
+framehandle array energyButton
+framehandle array lockScrim
+
+function energyTip(player p, int kind) returns string
+    let level = p.energyLevel(kind)
+    var s = "|cff00ffff" + energyName(kind) + "|r energy"
+    if level == 0
+        return s + " |cffc0c0c0(not active)|r|nNext: " + energyEffect(kind, 1) + "|n|cffc0c0c0Use Activate to unlock a random energy|r"
+    s += " - level |cffffcc00" + level + "|r/" + ENERGY_MAX_LEVEL + "|nCurrent: " + energyEffect(kind, level)
+    if level < ENERGY_MAX_LEVEL
+        s += "|nNext: " + energyEffect(kind, level + 1) + "|nClick to level up: |cffffcc00" + energyLevelCost(level) + "|r energy"
+    return s + "|n|cffc0c0c0Works only in PvE mode|r"
+
+function activateTip(player p) returns string
+    let active = p.activeEnergies()
+    if active >= ENERGY_KINDS
+        return "All energies are active"
+    return "Activate a random new energy|nCost: |cffffcc00" + p.energyActivateCost() + "|r energy, chance: |cffffcc00"
+        + energyActivateChance(active) + "%|r|n|cffc0c0c0Energy is spent even if no new energy responds. Each beaten PvE level makes activation cheaper.|r"
+
+/** Подсказка кнопки слота супер-юнита */
+function superTip(player p) returns string
+    let have = p.superSlots()
+    var s = "Super unit slots: |cffffcc00" + have + "/" + SUPER_SLOTS_MAX + "|r|nEach slot lets you build one more special building"
+        + " (super unit) in PvE, in every game."
+    if have < SUPER_SLOTS_MAX
+        s += "|nCost: |cff00ffff" + SUPER_SLOT_COST + "|r energy"
+    return s
+
+function refresh(player p)
+    let pid = p.getId()
+    if not built[pid]
+        return
+    energyText[pid].setText("Energy: |cff00ffff" + p.profile().energy + "|r")
+    infoText[pid].setText("Active: " + p.activeEnergies() + "/" + ENERGY_KINDS)
+    superButton[pid].cornerTooltip(superTip(p), TOOLTIP_WIDTH)
+    activateButton[pid].cornerTooltip(activateTip(p), TOOLTIP_WIDTH)
+    for k = 0 to ENERGY_KINDS - 1
+        let level = p.energyLevel(k)
+        levelText[pid * ENERGY_KINDS + k].setText(level > 0 ? "|cffffcc00" + level + "|r" : "|cff808080-|r")
+        energyButton[pid * ENERGY_KINDS + k].cornerTooltip(energyTip(p, k), TOOLTIP_WIDTH)
+        lockScrim[pid * ENERGY_KINDS + k]
+            ..setVisible(level == 0)
+            ..cornerTooltip(energyTip(p, k), TOOLTIP_WIDTH)
+
+function buildWindow(player owner, framehandle parent) returns framehandle
+    let pid = owner.getId()
+    let w = 2. * PAD + ENERGY_KINDS * ICON + (ENERGY_KINDS - 1) * GAP
+    let h = PAD + 0.026 + GAP + 0.028 + GAP + ICON + 0.018 + 0.016 + PAD
+    let window = panel(parent, w, h)
+        ..clearAllPoints()
+        ..setAbsPoint(FRAMEPOINT_CENTER, vec2(0.4, 0.35))
+    let title = h3(window, "PvE Energies")
+        ..setPoint(FRAMEPOINT_TOPLEFT, window, FRAMEPOINT_TOPLEFT, PAD, -PAD)
+    energyText[pid] = p(window, "")
+        ..setPoint(FRAMEPOINT_LEFT, title, FRAMEPOINT_RIGHT, 0.02, 0.)
+    let close = textButton(window, "X", 0.022, 0.022)
+        ..setPoint(FRAMEPOINT_TOPRIGHT, window, FRAMEPOINT_TOPRIGHT, -0.006, -0.006)
+    close.onClick() ->
+        windowOpen[pid] = false
+        windows[pid].hide()
+    let back = textButton(window, "Back", 0.06, 0.022)
+        ..setPoint(FRAMEPOINT_TOPRIGHT, close, FRAMEPOINT_TOPLEFT, -0.006, 0.)
+    back.onClick() ->
+        windowOpen[pid] = false
+        windows[pid].hide()
+        backTo[pid].run()
+    activateButton[pid] = textButton(window, "Activate", 0.09, 0.028)
+        ..setPoint(FRAMEPOINT_TOPLEFT, title, FRAMEPOINT_BOTTOMLEFT, 0., -GAP)
+    activateButton[pid].onClick(() -> owner.activateEnergy())
+    infoText[pid] = p(window, "")
+        ..setPoint(FRAMEPOINT_LEFT, activateButton[pid], FRAMEPOINT_RIGHT, 0.01, 0.)
+    superButton[pid] = textButton(window, "Super units +1", 0.11, 0.028)
+        ..setPoint(FRAMEPOINT_TOPRIGHT, window, FRAMEPOINT_TOPRIGHT, -PAD, -(PAD + 0.026 + GAP))
+    superButton[pid].onClick(() -> owner.buySuperSlot())
+    for k = 0 to ENERGY_KINDS - 1
+        let kind = k
+        let b = iconButton(window, energyIcon(k), ICON)
+            ..setPoint(FRAMEPOINT_TOPLEFT, activateButton[pid], FRAMEPOINT_BOTTOMLEFT, k * (ICON + GAP), -GAP)
+        b.onClick(() -> owner.levelUpEnergy(kind))
+        energyButton[pid * ENERGY_KINDS + k] = b
+        levelText[pid * ENERGY_KINDS + k] = p(window, "")
+            ..setPoint(FRAMEPOINT_TOP, b, FRAMEPOINT_BOTTOM, 0., -0.002)
+        // не активна: затемнена, клик глотается
+        lockScrim[pid * ENERGY_KINDS + k] = disabledOverlay(b)
+    p(window, "|cffc0c0c0Energies work only in PvE. Energy comes from games, PvP wins (God's Blessing), held PvE waves and bosses.|r")
+        ..setPoint(FRAMEPOINT_BOTTOMLEFT, window, FRAMEPOINT_BOTTOMLEFT, PAD, PAD)
+    return window
+
+/** Открыть/закрыть окно энергий игрока p (клик — синхронный); back — что открыть по «Back» */
+public function toggleEnergyWindow(player p, framehandle parent, BackHandler back)
+    let pid = p.getId()
+    backTo[pid] = back
+    if not built[pid]
+        windows[pid] = buildWindow(p, parent)..hide()
+        built[pid] = true
+        refresh(p)
+    windowOpen[pid] = not windowOpen[pid]
+    windows[pid].setVisible(windowOpen[pid])
+
+init
+    onProfileChange(p -> refresh(p))

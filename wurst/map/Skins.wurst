@@ -1,0 +1,293 @@
+package Skins
+import OnUnitEnterLeave
+import HashMap
+import ClosureTimers
+import ClosureForGroups
+import StringUtils
+import MapGlobals
+import Profile
+
+/*
+    Скины за монеты профиля (по образцу Direct Strike: Progression/Profiles/Skins): строитель, главное здание,
+    Артас базы и герои из бараков (обычным юнитам — нет). Скин — только внешний вид: BlzSetUnitSkin(u, источник)
+    берёт модель (и звуки) у другого типа юнита, сам тип и характеристики не меняются. Источники — стандартные
+    герои и здания игры, поэтому импорт не нужен.
+    Группа (family) — к чему скин относится: 0 строитель (builders[a]), 1 главное здание (baza[a]), 2 Артас
+    (arthas[a]), дальше — герои бараков по типам (у героя обычно два типа: тир 8 и 9).
+    Покупка и надевание — синхронные клики (окно SkinsUi), состояние — в профиле (skinsOwned / skinsEquipped)
+    и сохраняется сразу. Новые скины и группы добавлять только в конец: индексы лежат в сохранениях. */
+
+public constant FAMILY_BUILDER = 0
+public constant FAMILY_BASE = 1
+public constant FAMILY_ARTHAS = 2
+public constant MAX_SKINS = 128
+
+// ---- каталог ----
+
+public int familyCount = 0
+public string array familyName
+/** Иконка группы — тип, чей значок показывать */
+public int array familyIcon
+int array familyTypeA
+int array familyTypeB
+
+public int skinCount = 0
+public int array skinFamily
+public int array skinSource
+public string array skinName
+public int array skinCost
+
+/** Тип юнита → группа (герои бараков) */
+constant familyOfType = new HashMap<int, int>()
+
+function family(string name, int iconType, int typeA, int typeB) returns int
+    let f = familyCount
+    familyName[f] = name
+    familyIcon[f] = iconType
+    familyTypeA[f] = typeA
+    familyTypeB[f] = typeB
+    if typeA != 0
+        familyOfType.put(typeA, f)
+    if typeB != 0
+        familyOfType.put(typeB, f)
+    familyCount++
+    return f
+
+function skin(int f, int source, string name, int cost)
+    skinFamily[skinCount] = f
+    skinSource[skinCount] = source
+    skinName[skinCount] = name
+    skinCost[skinCount] = cost
+    skinCount++
+
+// ---- состояние игрока (из профиля) ----
+
+/** Скины игрока уже разобраны из профиля (после его загрузки) */
+bool array parsed
+bool array owned
+/** Надетый скин группы: [pid * familyCount + f], -1 — свой вид */
+int array equipped
+
+public function player.ownsSkin(int s) returns bool
+    return owned[this.getId() * MAX_SKINS + s]
+
+public function player.equippedSkin(int f) returns int
+    return equipped[this.getId() * familyCount + f]
+
+/** Разобрать skinsOwned ("3,5,") и skinsEquipped ("1:7,4:12,") профиля игрока */
+function readProfile(player p)
+    let pid = p.getId()
+    for s = 0 to MAX_SKINS - 1
+        owned[pid * MAX_SKINS + s] = false
+    for f = 0 to familyCount - 1
+        equipped[pid * familyCount + f] = -1
+    for part in p.profile().skinsOwned.split(",")
+        let s = part.toInt()
+        if part != "" and s >= 0 and s < skinCount
+            owned[pid * MAX_SKINS + s] = true
+    for part in p.profile().skinsEquipped.split(",")
+        let colon = part.indexOf(":")
+        if colon > 0
+            let f = part.substring(0, colon).toInt()
+            let s = part.substring(colon + 1).toInt()
+            if f >= 0 and f < familyCount and s >= 0 and s < skinCount and skinFamily[s] == f and owned[pid * MAX_SKINS + s]
+                equipped[pid * familyCount + f] = s
+
+/** Записать состояние скинов игрока обратно в профиль */
+function writeProfile(player p)
+    let pid = p.getId()
+    var ownedList = ""
+    for s = 0 to skinCount - 1
+        if owned[pid * MAX_SKINS + s]
+            ownedList += s + ","
+    var equippedList = ""
+    for f = 0 to familyCount - 1
+        let s = equipped[pid * familyCount + f]
+        if s >= 0
+            equippedList += f + ":" + s + ","
+    p.profile().skinsOwned = ownedList
+    p.profile().skinsEquipped = equippedList
+
+// ---- применение ----
+
+/** Родной масштаб юнита (по handle id), до смены вида */
+constant naturalScale = new HashMap<int, real>()
+/** Масштаб скинов группы; 0 — оставить родной масштаб юнита */
+real array familyScale
+
+function restoreScale(unit u, real scale)
+    BlzSetUnitRealField(u, UNIT_RF_SCALING_VALUE, scale)
+    u.setScale(scale)
+
+/** Вид юнита u группы f игрока pid: надетый скин или свой тип */
+function applyTo(unit u, int pid, int f)
+    if u == null
+        return
+    let s = equipped[pid * familyCount + f]
+    // родной масштаб юнита — запоминается при первой смене вида (до неё он свой): скин приносит масштаб своего
+    // типа, а свой тип может быть сильно увеличен (личный строитель-Пикачу — 3.0)
+    let key = u.getHandleId()
+    if not naturalScale.has(key)
+        naturalScale.put(key, BlzGetUnitRealField(u, UNIT_RF_SCALING_VALUE))
+    let natural = naturalScale.get(key)
+    // скин — масштаб группы (строитель — как обычный герой, база и Артас — как их типы), у героев — свой
+    let scale = s >= 0 and familyScale[f] > 0. ? familyScale[f] : natural
+    u.setSkin(s >= 0 ? skinSource[s] : u.getTypeId())
+    // смена вида применяется не сразу — масштаб ставим и сейчас, и на следующем кадре
+    restoreScale(u, scale)
+    doAfter(0.) ->
+        restoreScale(u, scale)
+
+/** Перекрасить всё, что уже стоит у игрока: строитель, база, Артас и его герои группы f (-1 — все группы) */
+function applyAll(player p, int onlyFamily)
+    let pid = p.getId()
+    // особые строитель, база и Артас по нику важнее скинов профиля
+    let own = not nickSkin[pid]
+    if own and (onlyFamily < 0 or onlyFamily == FAMILY_BUILDER)
+        applyTo(builders[pid], pid, FAMILY_BUILDER)
+    if own and (onlyFamily < 0 or onlyFamily == FAMILY_BASE)
+        applyTo(baza[pid], pid, FAMILY_BASE)
+    if own and (onlyFamily < 0 or onlyFamily == FAMILY_ARTHAS)
+        applyTo(arthas[pid], pid, FAMILY_ARTHAS)
+    if onlyFamily < 0 or onlyFamily > FAMILY_ARTHAS
+        forUnitsOfPlayer(p) u ->
+            let t = u.getTypeId()
+            if familyOfType.has(t) and (onlyFamily < 0 or familyOfType.get(t) == onlyFamily)
+                applyTo(u, pid, familyOfType.get(t))
+
+/** Новый юнит — герой из барака: надеть скин владельца */
+function onUnitEnter()
+    let u = getEnterLeaveUnit()
+    let t = u.getTypeId()
+    if familyOfType.has(t)
+        let pid = u.getOwner().getId()
+        if pid < 8
+            applyTo(u, pid, familyOfType.get(t))
+
+// ---- покупка и надевание (синхронные клики окна) ----
+
+/** Купить скин s за монеты; true — куплен */
+public function player.buySkin(int s) returns bool
+    let pid = this.getId()
+    if pid >= 8 or not profileReady[pid] or owned[pid * MAX_SKINS + s]
+        return false
+    if not this.spendCoins(skinCost[s])
+        DisplayTextToPlayer(this, 0., 0., "|cffff4040Not enough coins|r (" + skinCost[s] + " needed)")
+        return false
+    owned[pid * MAX_SKINS + s] = true
+    DisplayTextToPlayer(this, 0., 0., "Skin unlocked: |cffffcc00" + skinName[s] + "|r")
+    this.equipSkin(s)
+    return true
+
+/** Надеть скин s (купленный) или снять скин группы f, если s < 0 */
+public function player.equipSkin(int s)
+    this.equipSkin(s >= 0 ? skinFamily[s] : -1, s)
+
+public function player.equipSkin(int f, int s)
+    let pid = this.getId()
+    if pid >= 8 or f < 0 or (s >= 0 and not owned[pid * MAX_SKINS + s])
+        return
+    equipped[pid * familyCount + f] = s
+    writeProfile(this)
+    applyAll(this, f)
+    this.profileChanged()
+    this.saveProfile()
+
+init
+    // группы: строитель, база, Артас — по ссылкам игрока; герои бараков — по типам (тир 8 и 9)
+    family("Builder", 'H01Y', 0, 0)
+    family("Main Building", 'h000', 0, 0)
+    family("Arthas", 'h02T', 0, 0)
+    familyScale[FAMILY_BUILDER] = 1.0
+    familyScale[FAMILY_BASE] = 0.6
+    familyScale[FAMILY_ARTHAS] = 0.5
+    let thrall = family("Thrall", 'h019', 'h018', 'h019')
+    let jaina = family("Jaina", 'h01A', 'h01A', 'h01B')
+    let cenarius = family("Cenarius", 'h01C', 'h01C', 'h01D')
+    let blademaster = family("Blademaster", 'n000', 'n000', 'n001')
+    let rexxar = family("Rexxar", 'n002', 'n002', 'n003')
+    let shadowHunter = family("Shadow Hunter", 'o000', 'o000', 'o001')
+    let deathKnight = family("Death Knight", 'u000', 'u000', 'u001')
+    let pitLord = family("Pit Lord", 'u002', 'u002', 'u003')
+    let illidan = family("Illidan", 'e001', 'e001', 0)
+    let vashj = family("Lady Vashj", 'n006', 'n006', 'n007')
+    let tinker = family("Tinker", 'h02D', 'h02D', 'h02E')
+    let anubarak = family("Anub'arak", 'n008', 'n008', 'n009')
+    let mountainKing = family("Mountain King", 'h02J', 'h02J', 'h02K')
+    let kael = family("Kael'thas", 'h02L', 'h02L', 'h02M')
+    let pandaren = family("Pandaren", 'n044', 'n044', 'n045')
+    let sylvanas = family("Sylvanas", 'h09V', 'h09S', 'h09V')
+    let senjin = family("Sen'jin", 'h09I', 'h09E', 'h09I')
+    let elemental = family("Elemental Lord", 'n04S', 'n04R', 'n04S')
+    // скины: (группа, источник вида, название, цена в монетах)
+    skin(FAMILY_BUILDER, 'Hpal', "Paladin", 50)
+    skin(FAMILY_BUILDER, 'Obla', "Blademaster", 50)
+    skin(FAMILY_BUILDER, 'Udea', "Death Knight", 50)
+    skin(FAMILY_BUILDER, 'Edem', "Demon Hunter", 50)
+    skin(FAMILY_BUILDER, 'Hjai', "Jaina", 100)
+    skin(FAMILY_BUILDER, 'Othr', "Thrall", 100)
+    skin(FAMILY_BUILDER, 'Hkal', "Kael'thas", 100)
+    skin(FAMILY_BUILDER, 'Etyr', "Tyrande", 100)
+    skin(FAMILY_BUILDER, 'Eill', "Illidan", 150)
+    skin(FAMILY_BUILDER, 'Hart', "Arthas", 150)
+    skin(FAMILY_BUILDER, 'Nklj', "Kil'jaeden", 300)
+    skin(FAMILY_BUILDER, 'Uwar', "Archimonde", 300)
+    skin(FAMILY_BASE, 'hcas', "Castle", 60)
+    skin(FAMILY_BASE, 'ofrt', "Fortress", 60)
+    skin(FAMILY_BASE, 'unp2', "Black Citadel", 60)
+    skin(FAMILY_BASE, 'etoe', "Tree of Eternity", 60)
+    skin(FAMILY_ARTHAS, 'Uear', "Evil Arthas", 80)
+    skin(FAMILY_ARTHAS, 'Huth', "Uther", 80)
+    skin(FAMILY_ARTHAS, 'Hmbr', "Muradin", 80)
+    skin(FAMILY_ARTHAS, 'Ogrh', "Grom Hellscream", 80)
+    skin(thrall, 'Ofar', "Far Seer", 30)
+    skin(thrall, 'Odrt', "Drek'Thar", 60)
+    skin(jaina, 'Hamg', "Archmage", 30)
+    skin(jaina, 'Hant', "Antonidas", 60)
+    skin(jaina, 'Hgam', "Ghostly Archmage", 60)
+    skin(cenarius, 'Ekee', "Keeper of the Grove", 30)
+    skin(cenarius, 'Efur', "Furion", 60)
+    skin(cenarius, 'Emfr', "Malfurion", 60)
+    skin(blademaster, 'Obla', "Blademaster", 30)
+    skin(blademaster, 'Osam', "Samuro", 60)
+    skin(blademaster, 'Ogrh', "Grom Hellscream", 60)
+    skin(rexxar, 'Nbst', "Beastmaster", 30)
+    skin(shadowHunter, 'Orkn', "Rokhan", 60)
+    skin(deathKnight, 'Uear', "Evil Arthas", 60)
+    skin(deathKnight, 'Hart', "Paladin Arthas", 60)
+    skin(pitLord, 'Npld', "Old Pit Lord", 30)
+    skin(pitLord, 'Nman', "Mannoroth", 60)
+    skin(pitLord, 'Nmag', "Magtheridon", 90)
+    skin(illidan, 'Eill', "Illidan", 60)
+    skin(illidan, 'Eevi', "Evil Illidan", 60)
+    skin(illidan, 'Eevm', "Illidan Demon Form", 90)
+    skin(vashj, 'Nngs', "Sea Witch", 30)
+    skin(tinker, 'Nrob', "Robo-Goblin", 60)
+    skin(tinker, 'Nalc', "Alchemist", 30)
+    skin(anubarak, 'Uanb', "Anub'arak", 60)
+    skin(mountainKing, 'Hmbr', "Muradin", 60)
+    skin(kael, 'Hkal', "Kael'thas", 60)
+    skin(pandaren, 'Nsjs', "Sin'jo Stormstout", 60)
+    skin(sylvanas, 'Usyl', "Dark Sylvanas", 60)
+    skin(sylvanas, 'Hvwd', "Sylvanas", 60)
+    skin(senjin, 'Oshd', "Shadow Hunter", 30)
+    skin(senjin, 'Orkn', "Rokhan", 60)
+    skin(elemental, 'Nfir', "Firelord", 60)
+    // формы «Mini War God Assistant» Just Fight (h0B2…h0DR): у каждой своя прибавка Артасу — ArthasJf. Цены — от
+    // дохода (за игру 1 монета в минуту до 60 + 30 за победу) и силы прибавки: только вид — как обычный скин Артаса (80),
+    // небольшая прибавка всегда — 120, сильная в PvE — 180, урон ×2 в PvE — 300
+    skin(FAMILY_ARTHAS, 'hAF1', "Mini Storm War God", 120)
+    skin(FAMILY_ARTHAS, 'hAF2', "Mini War God of Earth", 120)
+    skin(FAMILY_ARTHAS, 'hAF3', "Mini Fire War God", 120)
+    skin(FAMILY_ARTHAS, 'Eevi', "Mini Lil'idan (Evil God)", 300)
+    skin(FAMILY_ARTHAS, 'Obla', "Juggernaut War God Assistant", 80)
+    skin(FAMILY_ARTHAS, 'Hvwd', "Windrunner", 180)
+    skin(FAMILY_ARTHAS, 'Nalc', "Alchemist", 180)
+    skin(FAMILY_ARTHAS, 'Nbrn', "Dark Ranger", 180)
+    onEnter(function onUnitEnter)
+    // профиль загружен — разобрать скины и надеть на то, что уже стоит
+    onProfileChange() p ->
+        if profileReady[p.getId()] and not parsed[p.getId()]
+            parsed[p.getId()] = true
+            readProfile(p)
+            applyAll(p, -1)

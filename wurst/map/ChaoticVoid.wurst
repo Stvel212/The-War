@@ -1,0 +1,421 @@
+package ChaoticVoid
+import GameMode
+import CreepWaves
+import Initialization
+import ClosureTimers
+import ClosureEvents
+import UnitEvents
+import DamageEvent
+import OnUnitEnterLeave
+import HashMap
+import GameTimer
+
+/*
+    «Хаотическая Пустота» — бесконечный режим PvE Just Fight 5.6 (S2): у каждого игрока пульт 'hPCV' (h0E4) с маной
+    Пустоты и предметом очков 'IPCV' (I02Q). Объекты — UnitsPveVoid.
+    - Свойства монстров (A0NX/A0NU/A0NW/A0NV, ур. 0-3): новый монстр против игрока с шансом 20% получает свойство
+      его уровня: Тирания (+10/20/30 урона, +30/60/90% скорости атаки), Хаос-ген (10/20/30% уклонения, после
+      смерти 500/1000/1500 урона убийце), Прочный панцирь (+300/600/900 здоровья, +6/12/18 брони), Турбулентность
+      (атакованный дальним бойцом — один раз переносится к нему, 15/30/45% шанс утроенного удара). Цвет — по сумме.
+    - Убийство монстра (не на средней линии, не призванного) — очки по его «еде»; со свойствами — ещё мана и очки
+      7 · сумма уровней; вожак N — 200 · N маны и очков. Забытые — очки всем (Pve: 25/50/100).
+    - Вожаки (A0O0): вызванный появляется через 3 с после начала следующего раунда у портала игрока.
+    - Обмен (A0NY/A0NZ): 700 маны -> 300 золота / 100 дерева. Технологии A-D (A0O1-A0O4, ур. 0-8, 300 золота и
+      100 дерева): новым бойцам игрока с шансом 10% — +10%·ур. урона / +10%·ур. скорости атаки / +100·ур. здоровья /
+      +2·ур. брони; пары от 5-го уровня — особые свойства (шанс 10%): A+B Меткость, A+C Кровожадность, A+D Псионика,
+      B+C Твёрдая кожа, B+D Святой щит, C+D Уклонение. */
+
+constant CONTROLLER = 'hPCV'
+constant SCORE_ITEM = 'IPCV'
+constant LEADER_BUTTON = 'APV5'
+constant GOLD_BUTTON = 'APV6'
+constant LUMBER_BUTTON = 'APV7'
+/** Свойства монстров: Тирания, Хаос-ген, Прочный панцирь, Турбулентность */
+constant affixButtons = ['APV1', 'APV2', 'APV3', 'APV4']
+constant affixNames = ["Tyranny", "Chaotic Gene", "Tough Shell", "Void Turbulence"]
+constant TYRANNY = 0
+constant GENE = 1
+constant SHELL = 2
+constant TURBULENCE = 3
+constant AFFIX_MAX = 3
+constant AFFIX_CHANCE = 20
+/** Технологии A-D */
+constant techButtons = ['APV8', 'APV9', 'APVA', 'APVB']
+constant techNames = ["Type A Technology", "Type B Technology", "Type C Technology", "Type D Technology"]
+constant TECH_MAX = 8
+constant TECH_CHANCE = 10
+constant TECH_GOLD = 300
+constant TECH_LUMBER = 100
+constant COMBO_LEVEL = 5
+/** Особые свойства бойцов (биты): Меткость, Кровожадность, Псионика, Твёрдая кожа, Святой щит, Уклонение */
+constant ACCURATE = 1
+constant BLOODTHIRSTY = 2
+constant PSYCHIC = 4
+constant HARDENED = 8
+constant HOLY_SHIELD = 16
+constant EVASION = 32
+constant HOLY_SHIELD_COOLDOWN = 10.
+constant leaders = ['nPL1', 'nPL2', 'nPL3', 'nPL4', 'nPL5', 'nPL6', 'nPL7']
+constant LEADERS = 7
+constant EXCHANGE_GOLD = 300
+constant EXCHANGE_LUMBER = 100
+
+var active = false
+unit array controllers
+int array score
+/** Вожак, вызванный на следующий раунд (1..7), 0 — нет */
+int array pendingLeader
+/** Свойства монстра: [handle id] -> уровни 4 свойств по 2 бита; ключ — handle id */
+constant affixes = new HashMap<int, int>()
+/** Турбулентность уже сработала */
+constant turbulenceUsed = new HashMap<int, bool>()
+/** Особые свойства бойцов игроков: [handle id] -> биты */
+constant combos = new HashMap<int, int>()
+constant holyShieldReady = new HashMap<int, real>()
+
+public function isVoidActive() returns bool
+    return active
+
+function printAll(string msg, real duration)
+    if bj_FORCE_ALL_PLAYERS.containsPlayer(localPlayer)
+        localPlayer.print(msg, duration)
+
+// ============================================================
+// Очки и мана
+// ============================================================
+
+public function player.voidScore() returns int
+    return score[this.getId()]
+
+/** Сумма очков всех игроков (для таблицы) */
+public function voidScoreTotal() returns int
+    var sum = 0
+    for pid = 0 to 7
+        sum += score[pid]
+    return sum
+
+function showScore(int pid)
+    let c = controllers[pid]
+    if c != null
+        c.getItemById(SCORE_ITEM)?.setCharges(score[pid])
+
+public function addVoidScore(int pid, int points)
+    if not active or pid < 0 or pid >= 8 or controllers[pid] == null
+        return
+    score[pid] += points
+    showScore(pid)
+
+/** Очки всем игрокам с пультом (Забытые) */
+public function addVoidScoreAll(int points)
+    for pid = 0 to 7
+        addVoidScore(pid, points)
+
+function addVoidMana(int pid, int amount)
+    let c = controllers[pid]
+    if c != null
+        c.setMana(c.getMana() + amount)
+
+// ============================================================
+// Старт
+// ============================================================
+
+/** Пульты игроков — у генератора, ближе к базе */
+public function startChaoticVoid()
+    active = true
+    for pid = 0 to 7
+        if isInGame(players[pid])
+            let left = pid < 4
+            let x = left ? GENERATOR_LEFT_X - 220. : GENERATOR_RIGHT_X + 220.
+            let c = CreateUnit(players[pid], CONTROLLER, x, laneY(pid mod 4) + 220., 270.)
+            c.addItemById(SCORE_ITEM)
+            controllers[pid] = c
+            showScore(pid)
+    printAll("|cffccffffChaotic Void:|r select your |cffccffffChaotic Void|r near the Energy Generator: raise the monsters' difficulty for Void MP and points, challenge leaders, exchange MP and research Void Technologies.", 20.)
+
+// ============================================================
+// Свойства монстров
+// ============================================================
+
+function affixLevel(unit u, int kind) returns int
+    let id = u.getHandleId()
+    if not affixes.has(id)
+        return 0
+    var packed = affixes.get(id)
+    for i = 1 to kind
+        packed = packed div 4
+    return packed mod 4
+
+function affixTotal(unit u) returns int
+    var sum = 0
+    for k = 0 to 3
+        sum += affixLevel(u, k)
+    return sum
+
+function playerAffix(int pid, int kind) returns int
+    let c = controllers[pid]
+    return c == null ? 0 : max(0, c.getAbilityLevel(affixButtons[kind]) - 1)
+
+/** Новый монстр против игрока pid: свойства его уровня с шансом 20% каждое */
+@noinline
+function onCreepSpawned(unit u, int pid)
+    if not active or pid < 0 or pid >= 8
+        return
+    var packed = 0
+    var factor = 1
+    for k = 0 to 3
+        let lvl = playerAffix(pid, k)
+        if lvl > 0 and GetRandomInt(1, 100) <= AFFIX_CHANCE
+            packed += lvl * factor
+            if k == TYRANNY
+                u.setBaseDamage(u.getBaseDamage(0) + 10 * lvl, 0)
+                let cd = u.getAttackCooldown(0)
+                if cd > 0.
+                    u.setAttackCooldown(cd / (1. + 0.3 * lvl), 0)
+            else if k == SHELL
+                u.setMaxHP(u.getMaxHP().toInt() + 300 * lvl)
+                u.setHP(u.getMaxHP())
+                u.setArmor(u.getArmor() + 6 * lvl)
+        factor *= 4
+    if packed > 0
+        affixes.put(u.getHandleId(), packed)
+        let total = affixTotal(u)
+        if total <= 2
+            u.setVertexColor(0, 255, 0, 255)
+        else if total <= 5
+            u.setVertexColor(255, 160, 0, 255)
+        else
+            u.setVertexColor(255, 0, 0, 255)
+
+// ============================================================
+// Технологии Пустоты: новые бойцы игроков
+// ============================================================
+
+function techLevel(int pid, int kind) returns int
+    let c = controllers[pid]
+    return c == null ? 0 : max(0, c.getAbilityLevel(techButtons[kind]) - 1)
+
+function chance(int percent) returns bool
+    return GetRandomInt(1, 100) <= percent
+
+@noinline
+function onPlayerUnitEnter()
+    if not active
+        return
+    let u = getEnterLeaveUnit()
+    let pid = u.getOwner().getId()
+    if pid >= 8 or controllers[pid] == null or u.isType(UNIT_TYPE_STRUCTURE) or u.isType(UNIT_TYPE_HERO) or u.isType(UNIT_TYPE_PEON)
+        return
+    let a = techLevel(pid, 0)
+    let b = techLevel(pid, 1)
+    let c = techLevel(pid, 2)
+    let d = techLevel(pid, 3)
+    if a > 0 and chance(TECH_CHANCE)
+        u.setBaseDamage((u.getBaseDamage(0) * (1. + 0.1 * a)).toInt(), 0)
+    if b > 0 and chance(TECH_CHANCE)
+        let cd = u.getAttackCooldown(0)
+        if cd > 0.
+            u.setAttackCooldown(cd / (1. + 0.1 * b), 0)
+    if c > 0 and chance(TECH_CHANCE)
+        u.setMaxHP(u.getMaxHP().toInt() + 100 * c)
+        u.setHP(u.getHP() + 100 * c)
+    if d > 0 and chance(TECH_CHANCE)
+        u.setArmor(u.getArmor() + 2 * d)
+    let ranged = u.isType(UNIT_TYPE_RANGED_ATTACKER)
+    let melee = u.isType(UNIT_TYPE_MELEE_ATTACKER)
+    var bits = 0
+    if a >= COMBO_LEVEL and b >= COMBO_LEVEL and ranged and chance(TECH_CHANCE)
+        bits += ACCURATE
+    if a >= COMBO_LEVEL and c >= COMBO_LEVEL and melee and chance(TECH_CHANCE)
+        bits += BLOODTHIRSTY
+    if a >= COMBO_LEVEL and d >= COMBO_LEVEL and u.getMaxMana() > 0. and chance(TECH_CHANCE)
+        bits += PSYCHIC
+    if b >= COMBO_LEVEL and c >= COMBO_LEVEL and melee and chance(TECH_CHANCE)
+        bits += HARDENED
+    if b >= COMBO_LEVEL and d >= COMBO_LEVEL and ranged and chance(TECH_CHANCE)
+        bits += HOLY_SHIELD
+    if c >= COMBO_LEVEL and d >= COMBO_LEVEL and melee and chance(TECH_CHANCE)
+        bits += EVASION
+    if bits > 0
+        combos.put(u.getHandleId(), bits)
+
+function hasCombo(unit u, int bit) returns bool
+    let id = u.getHandleId()
+    return combos.has(id) and (combos.get(id) div bit) mod 2 == 1
+
+// ============================================================
+// Урон: свойства монстров и особые свойства бойцов
+// ============================================================
+
+@noinline
+function onDamage()
+    if not active
+        return
+    let source = DamageEvent.getSource()
+    let target = DamageEvent.getTarget()
+    if source == null or target == null
+        return
+    let attack = DamageEvent.getType() == DamageType.ATTACK
+    var amount = DamageEvent.getAmount()
+    // монстр бьёт
+    if source.isCreep()
+        let turb = affixLevel(source, TURBULENCE)
+        if attack and turb > 0 and chance(15 * turb)
+            amount *= 3.
+    // по монстру
+    if target.isCreep()
+        let gene = affixLevel(target, GENE)
+        if attack and gene > 0 and chance(10 * gene)
+            amount = 0.
+        let turb = affixLevel(target, TURBULENCE)
+        let tid = target.getHandleId()
+        if attack and turb > 0 and not turbulenceUsed.has(tid) and source.isType(UNIT_TYPE_RANGED_ATTACKER) and source.getOwner().getId() < 8
+            turbulenceUsed.put(tid, true)
+            addEffect("Abilities\\Spells\\NightElf\\Blink\\BlinkCaster.mdl", target.getPos()).destr()
+            target.setPos(source.getPos())
+            addEffect("Abilities\\Spells\\NightElf\\Blink\\BlinkCaster.mdl", target.getPos()).destr()
+            target.issueTargetOrder("attack", source)
+    // боец игрока бьёт
+    if attack and source.getOwner().getId() < 8
+        if hasCombo(source, ACCURATE) and chance(15)
+            amount *= 2.
+        if hasCombo(source, BLOODTHIRSTY)
+            source.setHP(source.getHP() + amount * 0.3)
+        if hasCombo(source, PSYCHIC) and chance(20)
+            source.setMana(source.getMaxMana())
+    // по бойцу игрока
+    if target.getOwner().getId() < 8
+        if attack and hasCombo(target, EVASION) and chance(25)
+            amount = 0.
+        if hasCombo(target, HARDENED) and chance(50)
+            amount = max(0., amount - 50.)
+        let id = target.getHandleId()
+        if hasCombo(target, HOLY_SHIELD) and chance(20) and (not holyShieldReady.has(id) or getElapsedGameTime() >= holyShieldReady.get(id))
+            holyShieldReady.put(id, getElapsedGameTime() + HOLY_SHIELD_COOLDOWN)
+            target.setInvulnerable(true)
+            addEffect("Abilities\\Spells\\Human\\DivineShield\\DivineShieldTarget.mdl", target, "origin").destr()
+            doAfter(2.) ->
+                target.setInvulnerable(false)
+    DamageEvent.setAmount(amount)
+
+// ============================================================
+// Смерть: очки, мана, Хаос-ген
+// ============================================================
+
+function leaderIndex(int typeId) returns int
+    for i = 0 to LEADERS - 1
+        if leaders[i] == typeId
+            return i + 1
+    return 0
+
+@noinline
+function onDeath()
+    let d = GetDyingUnit()
+    let id = d.getHandleId()
+    combos.remove(id)
+    holyShieldReady.remove(id)
+    if not active or not d.isCreep()
+        return
+    let killer = GetKillingUnit()
+    let total = affixTotal(d)
+    let gene = affixLevel(d, GENE)
+    affixes.remove(id)
+    turbulenceUsed.remove(id)
+    if killer == null
+        return
+    let pid = killer.getOwner().getId()
+    // Хаос-ген: удар по убийце
+    if gene > 0 and pid < 8
+        addEffect("Abilities\\Spells\\Other\\Incinerate\\FireLordDeathExplode.mdl", d.getPos()).destr()
+        d.damageTarget(killer, 500. * gene, false, false, ATTACK_TYPE_NORMAL, DAMAGE_TYPE_ENHANCED, WEAPON_TYPE_WHOKNOWS)
+    if pid >= 8
+        return
+    if not d.isType(UNIT_TYPE_SUMMONED) and not isMidLane(d.getY())
+        addVoidScore(pid, max(1, unitGold(d, d.getTypeId()) div 2))
+    if total > 0
+        addVoidMana(pid, 7 * total)
+        addVoidScore(pid, 7 * total)
+    let leader = leaderIndex(d.getTypeId())
+    if leader > 0
+        addVoidMana(pid, 200 * leader)
+        addVoidScore(pid, 200 * leader)
+        printAll(players[pid].getName() + " |cffff9900defeated the leader " + d.getName() + ": +" + 200 * leader + " Void MP and points!|r", 15.)
+
+// ============================================================
+// Кнопки пульта
+// ============================================================
+
+function onAffixButton(unit c, int kind)
+    let p = c.getOwner()
+    let lvl = c.getAbilityLevel(affixButtons[kind])
+    if lvl - 1 >= AFFIX_MAX
+        DisplayTextToPlayer(p, 0., 0., "Difficulty has reached the maximum level!")
+        return
+    c.setAbilityLevel(affixButtons[kind], lvl + 1)
+    DisplayTextToPlayer(p, 0., 0., "|cffccffff" + affixNames[kind] + "|r difficulty has been increased to level " + lvl + "!")
+
+function onTechButton(unit c, int kind)
+    let p = c.getOwner()
+    let lvl = c.getAbilityLevel(techButtons[kind])
+    if lvl - 1 >= TECH_MAX
+        DisplayTextToPlayer(p, 0., 0., "Already at maximum level!")
+        return
+    if p.getGold() < TECH_GOLD or p.getLumber() < TECH_LUMBER
+        DisplayTextToPlayer(p, 0., 0., "|cffff4040Not enough gold or lumber!|r (" + TECH_GOLD + " gold, " + TECH_LUMBER + " lumber)")
+        return
+    p.addGold(-TECH_GOLD)
+    p.addLumber(-TECH_LUMBER)
+    c.setAbilityLevel(techButtons[kind], lvl + 1)
+    DisplayTextToPlayer(p, 0., 0., "|cffccffff" + techNames[kind] + "|r upgrade successful! Level " + lvl)
+
+function onLeaderButton(unit c)
+    let p = c.getOwner()
+    let pid = p.getId()
+    let lvl = c.getAbilityLevel(LEADER_BUTTON)
+    pendingLeader[pid] = lvl
+    DisplayTextToPlayer(p, 0., 0., "|cffff9900The next round is about to be a Leader Battle! Please get ready!|r")
+    // следующий вожак — следующим уровнем кнопки; после седьмого кнопки нет
+    doAfter(0.) ->
+        if lvl >= LEADERS
+            c.removeAbility(LEADER_BUTTON)
+        else
+            c.setAbilityLevel(LEADER_BUTTON, lvl + 1)
+
+/** Начало раунда: вызванные вожаки — через 3 с у портала игрока */
+function spawnLeaders()
+    for pid = 0 to 7
+        let lvl = pendingLeader[pid]
+        if lvl > 0
+            pendingLeader[pid] = 0
+            let p = pid
+            doAfter(3.) ->
+                let goesLeft = p < 4
+                let pos = spawnPoint(p mod 4, goesLeft)
+                let u = CreateUnit(players[CREEP_PVE], leaders[lvl - 1], pos.x, pos.y, goesLeft ? 180. : 0.)
+                setupCreep(u, goesLeft, 0)
+                printAll(players[p].getName() + "  |cffff9900Ongoing Boss Challenge: " + u.getName() + "|r", 10.)
+
+init
+    onCreepSpawn() (u, pid) ->
+        onCreepSpawned(u, pid)
+    onEnter(function onPlayerUnitEnter)
+    DamageEvent.addListener() ->
+        onDamage()
+    onAnyDeath() ->
+        onDeath()
+    onRound() r ->
+        if active and r >= 2
+            spawnLeaders()
+    for k = 0 to 3
+        let kind = k
+        EventListener.onCast(affixButtons[k]) (caster) ->
+            onAffixButton(caster, kind)
+        EventListener.onCast(techButtons[k]) (caster) ->
+            onTechButton(caster, kind)
+    EventListener.onCast(LEADER_BUTTON) (caster) ->
+        onLeaderButton(caster)
+    EventListener.onCast(GOLD_BUTTON) (caster) ->
+        caster.getOwner().addGold(EXCHANGE_GOLD)
+        DisplayTextToPlayer(caster.getOwner(), 0., 0., "The exchange was successful! +" + EXCHANGE_GOLD + " gold")
+    EventListener.onCast(LUMBER_BUTTON) (caster) ->
+        caster.getOwner().addLumber(EXCHANGE_LUMBER)
+        DisplayTextToPlayer(caster.getOwner(), 0., 0., "The exchange was successful! +" + EXCHANGE_LUMBER + " lumber")

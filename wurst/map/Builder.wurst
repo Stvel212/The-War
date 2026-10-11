@@ -1,6 +1,7 @@
 package Builder
 import Initialization
 import MapGlobals
+import ArtifactShop
 import ClosureEvents
 import ClosureTimers
 import ClosureForGroups
@@ -90,15 +91,15 @@ function sellUnit(unit u, player p, int gold)
     u.remove()
     addEffect("Abilities\\Spells\\Other\\Transmute\\PileofGold.mdl", u.getPos()).destr()
 
-/** Продать артефакт s игроку p: обратно в магазин команды, золото = жизнь·заряды + userData */
+/** Продать артефакт s игроку p: снова доступен команде в панели артефактов, золото = жизнь·заряды + userData */
 function sellArtifact(item s, player p)
     let id = p.getId()
     let sid = s.getTypeId()
-    if sid == 'I003' or sid == 'I013' or sid == 'I017' or sid == 'I01B' or sid == 'I01C' or sid == 'I008' or sid == 'I01J' or sid == 'I01H' or sid == 'I01E' or sid == 'I01D'
+    if isDamageArtifact(sid)
         itemZapretD[id] -= 1
-    if sid == 'I006' or sid == 'I00E' or sid == 'I00X' or sid == 'I015' or sid == 'I021' or sid == 'I00J' or sid == 'I00S'
+    if isStunArtifact(sid)
         itemZapretS[id] -= 1
-    AddItemToStock(magazin[id < 4 ? 7 : 16], sid, 1, 1)
+    returnArtifact(p, sid)
     let charges = max(1, s.getCharges())
     let gold = (charges * s.getLife()).toInt() + s.getUserData()
     p.setGold(p.getGold() + gold)
@@ -106,6 +107,23 @@ function sellArtifact(item s, player p)
     powerItem[id] -= gold
     s.remove()
 
+/** Продажа строителем ('A005' — юнит-цель, 'A00H' — артефакт) по годной цели */
+function canSell(int ab, unit t, item s) returns bool
+    return ab == 'A005' ? t != null and t.getAbilityLevel('A006') == 2 : s != null and s.getTypeId() != 'I000'
+
+/** Начало заклинания: негодная цель — приказ отменяется до эффекта, перезарядка не начинается */
+@noinline
+function sellCheck()
+    let ab = GetSpellAbilityId()
+    if ab != 'A005' and ab != 'A00H'
+        return
+    let u = GetSpellAbilityUnit()
+    if not canSell(ab, GetSpellTargetUnit(), GetSpellTargetItem())
+        u.issueImmediateOrder("stop")
+        DisplayTextToPlayer(u.getOwner(), 0.0, 0.0, "Impossible!")
+
+/** Эффект заклинания (перезарядка уже пошла — раньше продажа шла на начале каста через 0.4 с, цель исчезала до
+    эффекта, каст срывался и перезарядки не было) */
 @noinline
 function sell()
     let t = GetSpellTargetUnit()
@@ -120,20 +138,11 @@ function sell()
             sellUnit(u, p, u.getMaxHP().toInt())
         else if u.getAbilityLevel('A006') == 2
             sellUnit(u, p, (u.getMaxHP() / 2).toInt())
-    else if ab == 'A005'
-        if t != null and t.getAbilityLevel('A006') == 2
-            doAfter(0.4) ->
-                sellUnit(t, p, t.getMaxHP().toInt())
+    else if (ab == 'A005' or ab == 'A00H') and canSell(ab, t, s)
+        if ab == 'A005'
+            sellUnit(t, p, t.getMaxHP().toInt())
         else
-            u.issueImmediateOrder("stop")
-            DisplayTextToPlayer(p, 0.0, 0.0, "Impossible!")
-    else if ab == 'A00H'
-        if s != null and s.getTypeId() != 'I000'
-            doAfter(0.4) ->
-                sellArtifact(s, p)
-        else
-            u.issueImmediateOrder("stop")
-            DisplayTextToPlayer(p, 0.0, 0.0, "Impossible!")
+            sellArtifact(s, p)
 
 // ============================================================
 // Триггер: ZaminaVzryva — 'A003' «Взрыв»: смерть всем врагам (не героям) в радиусе 300 от точки
@@ -185,6 +194,8 @@ init
         controlAdd()
     EventListener.add(EVENT_PLAYER_UNIT_SPELL_CAST) ->
         flag()
+        sellCheck()
+    EventListener.add(EVENT_PLAYER_UNIT_SPELL_EFFECT) ->
         sell()
     EventListener.onCast('A00I') (_caster) ->
         repick()

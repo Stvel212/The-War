@@ -35,10 +35,13 @@ import UnitStats
 	..setHitPointsMaximumBase(625)
 	..setPointValue(318)
 	..setButtonPositionY(2)
-	..setHotkey("")
+	..setButtonPositionX(0)
+	..setHotkey("Z")
 	..setArtTarget("custom_u001")
 	..setRequirements("e100")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
+	..setGroundTexture("")
 	..setUnitsTrained("u001")
 
 @compiletime function create_w3u_h026()
@@ -80,6 +83,8 @@ import UnitStats
 	..setArtTarget("custom_u000")
 	..setRequirements("e101")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
+	..setGroundTexture("")
 	..setUnitsTrained("u000")
 
 @compiletime function create_w3u_h027()
@@ -91,6 +96,7 @@ import UnitStats
 		..skill("Сбрасывает голема, который при падении наносит 30 ед. урона и оглушает всех юнитов на 0.3 секунды в небольшом радиусе.")
 		..skill("(Требуется 60 маны) (Перезарядка 30 секунд) (Время действия 30 секунд)")
 	new BuildingDefinition('h027', 'hhou')
+	..setHotkey("Z")
 	..setName("|c00C0C0C0[Баррак]|r")
 	..setModelFile("units\\demon\\HeroPitLord\\HeroPitLord.mdl")
 	..setTooltipBasic("|c00FF8000[Гepoй]|r - |c00C0C0C0Питлopд|r")
@@ -117,9 +123,11 @@ import UnitStats
 	..setCategorizationCampaign(true)
 	..setCategorizationSpecial(true)
 	..setButtonPositionY(2)
+	..setButtonPositionX(0)
 	..setArtTarget("custom_u003")
 	..setRequirements("e100")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setUnitsTrained("u003")
 
 @compiletime function create_w3u_h028()
@@ -162,6 +170,7 @@ import UnitStats
 	..setArtTarget("custom_u002")
 	..setRequirements("e101")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setUnitsTrained("u002")
 
 @compiletime function create_w3u_h04G()
@@ -196,6 +205,8 @@ import UnitStats
 	..setPointValue(301)
 	..setArtTarget("custom_u00O")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
+	..setGroundTexture("")
 	..setUnitsTrained("u00O")
 
 @compiletime function create_w3u_h04H()
@@ -232,6 +243,8 @@ import UnitStats
 	..setPointValue(302)
 	..setArtTarget("custom_u00J")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
+	..setGroundTexture("")
 	..setUnitsTrained("u00J")
 
 @compiletime function create_w3u_h04I()
@@ -267,6 +280,8 @@ import UnitStats
 	..setPointValue(303)
 	..setArtTarget("custom_u00I")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
+	..setGroundTexture("")
 	..setUnitsTrained("u00I")
 	..setHitPointsMaximumBase(450)
 
@@ -303,6 +318,8 @@ import UnitStats
 	..setPointValue(304)
 	..setArtTarget("custom_n017")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
+	..setGroundTexture("")
 	..setUnitsTrained("n017")
 
 @compiletime function create_w3u_h04K()
@@ -340,6 +357,8 @@ import UnitStats
 	..setPointValue(306)
 	..setArtTarget("custom_n013")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
+	..setGroundTexture("")
 	..setUnitsTrained("n013")
 
 @compiletime function create_w3u_h04L()
@@ -376,6 +395,8 @@ import UnitStats
 	..setPointValue(307)
 	..setArtTarget("custom_u00Q")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
+	..setGroundTexture("")
 	..setUnitsTrained("u00Q")
 	..setNameEditorSuffix("(Забагован)")
 
@@ -416,6 +437,8 @@ import UnitStats
 	..setPointValue(308)
 	..setArtTarget("custom_u00K")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
+	..setGroundTexture("")
 	..setUnitsTrained("u00K")
 
 @compiletime function create_w3u_h04N()
@@ -454,6 +477,8 @@ import UnitStats
 	..setPointValue(309)
 	..setArtTarget("custom_u00L")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
+	..setGroundTexture("")
 	..setUnitsTrained("u00L")
 
 @compiletime function create_w3u_h04O()
@@ -490,6 +515,8 @@ import UnitStats
 	..setPointValue(310)
 	..setArtTarget("custom_u00A")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
+	..setGroundTexture("")
 	..setUnitsTrained("u00A")
 
 @compiletime function create_w3u_h04P()
@@ -526,6 +553,7 @@ import UnitStats
 	..setPointValue(311)
 	..setArtTarget("custom_u00P")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setUnitsTrained("u00P")
 
 @compiletime function create_w3u_h04Q()
@@ -564,6 +592,7 @@ import UnitStats
 	..setUpgradesTo("h055,h04Z,h04W")
 	..setArtTarget("custom_u00C")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setUnitsTrained("u00C")
 	..setNameEditorSuffix("3")
 	..setButtonPositionX(2)
@@ -603,6 +632,7 @@ import UnitStats
 	..setIconGameInterface("ReplaceableTextures\\CommandButtons\\BTNDestroyer.blp")
 	..setArtTarget("custom_u00T")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setMovementHeight(75.0)
 	..setRequiredAttachmentLinkNames("alternate")
 	..setMovementType(MovementType.Hover)
@@ -647,6 +677,7 @@ import UnitStats
 	..setTintingColorBlue(55)
 	..setArtTarget("custom_u00D")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setMovementHeight(75.0)
 	..setRequiredAttachmentLinkNames("alternate")
 	..setMovementType(MovementType.Hover)
@@ -686,6 +717,7 @@ import UnitStats
 	..setPointValue(316)
 	..setArtTarget("custom_u00R")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setMovementHeight(75.0)
 	..setMovementType(MovementType.Hover)
 	..setUnitsTrained("u00R")
@@ -727,6 +759,7 @@ import UnitStats
 	..setPointValue(317)
 	..setArtTarget("custom_u006")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setMovementHeight(75.0)
 	..setMovementType(MovementType.Hover)
 	..setUnitsTrained("u006")
@@ -768,6 +801,7 @@ import UnitStats
 	..setPointValue(313)
 	..setArtTarget("custom_u00B")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setUnitsTrained("u00B")
 
 @compiletime function create_w3u_h04W()
@@ -807,6 +841,7 @@ import UnitStats
 	..setHitPointsMaximumBase(650)
 	..setArtTarget("custom_u008")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setUnitsTrained("u008")
 
 @compiletime function create_w3u_h04X()
@@ -844,6 +879,7 @@ import UnitStats
 	..setButtonPositionX(1)
 	..setArtTarget("custom_u004")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setUnitsTrained("u004")
 
 @compiletime function create_w3u_h04Y()
@@ -883,6 +919,7 @@ import UnitStats
 	..setHitPointsMaximumBase(370)
 	..setArtTarget("custom_u009")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setUnitsTrained("u009")
 
 @compiletime function create_w3u_h04Z()
@@ -924,6 +961,7 @@ import UnitStats
 	..setButtonPositionX(1)
 	..setArtTarget("custom_u00H")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setUnitsTrained("u00H")
 
 @compiletime function create_w3u_h050()
@@ -966,6 +1004,7 @@ import UnitStats
 	..setTintingColorRed(55)
 	..setArtTarget("custom_u007")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setUnitsTrained("u007")
 
 @compiletime function create_w3u_h051()
@@ -1002,6 +1041,7 @@ import UnitStats
 	..setUpgradesTo("h053,h054")
 	..setArtTarget("custom_u00M")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setUnitsTrained("u00M")
 
 @compiletime function create_w3u_h052()
@@ -1038,6 +1078,7 @@ import UnitStats
 	..setButtonPositionY(2)
 	..setArtTarget("custom_u005")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setUnitsTrained("u005")
 	..setNameEditorSuffix("1")
 
@@ -1074,6 +1115,7 @@ import UnitStats
 	..setButtonPositionY(2)
 	..setArtTarget("custom_u00G")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setUnitsTrained("u00G")
 
 @compiletime function create_w3u_h054()
@@ -1112,6 +1154,7 @@ import UnitStats
 	..setScalingValue(0.7)
 	..setArtTarget("custom_u00F")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setUnitsTrained("u00F")
 
 @compiletime function create_w3u_h055()
@@ -1153,6 +1196,7 @@ import UnitStats
 	..setTintingColorBlue(0)
 	..setArtTarget("custom_u00E")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setUnitsTrained("u00E")
 	..setRequirements("h02Q")
 
@@ -1193,6 +1237,7 @@ import UnitStats
 	..setPointValue(305)
 	..setArtTarget("custom_n014")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setUnitsTrained("n014")
 
 @compiletime function create_w3u_h057()
@@ -1230,6 +1275,7 @@ import UnitStats
 	..setScalingValue(0.9)
 	..setArtTarget("custom_z003")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setUnitsTrained("z003")
 
 @compiletime function create_w3u_h058()
@@ -1271,6 +1317,7 @@ import UnitStats
 	..setScalingValue(0.9)
 	..setArtTarget("custom_n01G")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setUnitsTrained("n01G")
 
 @compiletime function create_w3u_h059()
@@ -1311,6 +1358,7 @@ import UnitStats
 	..setScalingValue(0.9)
 	..setArtTarget("custom_n01D")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setUnitsTrained("n01D")
 
 @compiletime function create_w3u_h05A()
@@ -1349,6 +1397,7 @@ import UnitStats
 	..setScalingValue(0.7)
 	..setArtTarget("custom_n01T")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setUnitsTrained("n01T")
 
 @compiletime function create_w3u_h05B()
@@ -1391,6 +1440,7 @@ import UnitStats
 	..setScalingValue(0.8)
 	..setArtTarget("custom_n01H")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setUnitsTrained("n01H")
 
 @compiletime function create_w3u_h05C()
@@ -1432,6 +1482,7 @@ import UnitStats
 	..setScalingValue(0.9)
 	..setArtTarget("custom_n01E")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setUnitsTrained("n01E")
 
 @compiletime function create_w3u_h05D()
@@ -1471,6 +1522,7 @@ import UnitStats
 	..setButtonPositionX(1)
 	..setArtTarget("custom_n01O")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setUnitsTrained("n01O")
 	..setHitPointsMaximumBase(530)
 
@@ -1513,6 +1565,7 @@ import UnitStats
 	..setUpgradesTo("h05X")
 	..setArtTarget("custom_n01B")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setUnitsTrained("n01B")
 
 @compiletime function create_w3u_h05F()
@@ -1552,6 +1605,7 @@ import UnitStats
 	..setUpgradesTo("h05H,h05R")
 	..setArtTarget("custom_n01S")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setUnitsTrained("n01S")
 
 @compiletime function create_w3u_h05G()
@@ -1591,6 +1645,7 @@ import UnitStats
 	..setUpgradesTo("h05E,h05Q")
 	..setArtTarget("custom_n01R")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setUnitsTrained("n01R")
 
 @compiletime function create_w3u_h05H()
@@ -1632,6 +1687,7 @@ import UnitStats
 	..setTintingColorBlue(100)
 	..setArtTarget("custom_n01J")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setUnitsTrained("n01J")
 
 @compiletime function create_w3u_h05I()
@@ -1672,6 +1728,7 @@ import UnitStats
 	..setTintingColorGreen(100)
 	..setArtTarget("custom_n01K")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setUnitsTrained("n01K")
 
 @compiletime function create_w3u_h05J()
@@ -1713,6 +1770,7 @@ import UnitStats
 	..setUpgradesTo("h05I,h05Y")
 	..setArtTarget("custom_n01U")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setUnitsTrained("n01U")
 
 @compiletime function create_w3u_h05K()
@@ -1751,6 +1809,7 @@ import UnitStats
 	..setScalingValue(0.8)
 	..setArtTarget("custom_n018")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setUnitsTrained("n018")
 
 @compiletime function create_w3u_h05L()
@@ -1790,6 +1849,7 @@ import UnitStats
 	..setTintingColorBlue(55)
 	..setArtTarget("custom_n01A")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setUnitsTrained("n01A")
 
 @compiletime function create_w3u_h05M()
@@ -1829,6 +1889,7 @@ import UnitStats
 	..setScalingValue(0.7)
 	..setArtTarget("custom_n01Q")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setMovementHeight(75.0)
 	..setMovementType(MovementType.Hover)
 	..setUnitsTrained("n01Q")
@@ -1869,6 +1930,7 @@ import UnitStats
 	..setButtonPositionY(2)
 	..setArtTarget("custom_n01C")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setMovementHeight(75.0)
 	..setMovementType(MovementType.Hover)
 	..setUnitsTrained("n01C")
@@ -1909,6 +1971,7 @@ import UnitStats
 	..setButtonPositionY(2)
 	..setArtTarget("custom_n01M")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setMovementHeight(75.0)
 	..setMovementType(MovementType.Hover)
 	..setUnitsTrained("n01M")
@@ -1951,6 +2014,7 @@ import UnitStats
 	..setButtonPositionX(1)
 	..setArtTarget("custom_n01L")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setUnitsTrained("n01L")
 
 @compiletime function create_w3u_h05Q()
@@ -1993,6 +2057,7 @@ import UnitStats
 	..setButtonPositionX(1)
 	..setArtTarget("custom_n01N")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setUnitsTrained("n01N")
 
 @compiletime function create_w3u_h05R()
@@ -2032,6 +2097,7 @@ import UnitStats
 	..setButtonPositionX(1)
 	..setArtTarget("custom_n01F")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setUnitsTrained("n01F")
 
 @compiletime function create_w3u_h05S()
@@ -2073,6 +2139,7 @@ import UnitStats
 	..setButtonPositionX(1)
 	..setArtTarget("custom_n01P")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setUnitsTrained("n01P")
 
 @compiletime function create_w3u_h05X()
@@ -2113,6 +2180,7 @@ import UnitStats
 	..setScalingValue(0.9)
 	..setRequirements("h02Q")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setArtTarget("custom_n019")
 	..setUnitsTrained("n019")
 
@@ -2155,6 +2223,7 @@ import UnitStats
 	..setButtonPositionX(1)
 	..setArtTarget("custom_n01I")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setUnitsTrained("n01I")
 
 @compiletime function create_w3u_h02U()
@@ -2164,6 +2233,8 @@ import UnitStats
 		..defense(1260, 3, ArmorType.Large)
 		..skill("Если этот юнит добивает другого юнита, то он получает +8 к атаке, вплоть до +64.")
 	new BuildingDefinition('h02U', 'hhou')
+	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setName("|c00C0C0C0[Баррак]|r")
 	..setModelFile("units\\undead\\FrostWyrm\\FrostWyrm.mdl")
 	..setTooltipBasic("|c00C0C0C0[Улyчшить:]|r |c005151FFKocтянoй Дpaкoн|r")
@@ -2228,6 +2299,8 @@ import UnitStats
 	..setPointValue(307)
 	..setArtTarget("custom_u00Q")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
+	..setGroundTexture("")
 	..setUnitsTrained("u00Q")
 
 @compiletime function create_w3u_h092()
@@ -2238,6 +2311,8 @@ import UnitStats
 		..skill("Призывает манаеда, который сжигает 2 ед. маны той вражеской цели, по которой атакует.")
 		..skill("(Требуется 60 маны) (Перезарядка 10 секунд)")
 	new BuildingDefinition('h092', 'hhou')
+	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setName("|c00C0C0C0[Баррак]|r")
 	..setModelFile("units\\demon\\Felgaurd\\Felgaurd.mdl")
 	..setTooltipBasic("|c00C0C0C0[Пocтpoить:]|r Пcapь |c00FF8000[T3]|r")
@@ -2277,6 +2352,8 @@ import UnitStats
 		..skill("Призывает голодного манаеда, который сжигает 4 ед. маны той вражеской цели, по которой атакует.")
 		..skill("(Требуется 60 маны) (Перезарядка 10 секунд)")
 	new BuildingDefinition('h093', 'hhou')
+	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setName("|c00C0C0C0[Баррак]|r")
 	..setModelFile("units\\demon\\Felgaurd\\Felgaurd.mdl")
 	..setTooltipBasic("|c00C0C0C0[Улyчшить:]|r |c00FF8484Пcapь Oxoтник|r")
@@ -2315,6 +2392,8 @@ import UnitStats
 		..defense(1800, 3, ArmorType.Medium)
 		..skill("Призывает пожирателя маны, который снижает регенерацию маны вражеских юнитов на 1.5 ед.")
 	new BuildingDefinition('h094', 'hhou')
+	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setName("|c00C0C0C0[Баррак]|r")
 	..setModelFile("units\\demon\\FelgaurdBlue\\FelgaurdBlue.mdl")
 	..setTooltipBasic("|c00C0C0C0[Улучшить:]|r |c000080FFКонкуб|r")
@@ -2381,6 +2460,7 @@ import UnitStats
 	..setUpgradesTo("h052")
 	..setArtTarget("custom_u00V")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setUnitsTrained("u00V")
 	..setNameEditorSuffix("1")
 
@@ -2420,6 +2500,7 @@ import UnitStats
 	..setUpgradesTo("h09R")
 	..setArtTarget("custom_u00W")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setUnitsTrained("u00W")
 	..setNameEditorSuffix("2")
 	..setButtonPositionX(1)
@@ -2458,5 +2539,6 @@ import UnitStats
 	..setButtonPositionY(2)
 	..setArtTarget("custom_u00X")
 	..setPathingMap("PathTextures\\4x4unbuildable.tga")
+	..setCollisionSize(0.0)
 	..setUnitsTrained("u00X")
 	..setNameEditorSuffix("2")

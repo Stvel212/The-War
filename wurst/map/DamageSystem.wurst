@@ -50,16 +50,23 @@ function spellReduction(unit u, unit c) returns real
         k *= 0.50
     return k
 
+/** Идёт отражение: вложенный урон не обрабатывается. stdlib DamageEvent не защищает от рекурсии (в Damage Engine
+    оригинала защита была), и два отражающих юнита ('n009'/'n008') гоняли урон друг другу цепочкой вложенных
+    событий — отсюда зависания */
+var reflecting = false
+
 /** Отражение: цель c возвращает урон источнику u */
 function reflect(unit c, unit u, real amount)
+    reflecting = true
     DamageEvent.setNextDamageFromCode()
     c.damageTarget(u, amount, true, false, ATTACK_TYPE_NORMAL, DAMAGE_TYPE_NORMAL, WEAPON_TYPE_WHOKNOWS)
+    reflecting = false
 
 @noinline
 function onDamage()
     let u = DamageEvent.getSource()
     let c = DamageEvent.getTarget()
-    if c == null
+    if c == null or reflecting
         return
     var amount = DamageEvent.getAmount() * reduction(c)
     // ледяной лучник калечит всех, кого бьёт
@@ -74,7 +81,7 @@ function onDamage()
     // 'B01D' у цели: источник лечится на нанесённое
     if c.getAbilityLevel('B01D') == 1
         u.setHP(u.getHP() + amount)
-    let fromUnit = not u.isType(UNIT_TYPE_HERO)
+    let fromUnit = u != null and not u.isType(UNIT_TYPE_HERO)
     let id = c.getTypeId()
     // отражения и блоки (не от героев)
     if fromUnit and ((id == 'n009' and GetRandomInt(1, 100) <= 15) or (id == 'n008' and GetRandomInt(1, 100) <= 30))

@@ -1,0 +1,156 @@
+package PickIcons
+import Initialization
+import MapGlobals
+import ClosureEvents
+import ClosureTimers
+import UnitHoverTooltip
+import GameMode
+
+/*
+    Пик игрока иконками на земле у его базы: по иконке на тир (10 тиров — какие бараки выпали в random(p)),
+    сеткой 4×3 как кнопки бараков в меню строителя (QWER / ASDF / ZXCV, герои внизу), на воде между стеной и
+    стройплощадкой у её верхнего края (слева у левой команды, справа у правой). Видит только своя команда —
+    так каждый видит свой пик и пики союзников у их баз. Показываются и пустые слоты: у них тоже выпадает набор.
+    Картинки создаются у всех клиентов, локально меняется лишь видимость.
+    Обновляется после выбора набора: в первом раунде (firstRound) и после смены расы ('A00I', Builder.repick). */
+
+constant TIERS = 10
+constant ICON = 80.0
+constant GAP = 8.0
+constant COLS = 4
+/** Левый край блока у левой команды — сразу за внутренней стороной стены (она у всех баз примерно на -4100;
+    сами площадки начинаются по-разному, -3808..-3744, поэтому не от них) */
+constant LEFT_X = -4080.0
+/** Ось симметрии карты по x (середина между левыми и правыми базами) — блок правой команды зеркально */
+constant MIRROR_X = -240.0
+/** Блок правой команды — чуть левее зеркального: правая колонка налезала на стену (пруд справа 3204..3588) */
+constant RIGHT_INSET = 64.0
+/** Сдвиг блока вниз от верхнего края площадки по линиям (правые — зеркально левым): у фиолетового (a = 3) стена ближе к площадке,
+    и верхний ряд залезал на неё */
+constant topShift = [0.0, 0.0, 0.0, 64.0]
+
+/** Картинки пика игрока a: pickImages[a * TIERS + tier - 1] */
+image array pickImages
+/** Тип и центр иконки пика (для подсказки при наведении), по тому же индексу; тип 0 — иконки нет */
+int array pickTypes
+vec2 array pickCenters
+
+/* Клетка тира — как кнопка его барака в меню строителя (QWER / ASDF / ZXCV):
+   тиры 1–4 → Q W E R, 5–7 → A S D, 10 → F, герои 8 → Z, 9 → X */
+function slotCol(int tier) returns int
+    if tier <= 4
+        return tier - 1
+    if tier <= 7
+        return tier - 5
+    if tier == 10
+        return 3
+    return tier - 8
+
+function slotRow(int tier) returns int
+    if tier <= 4
+        return 0
+    if tier <= 7 or tier == 10
+        return 1
+    return 2
+
+/** Стройплощадка игрока a (0..7): rct_Baza1..8 по порядку, как базы в initGame */
+function baseOf(int a) returns rect
+    switch a
+        case 0
+            return rct_Baza1
+        case 1
+            return rct_Baza2
+        case 2
+            return rct_Baza3
+        case 3
+            return rct_Baza4
+        case 4
+            return rct_Baza5
+        case 5
+            return rct_Baza6
+        case 6
+            return rct_Baza7
+        default
+            return rct_Baza8
+
+/** Иконка здания по типу (BlzGetAbilityIcon отдаёт «Art» и для типов юнитов) */
+function iconOf(int typeId) returns string
+    let path = BlzGetAbilityIcon(typeId)
+    return path == null or path == "" ? "ReplaceableTextures\\CommandButtons\\BTNTemp.blp" : path
+
+/** Пересоздать иконки пика игрока a у его базы; показать их только его команде */
+@noinline
+function showPick(int a)
+    let blockW = COLS * ICON + (COLS - 1) * GAP
+    let x0 = a < 4 ? LEFT_X : 2. * MIRROR_X - LEFT_X - blockW - RIGHT_INSET
+    // высота — по базе левого игрока той же линии: площадки правых сдвинуты (до +96), а стены симметричны —
+    // иначе блок правых налезал на стену
+    let y0 = baseOf(a mod 4).getMaxY() + 80. - topShift[a mod 4]
+    // PvE: команда одна — пики всех видны всем
+    let visible = isPve() or (a < 4 ? forceG[1] : forceG[2]).containsPlayer(localPlayer)
+    for tier = 1 to TIERS
+        let i = a * TIERS + tier - 1
+        if pickImages[i] != null
+            DestroyImage(pickImages[i])
+            pickImages[i] = null
+        let picked = repickLast[tier + 10 * a]
+        pickTypes[i] = 0
+        // герой уже поставлен (Main.zapretHero) — остальные герои ему запрещены, их иконки не нужны
+        let heroTier = tier == 8 or tier == 9
+        if picked > 0 and not (heroTier and hasHero[a])
+            let center = vec2(x0 + slotCol(tier) * (ICON + GAP) + ICON / 2., y0 - slotRow(tier) * (ICON + GAP) - ICON / 2.)
+            let typeId = tierType(tier, picked)
+            let img = createImage(iconOf(typeId), center, ICON, ICON)
+            pickTypes[i] = typeId
+            pickCenters[i] = center
+            SetImageRenderAlways(img, true)
+            ShowImage(img, visible)
+            pickImages[i] = img
+
+/** Первый раунд: wave() → firstRound() → random(p) для всех; иконки — после него (doAfter, т.к. порядок
+    триггеров на одном таймере не гарантирован: round здесь ещё 0 или уже 1) */
+function onRoundTimer()
+    if round <= 1
+        doAfter(0.0) ->
+            for a = 0 to 7
+                showPick(a)
+
+/** Тип иконки пика под точкой pos среди пиков, которые видит игрок p (своя команда, в PvE — все); 0 — ни одной */
+function pickTypeAt(player p, vec2 pos) returns int
+    var first = 0
+    var last = 3
+    if isPve()
+        last = 7
+    else if forceG[2].containsPlayer(p)
+        first = 4
+        last = 7
+    else if not forceG[1].containsPlayer(p)
+        return 0
+    for i = first * TIERS to (last + 1) * TIERS - 1
+        if pickTypes[i] != 0
+            let d = pos - pickCenters[i]
+            if d.x.abs() <= ICON / 2. and d.y.abs() <= ICON / 2.
+                return pickTypes[i]
+    return 0
+
+init
+    // наведение на иконку → её описание в окне UnitHoverTooltip; картинки наведения не знают, поэтому по
+    // движению мыши (событие синхронное — показ только у самого игрока)
+    EventListener.add(EVENT_PLAYER_MOUSE_MOVE) ->
+        let p = EventData.getTriggerPlayer()
+        let typeId = pickTypeAt(p, EventData.getMouseWorldPos())
+        showHoverText(p, typeId != 0 ? describeType(typeId) : "")
+    CreateTrigger()
+        ..registerTimerExpireEvent(roundTimer)
+        ..addAction(function onRoundTimer)
+    // смена расы: Builder.repick() → random(p)
+    EventListener.onCast('A00I') (caster) ->
+        let a = caster.getOwner().getId()
+        if a < 8
+            doAfter(0.0) ->
+                showPick(a)
+
+/** Игрок a поставил героя (Main.zapretHero): иконки героев его пика убираются */
+public function onHeroPicked(int a)
+    if a < 8
+        showPick(a)

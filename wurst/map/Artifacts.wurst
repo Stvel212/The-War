@@ -11,6 +11,7 @@ import Orders
 import Dummies
 import UnitSearch
 import GroupUtils
+import StandardTextTags
 
 /*
     Артефакт — предмет героя. Улучшается способностью «Улучшить артефакт» ('A007'): каждое улучшение даёт
@@ -102,59 +103,6 @@ public class Artifact
             ..owner(owner)
             ..origin(pos)
             ..delay(life)
-
-// ============================================================
-// Артефакт: BuyArtefacts — EVENT_PLAYER_UNIT_SELL_ITEM
-// ============================================================
-
-/** Артефакты «на урон» — их можно купить не больше limitArt */
-function isDamageArtifact(int id) returns bool
-    return id == 'I003' or id == 'I013' or id == 'I017' or id == 'I01B' or id == 'I01C' or id == 'I008' or id == 'I01J' or id == 'I01H' or id == 'I01E' or id == 'I01D'
-
-/** Артефакты «на стан» — их можно купить не больше limitArt */
-function isStunArtifact(int id) returns bool
-    return id == 'I006' or id == 'I00E' or id == 'I00X' or id == 'I015' or id == 'I021' or id == 'I00J' or id == 'I00S'
-
-/** Магазин «Проданное» команды игрока */
-function player.soldShop() returns unit
-    return magazin[forceG[1].containsPlayer(this) ? 7 : 16]
-
-/** Лимит превышен: покупка отменяется, золото назад, предмет обратно в магазин команды */
-function refuseArtifact(unit seller, item i, player p, string kind)
-    let id = i.getTypeId()
-    DisplayTextToPlayer(p, 0.0, 0.0, "Artifact limit for " + kind + " in the amount of " + limitArt[p.getId()] + " pcs")
-    p.setGold(p.getGold() + i.getLife().toInt())
-    powerItem[p.getId()] -= i.getLife().toInt()
-    let shop = p.soldShop()
-    AddItemToStock(shop, id, 1, 1)
-    if seller.getTypeId() == 'n03P'
-        // куплено в «Проданном»: пересоздать позицию, чтобы предмет там остался
-        RemoveItemFromStock(shop, id)
-        doAfter(0.01) ->
-            AddItemToStock(shop, id, 1, 1)
-    i.remove()
-
-@noinline
-function artBuyArtefacts()
-    let u = GetBuyingUnit()
-    let i = GetSoldItem()
-    let p = u.getOwner()
-    let idP = p.getId()
-    let m = GetTriggerUnit()
-    let id = i.getTypeId()
-    powerItem[idP] += i.getLife().toInt()
-    if m.getTypeId() == 'n03P'
-        RemoveItemFromStock(m, id)
-    if isDamageArtifact(id)
-        itemZapretD[idP] += 1
-        if itemZapretD[idP] > limitArt[idP]
-            itemZapretD[idP] = limitArt[idP]
-            refuseArtifact(m, i, p, "damage")
-    else if isStunArtifact(id)
-        itemZapretS[idP] += 1
-        if itemZapretS[idP] > limitArt[idP]
-            itemZapretS[idP] = limitArt[idP]
-            refuseArtifact(m, i, p, "stun")
 
 // ============================================================
 // Артефакт: UpArt — EVENT_PLAYER_UNIT_USE_ITEM
@@ -377,9 +325,10 @@ function artArtDopGoldaA(unit caster)
     let gold = unitGold(t, caster.getTypeId()) * (t.getHP() <= 500 ? 4 : 2)
     addEffect("Abilities\\Spells\\Other\\Transmute\\PileofGold.mdl", t.getPos()).destr()
     p.setGold(p.getGold() + gold)
+    // текст до удаления: у удалённого юнита нет позиции
+    createGoldBountyTextTag(t, gold)
     if t.getHP() <= 500
         t.remove()
-    text(t, "|cffFFFF00+" + gold + "|r", 10.0, 3.50, 50.0)
 
 // ============================================================
 // Артефакт: DopHealA — способность 'A0B4'
@@ -415,7 +364,7 @@ function artFullSellA(unit caster)
         if prodajaUnit < 15
             addEffect("Abilities\\Spells\\Other\\Transmute\\PileofGold.mdl", u.getPos()).destr()
             p.setGold(p.getGold() + a)
-            text(u, "|cffFFFF00+" + a + "|r", 10.0, 3.50, 50.0)
+            createGoldBountyTextTag(u, a)
             u.remove()
     g.release()
 
@@ -734,16 +683,6 @@ function artGolemA()
     GetSummonedUnit().addAbility('A0F6')
 
 // ============================================================
-// Артефакт: DarkBuy — EVENT_PLAYER_UNIT_SELL_ITEM
-// ============================================================
-
-@noinline
-function artDarkBuy()
-    let i = GetSoldItem()
-    if i.getTypeId() == 'I02A'
-        darkItem[GetBuyingUnit().getOwner().getId()] = true
-
-// ============================================================
 // Артефакт: DarkSell — EVENT_PLAYER_UNIT_DROP_ITEM
 // ============================================================
 
@@ -923,10 +862,8 @@ init
     Artifact.onCast('A0EP') (caster) ->
         artDamageRezA(caster)
     // триггеры на другие события
-    Artifact.onEvent(EVENT_PLAYER_UNIT_SELL_ITEM, function artBuyArtefacts)
     Artifact.onEvent(EVENT_PLAYER_UNIT_USE_ITEM, function artUpArt)
     Artifact.onEvent(EVENT_PLAYER_UNIT_DEATH, function artVzryvA)
     Artifact.onEvent(EVENT_PLAYER_UNIT_SUMMON, function artGolemA)
-    Artifact.onEvent(EVENT_PLAYER_UNIT_SELL_ITEM, function artDarkBuy)
     Artifact.onEvent(EVENT_PLAYER_UNIT_DROP_ITEM, function artDarkSell)
     Artifact.onEvent(EVENT_PLAYER_UNIT_DEATH, function artDarkA)

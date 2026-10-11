@@ -1,0 +1,240 @@
+package ArtifactShop
+import TableUi
+import ClosureTimers
+import MapGlobals
+import BaseShortcuts
+import GameMode
+
+/*
+    Покупка артефактов с кнопки «Artifacts» над миникартой (слева, за краем области 4:3 — родитель
+    ConsoleUIBackdrop, привязка к миникарте). Кнопка открывает окно: сверху категории артефактов
+    (Урон, Регенерация, Ауры, Командные ауры, Станы, Призыв, Всякое — бывшие магазины-таверны), под ними иконки
+    артефактов выбранной категории с подсказкой (название, цена, описание) в углу над командной карточкой.
+    Магазинов-таверн на карте больше нет: панель сама и есть магазин. Клик (синхронное событие) покупает
+    артефакт строителю игрока: проверки золота (цена = жизнь предмета), лимита артефактов на урон/стан
+    (limitArt) и места в инвентаре, затем золото списывается и предмет выдаётся (бывшие BuyArtefacts/DarkBuy).
+    Каждый артефакт — 1 штука на команду: купленный у всей команды затемнён и не кликается (подсказка с
+    причиной), проданный (returnArtifact) снова доступен.
+    Панели свои у каждого игрока (perPlayerFrames), содержимое — по команде (0..3 / 4..7). */
+
+/** Артефакты всех магазинов подряд, по вкладкам: catStart[c] .. catStart[c + 1] - 1 */
+constant ITEMS = ['I003', 'I013', 'I017', 'I01B', 'I01C', 'I008', 'I01J', 'I01H', 'I01E', 'I01D',
+    'I00A', 'I01P', 'I01N', 'I01M', 'I00R', 'I007', 'I00K', 'I023', 'I025',
+    'I001', 'I009', 'I00N', 'I00Q', 'I00Y', 'I010', 'I011', 'I019', 'I01I', 'I01Y', 'I01R', 'I02A',
+    'I004', 'I00B', 'I00C', 'I00L', 'I00W', 'I014', 'I00G', 'I01Z', 'I026', 'I027', 'I029',
+    'I006', 'I00E', 'I00X', 'I015', 'I021', 'I00J', 'I00S',
+    'I016', 'I01G',
+    'I002', 'I00I', 'I00D', 'I00V', 'I00U', 'I00T', 'I00M', 'I01L', 'I005', 'I00H', 'I00O',
+    'I012', 'I01F', 'I01K', 'I00P', 'I01A', 'I020', 'I022', 'I024']
+constant ITEM_COUNT = 70
+/** Цена артефакта (золото) — как Gold Cost и Hit Points в Items.wurst (у всех 70 они равны); тип предмета
+    цену без создания предмета не отдаёт, поэтому таблица здесь — менять вместе с Items.wurst */
+constant ITEM_COSTS = [675, 200, 300, 350, 320, 150, 245, 250, 230, 175, 550, 150, 155, 200, 300, 250, 100, 635, 320,
+    325, 350, 120, 150, 350, 400, 200, 350, 1100, 300, 400, 400, 520, 680, 625, 350, 500, 600, 500, 700, 600, 650, 625,
+    600, 220, 250, 300, 275, 600, 250, 150, 900, 150, 110, 100, 315, 350, 200, 175, 250, 135, 225, 150, 250, 260, 200,
+    150, 225, 200, 200, 666]
+constant catStart = [0, 10, 19, 31, 42, 49, 51, 70]
+constant CATS = 7
+constant catNames = ["Damage", "Regen", "Auras", "Team Auras", "Stuns", "Summon", "Misc"]
+constant STATE_FREE = 0
+constant STATE_BOUGHT = 1
+
+constant ICON = 0.036
+constant GAP = 0.002
+constant COLS = 8
+constant ROWS = 3
+constant CAT_H = 0.03
+constant CAT_ROWS = 3
+/** Отступ от рамки окна (рамка panel() съедает край) */
+constant PAD = 0.014
+constant SECTION_GAP = 0.006
+constant OPEN_W = 0.09
+constant OPEN_H = 0.03
+/** Кнопка над каменной кромкой над миникартой */
+constant ABOVE_MINIMAP = 0.03
+constant TOOLTIP_WIDTH = 0.26
+
+/** Данные артефакта (с временного предмета при старте) */
+string array itemIcon
+string array itemTip
+/** Данные артефактов прочитаны — при первом открытии магазина кем-либо (70 временных предметов) */
+bool itemsRead = false
+
+/** Копия запаса по команде t: [t * ITEM_COUNT + индекс в ITEMS] */
+bool array soldOut
+
+/** Фреймы игрока pid: [pid * ITEM_COUNT + индекс] / [pid * CATS + вкладка] */
+framehandle array soldOutScrim
+/** Что показывает слой над кнопкой: STATE_* */
+int array scrimState
+framehandle array page
+framehandle array tabMark
+bool array built
+bool array windowOpen
+framehandle array windows
+int array currentTab
+
+/** Команда игрока для запаса артефактов: в PvE команда одна — артефакты общие на всех */
+function teamOf(int pid) returns int
+    return isPve() or pid < 4 ? 0 : 1
+
+function indexOf(int itemId) returns int
+    for i = 0 to ITEM_COUNT - 1
+        if ITEMS[i] == itemId
+            return i
+    return -1
+
+/** Артефакты «на урон» — их можно купить не больше limitArt */
+public function isDamageArtifact(int id) returns bool
+    return id == 'I003' or id == 'I013' or id == 'I017' or id == 'I01B' or id == 'I01C' or id == 'I008' or id == 'I01J' or id == 'I01H' or id == 'I01E' or id == 'I01D'
+
+/** Артефакты «на стан» — их можно купить не больше limitArt */
+public function isStunArtifact(int id) returns bool
+    return id == 'I006' or id == 'I00E' or id == 'I00X' or id == 'I015' or id == 'I021' or id == 'I00J' or id == 'I00S'
+
+/** Иконка, название и описание артефактов — из данных типа предмета, без создания предметов: CreateItem
+    подгружает модель предмета, и 70 штук на старте давали фриз */
+function readItems()
+    for i = 0 to ITEM_COUNT - 1
+        let id = ITEMS[i]
+        itemIcon[i] = BlzGetAbilityIcon(id)
+        itemTip[i] = GetObjectName(id) + "|n|cffffcc00Cost: " + ITEM_COSTS[i] + " gold|r|n" + BlzGetAbilityExtendedTooltip(id, 0)
+
+function hasFreeSlot(unit u) returns bool
+    for slot = 0 to u.inventorySize() - 1
+        if u.itemInSlot(slot) == null
+            return true
+    return false
+
+/** Игрок p покупает артефакт i (индекс в ITEMS) своему строителю */
+function buy(player p, int i)
+    let pid = p.getId()
+    let team = teamOf(pid)
+    let id = ITEMS[i]
+    let buyer = builders[pid]
+    if soldOut[team * ITEM_COUNT + i] or buyer == null or not buyer.isAlive()
+        return
+    if p.getGold() < ITEM_COSTS[i]
+        DisplayTextToPlayer(p, 0., 0., "Not enough gold")
+        return
+    let damage = isDamageArtifact(id)
+    let stun = isStunArtifact(id)
+    if (damage and itemZapretD[pid] >= limitArt[pid]) or (stun and itemZapretS[pid] >= limitArt[pid])
+        DisplayTextToPlayer(p, 0., 0., "Artifact limit for " + (damage ? "damage" : "stun") + " in the amount of " + limitArt[pid] + " pcs")
+        return
+    if not hasFreeSlot(buyer)
+        DisplayTextToPlayer(p, 0., 0., "Inventory is full")
+        return
+    p.setGold(p.getGold() - ITEM_COSTS[i])
+    powerItem[pid] += ITEM_COSTS[i]
+    if damage
+        itemZapretD[pid] += 1
+    if stun
+        itemZapretS[pid] += 1
+    if id == 'I02A'
+        darkItem[pid] = true
+    buyer.addItemById(id)
+    soldOut[team * ITEM_COUNT + i] = true
+    refresh(team)
+
+/** Перерисовать запас команды team у всех её игроков (синхронные данные — у всех клиентов одинаково) */
+function refresh(int team)
+    for pid = 0 to 7
+        if built[pid] and teamOf(pid) == team
+            for i = 0 to ITEM_COUNT - 1
+                let k = team * ITEM_COUNT + i
+                var state = STATE_FREE
+                if soldOut[k]
+                    state = STATE_BOUGHT
+                let f = pid * ITEM_COUNT + i
+                if state != scrimState[f]
+                    scrimState[f] = state
+                    let scrim = soldOutScrim[f]
+                    scrim.setVisible(state != STATE_FREE)
+                    if state != STATE_FREE
+                        // слой перекрывает кнопку и её подсказку — подсказка с причиной на нём самом
+                        scrim.cornerTooltip(itemTip[i] + "|n|n|cffff4040" + "Already bought by your team" + "|r", TOOLTIP_WIDTH)
+
+function showTab(int pid, int cat)
+    currentTab[pid] = cat
+    for c = 0 to CATS - 1
+        page[pid * CATS + c].setVisible(c == cat)
+        tabMark[pid * CATS + c].setVisible(c == cat)
+
+function slotPoint(framehandle b, framehandle parent, int slot)
+    b.setPoint(FRAMEPOINT_TOPLEFT, parent, FRAMEPOINT_TOPLEFT, (slot mod COLS) * (ICON + GAP), -(slot div COLS) * (ICON + GAP))
+
+function itemButton(framehandle parent, player owner, int i) returns framehandle
+    let b = iconButton(parent, itemIcon[i], ICON)
+        ..cornerTooltip(itemTip[i], TOOLTIP_WIDTH)
+    b.onClick(() -> buy(owner, i))
+    return b
+
+/** Окно магазина игрока owner над кнопкой open — строится при первом открытии (сотни фреймов: если строить
+    все окна сразу на старте, игра подвисает перед первым раундом). Клик синхронный, поэтому строится у всех. */
+function buildWindow(player owner, framehandle root, framehandle open) returns framehandle
+    let pid = owner.getId()
+    if not itemsRead
+        itemsRead = true
+        readItems()
+    let gridW = COLS * ICON + (COLS - 1) * GAP
+    let gridH = ROWS * ICON + (ROWS - 1) * GAP
+    let catsH = CAT_ROWS * CAT_H + (CAT_ROWS - 1) * GAP
+    let catW = (gridW - 2. * GAP) / 3.
+    // panel() ставит себя абсолютной точкой — сбросить, иначе две привязки растянут его на весь экран
+    let window = panel(root, 2. * PAD + gridW, 2. * PAD + catsH + SECTION_GAP + gridH)
+        ..clearAllPoints()
+        ..setPoint(FRAMEPOINT_BOTTOMLEFT, open, FRAMEPOINT_TOPLEFT, 0., GAP)
+        ..hide()
+    for cat = 0 to CATS - 1
+        let c = cat
+        // категория — магазин команды
+        let tab = textButton(window, catNames[cat], catW, CAT_H)
+            ..setPoint(FRAMEPOINT_TOPLEFT, window, FRAMEPOINT_TOPLEFT, PAD + (cat mod 3) * (catW + GAP), -PAD - (cat div 3) * (CAT_H + GAP))
+        tabMark[pid * CATS + cat] = selectionHighlight(tab)
+        tab.onClick(() -> showTab(pid, c))
+        // страница: артефакты категории
+        let p = container(window, gridW, gridH)
+            ..setPoint(FRAMEPOINT_TOPLEFT, window, FRAMEPOINT_TOPLEFT, PAD, -PAD - catsH - SECTION_GAP)
+        page[pid * CATS + cat] = p
+        for i = catStart[cat] to catStart[cat + 1] - 1
+            let b = itemButton(p, owner, i)
+            slotPoint(b, p, i - catStart[cat])
+            // купленный командой: затемнён, клик глотается, подсказка с причиной — на самом слое
+            soldOutScrim[pid * ITEM_COUNT + i] = disabledOverlay(b)..hide()
+    built[pid] = true
+    showTab(pid, 0)
+    refresh(teamOf(pid))
+    return window
+
+/** Кнопка «Artifacts» игрока owner (только игроки баз 0..7); окно — при первом клике */
+function buildPanel(player owner) returns framehandle
+    let pid = owner.getId()
+    if pid >= 8
+        return null
+    // родитель ConsoleUIBackdrop: всё стоит за краем области 4:3 (над миникартой), а обычные фреймы
+    // (родитель GAME_UI) за 4:3 не рисуются
+    let root = container(BlzGetFrameByName("ConsoleUIBackdrop", 0), OPEN_W, OPEN_H)
+    let open = textButton(root, "Artifacts", OPEN_W, OPEN_H)
+        ..setPoint(FRAMEPOINT_TOPLEFT, root, FRAMEPOINT_TOPLEFT)
+        ..cornerTooltip("Buy artifacts")
+    open.onClick() ->
+        if not built[pid]
+            windows[pid] = buildWindow(owner, root, open)
+        windowOpen[pid] = not windowOpen[pid]
+        windows[pid].setVisible(windowOpen[pid])
+    root.setPoint(FRAMEPOINT_BOTTOMLEFT, BlzGetOriginFrame(ORIGIN_FRAME_MINIMAP, 0), FRAMEPOINT_TOPLEFT, 0., ABOVE_MINIMAP)
+    return root
+
+/** Артефакт itemId продан игроком p: снова доступен его команде */
+public function returnArtifact(player p, int itemId)
+    let i = indexOf(itemId)
+    if i >= 0
+        let team = teamOf(p.getId())
+        soldOut[team * ITEM_COUNT + i] = false
+        refresh(team)
+
+init
+    // UI — после блокирующего init (так требует TableLayout)
+    doAfter(0.0) ->
+        perPlayerFrames(owner -> buildPanel(owner)).showEach()

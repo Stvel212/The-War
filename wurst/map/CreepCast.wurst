@@ -1,0 +1,81 @@
+package CreepCast
+import GameMode
+import Initialization
+import PveWaveTables
+import UnitEvents
+import HashMap
+import ClosureTimers
+import ClosureForGroups
+
+/*
+    Автокаст монстров волн — скопированных юнитов Just Fight (UnitsPveJf). В Just Fight их способности кастуют
+    триггеры по типам юнитов («ударил с полной маной — приказ»); у копий новые ID, поэтому здесь общее правило:
+    монстр атакует — первая его активная способность (таблица PveWaveTables.jfCast*, классы — tools/jf/orders.tsv),
+    на которую хватает маны и которая не на перезарядке, кастуется: без цели, во врага, в точку врага или в раненого
+    союзника рядом. Через CAST_TIME монстр снова идёт по линии. Юниты The War (двойники) кастуют своим автокастом
+    (autocast/*). */
+
+/** Сколько ждать каста, прежде чем вернуть монстра на линию, с */
+constant CAST_TIME = 1.5
+/** Союзник для лечения/усиления — в этом радиусе, со здоровьем не выше ALLY_HP_SHARE */
+constant ALLY_RANGE = 700.
+constant ALLY_HP_SHARE = 0.8
+
+constant castIndex = new HashMap<int, int>()
+/** Монстр сейчас кастует (по handle id) — новый каст не начинать */
+constant casting = new HashMap<int, bool>()
+
+/** Раненый союзник монстра u рядом (самый раненый), иначе сам u */
+function woundedAlly(unit u) returns unit
+    var best = u
+    var bestShare = u.getHP() / u.getMaxHP()
+    forUnitsInRange(u.getPos(), ALLY_RANGE) a ->
+        if a.isAlive() and a.isAllyOf(u.getOwner()) and not a.isType(UNIT_TYPE_STRUCTURE)
+            let share = a.getHP() / a.getMaxHP()
+            if share < bestShare
+                best = a
+                bestShare = share
+    return bestShare <= ALLY_HP_SHARE ? best : u
+
+/** Каст способности i таблицы монстром u по атакуемому target; true — приказ принят */
+function cast(unit u, int i, unit target) returns bool
+    let order = jfCastOrder[i]
+    switch jfCastTarget[i]
+        case 1
+            return u.issueTargetOrder(order, target)
+        case 2
+            return u.issuePointOrder(order, target.getPos())
+        case 3
+            return u.issueTargetOrder(order, woundedAlly(u))
+        default
+            return u.issueImmediateOrder(order)
+
+@noinline
+function onAttack()
+    let u = GetAttacker()
+    if not u.isCreep() or casting.has(u.getHandleId())
+        return
+    let target = GetTriggerUnit()
+    var k = 0
+    var abil = BlzGetUnitAbilityByIndex(u, k)
+    while abil != null
+        let id = BlzGetAbilityId(abil)
+        if castIndex.has(id)
+            let level = u.getAbilityLevel(id)
+            if BlzGetUnitAbilityCooldownRemaining(u, id) <= 0. and u.getMana() >= BlzGetUnitAbilityManaCost(u, id, level - 1)
+                and cast(u, castIndex.get(id), target)
+                let key = u.getHandleId()
+                casting.put(key, true)
+                doAfter(CAST_TIME) ->
+                    casting.remove(key)
+                    if u.isAlive()
+                        u.attackLane()
+                return
+        k++
+        abil = BlzGetUnitAbilityByIndex(u, k)
+
+init
+    for i = 0 to JF_CASTS - 1
+        castIndex.put(jfCastAbil[i], i)
+    onAnyAttack() ->
+        onAttack()

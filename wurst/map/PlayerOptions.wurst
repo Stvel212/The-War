@@ -1,0 +1,175 @@
+package PlayerOptions
+import TableUi
+import ClosureTimers
+import MapGlobals
+import TerrainUtils
+import UnitHoverTooltip
+
+/*
+    Кнопки игрока над нижней панелью (у каждого свой ряд, perPlayerFrames):
+    - Grid  — сетка по клеткам 128×128 (размер барака, пути 4x4) на своей базе; видна только нажавшему;
+    - Speed — строитель ходит на 522 (предел WC3) и ещё вдвое быстрее: выше 522 движок не пускает даже через
+              MaxUnitSpeed, поэтому каждые FAST_TICK с строитель дополнительно сдвигается на столько же, сколько прошёл
+              сам (если там можно ходить). Или со своей обычной скоростью. Это игровое действие (событие клика
+              синхронное), меняется у всех;
+    - Cam   — дальность камеры 2400 → 2600 → 2800 → 3000 по кругу (как -up), только у нажавшего.
+    - Tips  — подсказки при наведении (UnitHoverTooltip): Icons — иконки пика, All — ещё и юниты, Off — нет.
+    Клетка сетки — картинка textures\GridCell.blp (белый контур) на земле. Центры клеток на кратных 128, как у
+    зданий из редактора (алтари, дома) и плиток земли. Картинки создаются у всех клиентов сразу скрытыми,
+    показываются только у нажавшего — локально разрешено лишь это. */
+
+constant CELL = 128.0
+constant FAST_SPEED = 522.0
+/** Во сколько раз быстрее FAST_SPEED ходит строитель с «Fast» (доп. сдвиг каждые FAST_TICK) */
+constant FAST_FACTOR = 2.0
+constant FAST_TICK = 0.03125
+/** Сдвиг за тик больше этого — не ходьба (телепорт, SetUnitPosition), его не умножаем */
+constant MAX_STEP = 40.0
+constant BUTTON_W = 0.095
+constant BUTTON_H = 0.032
+constant GAP = 0.005
+/** Низ ряда кнопок — над каменной кромкой нижней панели */
+constant BUTTONS_BOTTOM = 0.137
+constant BUTTONS_LEFT = 0.2
+/** Дальность камеры по кругу; не дальше 3000 — дальше в кадр попадают плашки ярлыков BaseHeroes (летают на 5000) */
+constant camDistances = [2400.0, 2600.0, 2800.0, 3000.0]
+
+/** Клетки сетки — массив: image нельзя положить в коллекцию stdlib (не int и не класс) */
+image array gridCells
+int gridCount = 0
+/** Клетки базы игрока a: gridCells[gridFirst[a] .. gridEnd[a] - 1] */
+int array gridFirst
+int array gridEnd
+bool array gridOn
+bool array gridDrawn
+bool array fastBuilder
+/** Где строитель был на прошлом тике ускорения */
+vec2 array lastPos
+int array camIndex
+
+/** На клетке с центром c можно строить: проверяются 4×4 точки (центры клеток проходимости по 32) */
+function isBuildableCell(vec2 c) returns bool
+    for i = 0 to 3
+        for j = 0 to 3
+            // isTerrainPathable == true значит «тип проходимости НЕ установлен», т.е. строить нельзя
+            if c.add(-48. + i * 32., -48. + j * 32.).isTerrainPathable(PATHING_TYPE_BUILDABILITY)
+                return false
+    return true
+
+/** Клетки сетки по базе r игрока a: только целиком внутри базы и только на стройплощадке, центры на кратных CELL */
+function drawGrid(rect r, int a)
+    gridFirst[a] = gridCount
+    var x = (r.getMinX() / CELL + 0.5).ceil() * CELL
+    while x + CELL / 2. <= r.getMaxX()
+        var y = (r.getMinY() / CELL + 0.5).ceil() * CELL
+        while y + CELL / 2. <= r.getMaxY()
+            if not isBuildableCell(vec2(x, y))
+                y += CELL
+                continue
+            let img = createImage("textures\\GridCell.blp", vec2(x, y), CELL, CELL)
+            SetImageRenderAlways(img, true)
+            ShowImage(img, false)
+            gridCells[gridCount] = img
+            gridCount++
+            y += CELL
+        x += CELL
+    gridEnd[a] = gridCount
+
+/** Стройплощадка игрока a (0..7): rct_Baza1..8 по порядку */
+function baseRect(int a) returns rect
+    switch a
+        case 0
+            return rct_Baza1
+        case 1
+            return rct_Baza2
+        case 2
+            return rct_Baza3
+        case 3
+            return rct_Baza4
+        case 4
+            return rct_Baza5
+        case 5
+            return rct_Baza6
+        case 6
+            return rct_Baza7
+        default
+            return rct_Baza8
+
+/** Показать/спрятать сетку его базы только на экране игрока p (у наблюдателей базы нет) */
+function showGrid(player p, bool on)
+    let a = p.getId()
+    if a < 8 and localPlayer == p
+        for i = gridFirst[a] to gridEnd[a] - 1
+            ShowImage(gridCells[i], on)
+
+function gridText(bool on) returns string
+    return on ? "Grid: On" : "Grid: Off"
+
+function speedText(bool fast) returns string
+    return fast ? "Speed: Fast" : "Speed: Normal"
+
+function camText(int index) returns string
+    return "Cam: " + camDistances[index].toInt()
+
+/** Ряд кнопок игрока owner (строится у всех клиентов, виден только ему) */
+function buildButtons(player owner) returns framehandle
+    let id = owner.getId()
+    let root = container(4. * BUTTON_W + 3. * GAP, BUTTON_H)
+    let grid = textButton(root, gridText(false), BUTTON_W, BUTTON_H)
+        ..setPoint(FRAMEPOINT_TOPLEFT, root, FRAMEPOINT_TOPLEFT)
+    let speed = textButton(root, speedText(false), BUTTON_W, BUTTON_H)
+        ..setPoint(FRAMEPOINT_TOPLEFT, grid, FRAMEPOINT_TOPRIGHT, GAP, 0.)
+    let cam = textButton(root, camText(0), BUTTON_W, BUTTON_H)
+        ..setPoint(FRAMEPOINT_TOPLEFT, speed, FRAMEPOINT_TOPRIGHT, GAP, 0.)
+    let tips = textButton(root, hoverModeText(owner), BUTTON_W, BUTTON_H)
+        ..setPoint(FRAMEPOINT_TOPLEFT, cam, FRAMEPOINT_TOPRIGHT, GAP, 0.)
+    grid.onClick() ->
+        // сетка базы рисуется при первом включении (все 8 сразу на старте — тысячи проверок клеток и сотни
+        // картинок, фриз перед первым раундом); клик синхронный — картинки создаются у всех одинаково
+        if id < 8 and not gridDrawn[id]
+            gridDrawn[id] = true
+            drawGrid(baseRect(id), id)
+        gridOn[id] = not gridOn[id]
+        grid.setText(gridText(gridOn[id]))
+        showGrid(owner, gridOn[id])
+    speed.onClick() ->
+        fastBuilder[id] = not fastBuilder[id]
+        speed.setText(speedText(fastBuilder[id]))
+        // у наблюдателей (id >= 8) строителя нет
+        if id < 8
+            let b = builders[id]
+            b.setMoveSpeed(fastBuilder[id] ? FAST_SPEED : b.getDefaultMovespeed())
+            lastPos[id] = b.getPos()
+    cam.onClick() ->
+        camIndex[id] = (camIndex[id] + 1) mod 4
+        cam.setText(camText(camIndex[id]))
+        if localPlayer == owner
+            SetCameraField(CAMERA_FIELD_TARGET_DISTANCE, camDistances[camIndex[id]], 0.5)
+    tips.onClick() ->
+        cycleHoverMode(owner)
+        tips.setText(hoverModeText(owner))
+    // ниже безопасной зоны TableLayout (она начинается с 0.17) — по просьбе: вплотную к нижней панели
+    root.setAbsPoint(FRAMEPOINT_BOTTOMLEFT, vec2(BUTTONS_LEFT, BUTTONS_BOTTOM))
+    return root
+
+/** Строители с «Fast»: к их собственному шагу за тик добавляется ещё (FAST_FACTOR - 1) такого же шага */
+function boostBuilders()
+    for id = 0 to 7
+        if fastBuilder[id]
+            let b = builders[id]
+            if b != null and b.isAlive()
+                let pos = b.getPos()
+                let delta = pos - lastPos[id]
+                let len = delta.length()
+                if len > 0.1 and len < MAX_STEP
+                    let next = pos + delta * (FAST_FACTOR - 1.)
+                    if next.isTerrainWalkable()
+                        b.setXY(next)
+                lastPos[id] = b.getPos()
+
+init
+    doPeriodically(FAST_TICK) cb ->
+        boostBuilders()
+    // UI — после блокирующего init (так требует TableLayout), к этому моменту строители уже созданы
+    doAfter(0.0) ->
+        perPlayerFrames(owner -> buildButtons(owner)).showEach()

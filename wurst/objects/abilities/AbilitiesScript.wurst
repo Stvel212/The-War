@@ -630,6 +630,8 @@ import AbilityObjEditing
 	..setManaCost(1, 200)
 	..setBuffs(1, "B00P")
 	..setHotkeyNormal("E")
+	// основа (Берсерк) требует улучшение «до берсерка» — у короля его нет никогда
+	..setRequirements("")
 
 @compiletime function create_w3a_A02Y()
 	new AbilityDefinitionShockwaveCreep('A02Y')

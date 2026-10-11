@@ -1,0 +1,304 @@
+package Profile
+import SaveLoadData
+import StructuredSerialization
+import ClosureTimers
+import MapGlobals
+import UnitEvents
+import LinkedList
+import GameTimer
+import GameMode
+
+/*
+    Профиль игрока между играми (по образцу Direct Strike: Progression/Profiles): опыт и уровень, монеты,
+    статистика (игры, победы, поражения, убийства), аватарка за уровень. Хранится в файле игрока
+    CustomMapData\TheWarReborn\profile.pld через stdlib SaveLoadData (Preload-файл + синхронизация всем) и
+    StructuredSerialization (поля класса ProfileData, с контрольной суммой).
+    - Опыт: за каждое убийство юнитом игрока вражеского юнита — max(1, уровень убитого / 2) (как DS).
+    - Монеты (только на скины): в конце игры 1 за минуту (не больше MAX_TIME_COINS) + WIN_BONUS за победу.
+    - Энергия (прокачка — заслуги Just Fight: Благословение, Молитва, энергии PvE): GAME_ENERGY за полную игру, за
+      победу в PvP — уровень Благословения, в PvE — за удержание волн и Забытых (Pve).
+    - В одиночной игре опыта, монет и энергии нет (profileRewards) — только тестовые команды.
+    - Уровни: таблица DS — 100, 300, 1000, дальше +35·(n + 100) за уровень, до MAX_LEVEL.
+    - Сохранение: в конце игры (смерть короля) и каждые AUTOSAVE_ROUNDS раундов.
+    Все данные синхронны (загрузка идёт через SyncSimple), локально — только показ окна профиля.
+    Аватарки: индекс в avatar* — это то, что лежит в сохранении, поэтому новые добавлять только в конец. */
+
+constant SAVE_SLOT = "TheWarReborn\\profile"
+public constant MAX_LEVEL = 1000
+constant WIN_BONUS = 30
+constant MAX_TIME_COINS = 60
+/** Энергия за полную игру (Just Fight: +3 заслуги за «эффективную» игру) — если игра шла не меньше FULL_GAME_MINUTES */
+constant GAME_ENERGY = 3
+constant FULL_GAME_MINUTES = 10
+constant AUTOSAVE_ROUNDS = 10
+
+/** Сохраняемые данные игрока — все поля пишутся в файл (SerializableFields) */
+public class ProfileData implements FieldSerializable
+    use SerializableFields
+    int xp = 0
+    int coins = 0
+    int games = 0
+    int wins = 0
+    int losses = 0
+    int kills = 0
+    int avatar = 0
+    /** Купленные скины и надетые — списки id через «,» (Skins) */
+    string skinsOwned = ""
+    string skinsEquipped = ""
+    /** PvE: старший пройденный уровень (0..5) и рекорд очков бесконечного режима (Хаотическая Пустота) */
+    int pveBeaten = 0
+    int pveBest = 0
+    /** Энергии PvE (Energies): уровни 8 видов через «,»; 0 — не активирована */
+    string energies = ""
+    /** Благословение Бога (Артас, ArthasJf): уровень 0..36 */
+    int blessing = 0
+    /** Талант Артаса (ArthasJf, «Молитва»): 0 — нет, 1..21 */
+    int talent = 0
+    /** Энергия — очки прокачки (заслуги Just Fight): Благословение, Молитва, энергии PvE. Монеты — только на скины */
+    int energy = 0
+    /** Куплено за энергию слотов особых зданий (супер-юнитов) сверх одного — 0..3, действуют в PvE (Energies) */
+    int superSlots = 0
+
+public ProfileData array profiles
+/** Профиль игрока загружен из файла (или файла нет) — до этого ничего не сохраняем, чтобы не затереть его */
+public bool array profileReady
+int array levelOf
+/** Опыт, нужный для перехода с уровня n на n + 1 (накопительно): levelXp[n] */
+int array levelXp
+bool gameOver = false
+
+// ---- аватарки (как AvatarMenu в DS: иконка открывается на уровне) ----
+
+constant avatarIcons = ["BTNPeasant", "BTNFootman", "BTNGrunt", "BTNGhoul", "BTNArcher", "BTNRifleman", "BTNHeadhunter",
+    "BTNCryptFiend", "BTNHuntress", "BTNKnight", "BTNRaider", "BTNAbomination", "BTNDruidOfTheClaw", "BTNSorceress",
+    "BTNShaman", "BTNBanshee", "BTNDryad", "BTNGryphonRider", "BTNTauren", "BTNFrostWyrm", "BTNChimaera",
+    "BTNHeroPaladin", "BTNHeroBlademaster", "BTNHeroDeathKnight", "BTNHeroDemonHunter", "BTNHeroArchMage",
+    "BTNHeroFarseer", "BTNLichVersion2", "BTNKeeperOfTheGrove", "BTNHeroMountainKing", "BTNHeroTaurenChieftain",
+    "BTNHeroDreadLord", "BTNPriestessOfTheMoon", "BTNHeroBloodElfPrince", "BTNShadowHunter", "BTNHeroCryptLord",
+    "BTNHeroWarden", "BTNArthas", "BTNThrall", "BTNTichondrius", "BTNEvilIllidan", "BTNKelThuzad",
+    "BTNMedivh", "BTNHeroAvatarOfFlame", "BTNArchimonde"]
+constant avatarLevels = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 33, 36, 40, 44, 48, 52,
+    56, 60, 65, 70, 75, 80, 90, 100, 110, 120, 135, 150, 175, 200, 250, 300, 400, 500, 750]
+public constant AVATARS = 45
+
+public function avatarIcon(int index) returns string
+    return "ReplaceableTextures\\CommandButtons\\" + avatarIcons[index] + ".blp"
+
+public function avatarLevel(int index) returns int
+    return avatarLevels[index]
+
+// ---- уровень ----
+
+public function player.profile() returns ProfileData
+    return profiles[this.getId()]
+
+public function player.profileLevel() returns int
+    return levelOf[this.getId()]
+
+/** Опыт текущего уровня: сколько набрано и сколько нужно до следующего */
+public function player.levelProgress() returns vec2
+    let level = levelOf[this.getId()]
+    let xp = profiles[this.getId()].xp
+    if level >= MAX_LEVEL
+        return vec2(1., 1.)
+    return vec2((xp - levelXp[level - 1]).toReal(), (levelXp[level] - levelXp[level - 1]).toReal())
+
+public function player.avatarIcon() returns string
+    return avatarIcon(profiles[this.getId()].avatar)
+
+/** Пересчитать уровень по опыту; true — уровень вырос */
+function updateLevel(int pid) returns bool
+    var level = max(1, levelOf[pid])
+    let start = level
+    while level < MAX_LEVEL and profiles[pid].xp >= levelXp[level]
+        level++
+    levelOf[pid] = level
+    return level > start
+
+/** Слушатели изменения профиля (окно профиля, таблица) */
+public interface ProfileListener
+    function onChange(player p)
+
+constant listeners = new LinkedList<ProfileListener>()
+
+public function onProfileChange(ProfileListener l)
+    listeners.add(l)
+
+public function player.profileChanged()
+    for l in listeners
+        l.onChange(this)
+
+// ---- изменения ----
+
+public function player.addXp(int amount)
+    let pid = this.getId()
+    if pid >= 8 or not profileReady[pid]
+        return
+    profiles[pid].xp += amount
+    if updateLevel(pid)
+        DisplayTextToPlayer(this, 0., 0., "|cff00ff00Level up!|r Profile level |cffffcc00" + levelOf[pid] + "|r")
+    this.profileChanged()
+
+public function player.addCoins(int amount)
+    let pid = this.getId()
+    if pid < 8 and profileReady[pid]
+        profiles[pid].coins += amount
+        this.profileChanged()
+
+/** Списать монеты; false — не хватает */
+public function player.spendCoins(int amount) returns bool
+    let pid = this.getId()
+    if pid >= 8 or not profileReady[pid] or profiles[pid].coins < amount
+        return false
+    profiles[pid].coins -= amount
+    this.profileChanged()
+    return true
+
+public function player.addEnergy(int amount)
+    let pid = this.getId()
+    if pid < 8 and profileReady[pid]
+        profiles[pid].energy += amount
+        this.profileChanged()
+
+/** Списать энергию; false — не хватает */
+public function player.spendEnergy(int amount) returns bool
+    let pid = this.getId()
+    if pid >= 8 or not profileReady[pid] or profiles[pid].energy < amount
+        return false
+    profiles[pid].energy -= amount
+    this.profileChanged()
+    return true
+
+public function player.setAvatar(int index)
+    let pid = this.getId()
+    if pid < 8 and profileReady[pid] and levelOf[pid] >= avatarLevels[index]
+        profiles[pid].avatar = index
+        this.profileChanged()
+        this.saveProfile()
+
+// ---- файл ----
+
+public function player.saveProfile()
+    let pid = this.getId()
+    if pid >= 8 or not profileReady[pid] or not this.isIngame()
+        return
+    let data = profiles[pid].serialize()
+    this.saveData(SAVE_SLOT, data)
+    destroy data
+
+function loadProfile(player p)
+    let pid = p.getId()
+    p.loadData(SAVE_SLOT) (status, data) ->
+        if status == LoadStatus.SUCCESS
+            profiles[pid].deserialize(data)
+        profileReady[pid] = true
+        levelOf[pid] = 1
+        updateLevel(pid)
+        p.profileChanged()
+
+// ---- игра ----
+
+function onKill()
+    let killer = GetKillingUnit()
+    if killer == null
+        return
+    let owner = killer.getOwner()
+    let pid = owner.getId()
+    let dying = GetDyingUnit()
+    if pid >= 8 or dying.getOwner().isAllyOf(owner)
+        return
+    profiles[pid].kills++
+    if profileRewards()
+        owner.addXp(max(1, dying.getLevel() div 2))
+
+/** Опыт, монеты и энергию профиль получает только в сетевой игре: одиночная — для тестов (команды -xp, -coins,
+    -energy в Commands начисляют напрямую) */
+public function profileRewards() returns bool
+    return not bj_isSinglePlayer
+
+/** Награда в конце игры (в одиночной — нет) */
+function player.endReward(int coins, int energy)
+    if not profileRewards()
+        DisplayTextToPlayer(this, 0., 0., "|cffc0c0c0Single player: no coins, energy or XP for the profile|r")
+        return
+    this.addCoins(coins)
+    this.addEnergy(energy)
+    DisplayTextToPlayer(this, 0., 0., "|cffffcc00+" + coins + " coins|r, |cff00ffff+" + energy + " energy|r (profile)")
+
+function autosave()
+    if round > 0 and round mod AUTOSAVE_ROUNDS == 0
+        for pid = 0 to 7
+            players[pid].saveProfile()
+
+/** Конец игры: команда winners победила — монеты, статистика, сохранение */
+function finishGame(int winners)
+    if gameOver
+        return
+    gameOver = true
+    let minutes = (getElapsedGameTime() / 60.).toInt()
+    for pid = 0 to 7
+        let p = players[pid]
+        if p.isIngame() and profileReady[pid]
+            let won = (pid < 4 ? 1 : 2) == winners
+            profiles[pid].games++
+            if won
+                profiles[pid].wins++
+            else
+                profiles[pid].losses++
+            var coins = min(minutes, MAX_TIME_COINS)
+            var energy = minutes >= FULL_GAME_MINUTES ? GAME_ENERGY : 0
+            if won
+                coins += WIN_BONUS
+                // Благословение Бога: за победу столько энергии, каков его уровень (Just Fight: заслуги за победу 4v4)
+                energy += profiles[pid].blessing
+            p.endReward(coins, energy)
+            p.saveProfile()
+
+/** Конец кооперативной игры (PvE): всем одинаково — победа/поражение, монеты за время + bonus, сохранение */
+public function finishCoop(bool won, int bonus)
+    if gameOver
+        return
+    gameOver = true
+    let minutes = (getElapsedGameTime() / 60.).toInt()
+    for pid = 0 to 7
+        let p = players[pid]
+        if p.isIngame() and profileReady[pid]
+            profiles[pid].games++
+            if won
+                profiles[pid].wins++
+            else
+                profiles[pid].losses++
+            let coins = min(minutes, MAX_TIME_COINS) + bonus
+            let energy = minutes >= FULL_GAME_MINUTES ? GAME_ENERGY : 0
+            p.endReward(coins, energy)
+            p.saveProfile()
+
+init
+    levelXp[0] = 0
+    levelXp[1] = 100
+    levelXp[2] = 300
+    levelXp[3] = 1000
+    for n = 4 to MAX_LEVEL
+        levelXp[n] = levelXp[n - 1] + 35 * (n + 100)
+    for pid = 0 to 7
+        profiles[pid] = new ProfileData()
+        levelOf[pid] = 1
+    onAnyDeath(() -> onKill())
+    onDeathOf('H003') ->
+        let king = GetDyingUnit()
+        // PvE: оба короля свои — итоги считает Pve (finishCoop)
+        if isPve()
+            skip
+        else if king == kings[1]
+            finishGame(2)
+        else if king == kings[2]
+            finishGame(1)
+    // автосохранение: каждые AUTOSAVE_ROUNDS раундов (вылет из игры не теряет всё)
+    CreateTrigger()
+        ..registerTimerExpireEvent(roundTimer)
+        ..addAction(function autosave)
+    // загрузка — после старта игры (синхронизация файлов работает только в игре)
+    doAfter(0.0) ->
+        for pid = 0 to 7
+            if players[pid].isIngame()
+                loadProfile(players[pid])

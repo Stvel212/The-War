@@ -1,0 +1,30 @@
+# Активные способности скопированных юнитов Just Fight: класс AbilityDefinition… -> приказ и цель для автокаста монстров
+# (CreepCast). Цель: 0 — без цели, 1 — враг (атакуемый), 2 — точка врага, 3 — раненый союзник рядом (или сам).
+# Пассивки и ауры сюда не входят — они работают сами.
+ArchMageSummonWaterElemental	waterelemental	0
+Roarcreep	roar	0
+Roar	roar	0
+WarStompcreep	stomp	0
+ThunderClapCreep	creepthunderclap	0
+FarseerSpiritWolf	spiritwolf	0
+CryptLordLocustSwarm	locustswarm	0
+BladeMasterBladestorm	bladestorm	0
+Berserk	berserk	0
+AlchemistChemicalRage	chemicalrage	0
+MountainKingThunderBolt	thunderbolt	1
+ForkedLightningCreep	forkedlightning	1
+Parasite	parasite	1
+FingerOfDeath1	fingerofdeath	1
+Cursecreep	curse	1
+RocketAttack	clusterrockets	2
+BrewmasterBreathofFire	breathoffire	2
+DevourMagic	devourmagic	2
+HealingWaveCreep	healingwave	3
+ShadowHunterHealingWave	healingwave	3
+Bloodlust	bloodlust	3
+BloodlustCreep	bloodlust	3
+SpiritLink	spiritlink	3
+Rejuvination	rejuvination	3
+InnerFire	innerfire	3
+Heal	heal	3
+FrostArmorcreep	frostarmor	3

@@ -1,0 +1,41 @@
+package EscMenu
+import ClosureTimers
+
+/*
+    Сохранения в карте выключены.
+    - Меню Esc у игроков (не наблюдателей): нет сохранения/загрузки и кнопки «Выход» (выход из игры мимо
+      «Покинуть игру»); в окне подтверждения выхода кнопка выключена и подсказка про «Quit Mission».
+      Это только видимость/доступность фреймов меню у своего клиента — на синхронное состояние не влияет.
+    - Быстрое сохранение (F5) — хоткей клиента, картой его не перехватить и не отменить. Поэтому сохранение
+      бесполезно: загруженная игра сразу заканчивается (EVENT_GAME_LOADED), а при сохранении все видят
+      предупреждение. */
+
+constant LOADED_GAME_END_DELAY = 3.0
+
+function lockEscMenu()
+    if IsPlayerObserver(localPlayer)
+        return
+    getFrame("EscMenuSaveLoadContainer").hide()
+    getFrame("SaveGameFileEditBox").disable()
+    getFrame("ExitButton").hide()
+    getFrame("ConfirmQuitQuitButton").disable()
+    getFrame("ConfirmQuitMessageText").setText("Please use Quit Mission instead.")
+
+function onGameSaved()
+    print("|cffff4040Saving is disabled in this map: a loaded save ends immediately.|r")
+
+function onGameLoaded()
+    print("|cffff4040Saved games are not supported in this map. The game will end.|r")
+    doAfter(LOADED_GAME_END_DELAY) ->
+        EndGame(false)
+
+init
+    CreateTrigger()
+        ..registerGameEvent(EVENT_GAME_SAVE)
+        ..addAction(function onGameSaved)
+    CreateTrigger()
+        ..registerGameEvent(EVENT_GAME_LOADED)
+        ..addAction(function onGameLoaded)
+    // фреймы меню доступны после загрузки интерфейса, не в блокирующем init
+    doAfter(0.0) ->
+        lockEscMenu()

@@ -15355,15 +15355,15 @@ Steals a beneficial spell from an enemy and gives it to the nearest ally (or vic
 |c0000FF00[Cтoимocть 40 дepeвa]|r
 
 Пoвышaeт cилy aтaки кopoля нa 10 eд., a тaкжe eгo cтpaжeй нa 1 eд.
-|c00FF8080(Maкcимaльнoe чиcлo yлyчшeний дo 50 payндa = 30)|r 
-|c00FF8080(Пocлe 50 payндa мaкcимaльнoe чиcлo yлyчшeний = 50)|r
+|c00FF8080(Максимум улучшений: 1x1 — 15; 2x2 — 15, с 50 раунда — 30)|r 
+|c00FF8080(3x3 и 4x4 — 30, с 50 раунда — 50)|r
 |c0000FF00[Инкoм:]|r +2
 ---
 |c0000FF00[Cost 40 lumber]|r
 
 Increases the King's attack damage by 10, and his guards' by 1.
-|c00FF8080(Maximum upgrades before round 50 = 30)|r
-|c00FF8080(After round 50 the maximum is 50)|r
+|c00FF8080(Maximum upgrades: 1v1 — 15; 2v2 — 15, from round 50 — 30)|r
+|c00FF8080(3v3 and 4v4 — 30, from round 50 — 50)|r
 |c0000FF00[Income:]|r +2
 
 === A03B anam, A0DY anam
@@ -15380,15 +15380,15 @@ Increases the King's attack damage by 10, and his guards' by 1.
 |c0000FF00[Cтoимocть 40 дepeвa]|r
 
 Пoвышaeт здopoвьe кopoля нa 350 eд., a тaкжe eгo cтpaжeй нa 35 eд.
-|c00FF8080(Maкcимaльнoe чиcлo yлyчшeний дo 50 payндa = 30)|r 
-|c00FF8080(Пocлe 50 payндa мaкcимaльнoe чиcлo yлyчшeний = 50)|r
+|c00FF8080(Максимум улучшений: 1x1 — 15; 2x2 — 15, с 50 раунда — 30)|r 
+|c00FF8080(3x3 и 4x4 — 30, с 50 раунда — 50)|r
 |c0000FF00[Инкoм:]|r +2
 ---
 |c0000FF00[Cost 40 lumber]|r
 
 Increases the King's health by 350, and his guards' by 35.
-|c00FF8080(Maximum upgrades before round 50 = 30)|r
-|c00FF8080(After round 50 the maximum is 50)|r
+|c00FF8080(Maximum upgrades: 1v1 — 15; 2v2 — 15, from round 50 — 30)|r
+|c00FF8080(3v3 and 4v4 — 30, from round 50 — 50)|r
 |c0000FF00[Income:]|r +2
 
 === A03D anam, A0DZ anam
@@ -15405,15 +15405,15 @@ Increases the King's health by 350, and his guards' by 35.
 |c0000FF00[Cтoимocть 40 дepeвa]|r
 
 Пoвышaeт peгeнepaцию кopoля нa 2.5 eд., a тaкжe aтaкy eгo cтpaжeй нa 0.5 eд. и здopoвьe нa 15 eд.
-|c00FF8080(Maкcимaльнoe чиcлo yлyчшeний дo 50 payндa = 30)|r 
-|c00FF8080(Пocлe 50 payндa мaкcимaльнoe чиcлo yлyчшeний = 50)|r
+|c00FF8080(Максимум улучшений: 1x1 — 15; 2x2 — 15, с 50 раунда — 30)|r 
+|c00FF8080(3x3 и 4x4 — 30, с 50 раунда — 50)|r
 |c0000FF00[Инкoм:]|r +2
 ---
 |c0000FF00[Cost 40 lumber]|r
 
 Increases the King's regeneration by 2.5, and his guards' attack by 0.5 and health by 15.
-|c00FF8080(Maximum upgrades before round 50 = 30)|r
-|c00FF8080(After round 50 the maximum is 50)|r
+|c00FF8080(Maximum upgrades: 1v1 — 15; 2v2 — 15, from round 50 — 30)|r
+|c00FF8080(3v3 and 4v4 — 30, from round 50 — 50)|r
 |c0000FF00[Income:]|r +2
 
 === A03E anam, A0E0 anam
@@ -15430,15 +15430,15 @@ Increases the King's regeneration by 2.5, and his guards' attack by 0.5 and heal
 |c0000FF00[Cтoимocть 200 дepeвa]|r
 
 Пoвышaeт cилy aтaки кopoля нa 50 eд., a тaкжe eгo cтpaжeй нa 5 eд.
-|c00FF8080(Maкcимaльнoe чиcлo yлyчшeний дo 50 payндa = 30)|r 
-|c00FF8080(Пocлe 50 payндa мaкcимaльнoe чиcлo yлyчшeний = 50)|r
+|c00FF8080(Максимум улучшений: 1x1 — 15; 2x2 — 15, с 50 раунда — 30)|r 
+|c00FF8080(3x3 и 4x4 — 30, с 50 раунда — 50)|r
 |c0000FF00[Инкoм:]|r +10
 ---
 |c0000FF00[Cost 200 lumber]|r
 
 Increases the King's attack damage by 50, and his guards' by 5.
-|c00FF8080(Maximum upgrades before round 50 = 30)|r
-|c00FF8080(After round 50 the maximum is 50)|r
+|c00FF8080(Maximum upgrades: 1v1 — 15; 2v2 — 15, from round 50 — 30)|r
+|c00FF8080(3v3 and 4v4 — 30, from round 50 — 50)|r
 |c0000FF00[Income:]|r +10
 
 === A0DZ atp1/1
@@ -15450,15 +15450,15 @@ Increases the King's attack damage by 50, and his guards' by 5.
 |c0000FF00[Cтoимocть 200 дepeвa]|r
 
 Пoвышaeт здopoвьe кopoля нa 1750 eд., a тaкжe eгo cтpaжeй нa 175 eд.
-|c00FF8080(Maкcимaльнoe чиcлo yлyчшeний дo 50 payндa = 30)|r 
-|c00FF8080(Пocлe 50 payндa мaкcимaльнoe чиcлo yлyчшeний = 50)|r
+|c00FF8080(Максимум улучшений: 1x1 — 15; 2x2 — 15, с 50 раунда — 30)|r 
+|c00FF8080(3x3 и 4x4 — 30, с 50 раунда — 50)|r
 |c0000FF00[Инкoм:]|r +10
 ---
 |c0000FF00[Cost 200 lumber]|r
 
 Increases the King's health by 1750, and his guards' by 175.
-|c00FF8080(Maximum upgrades before round 50 = 30)|r
-|c00FF8080(After round 50 the maximum is 50)|r
+|c00FF8080(Maximum upgrades: 1v1 — 15; 2v2 — 15, from round 50 — 30)|r
+|c00FF8080(3v3 and 4v4 — 30, from round 50 — 50)|r
 |c0000FF00[Income:]|r +10
 
 === A0E0 atp1/1
@@ -15470,15 +15470,15 @@ Increases the King's health by 1750, and his guards' by 175.
 |c0000FF00[Cтoимocть 200 дepeвa]|r
 
 Пoвышaeт peгeнepaцию кopoля нa 12.5 eд., a тaкжe aтaкy eгo cтpaжeй нa 2.5 eд. и здopoвьe нa 75 eд.
-|c00FF8080(Maкcимaльнoe чиcлo yлyчшeний дo 50 payндa = 30)|r 
-|c00FF8080(Пocлe 50 payндa мaкcимaльнoe чиcлo yлyчшeний = 50)|r
+|c00FF8080(Максимум улучшений: 1x1 — 15; 2x2 — 15, с 50 раунда — 30)|r 
+|c00FF8080(3x3 и 4x4 — 30, с 50 раунда — 50)|r
 |c0000FF00[Инкoм:]|r +10
 ---
 |c0000FF00[Cost 200 lumber]|r
 
 Increases the King's regeneration by 12.5, and his guards' attack by 2.5 and health by 75.
-|c00FF8080(Maximum upgrades before round 50 = 30)|r
-|c00FF8080(After round 50 the maximum is 50)|r
+|c00FF8080(Maximum upgrades: 1v1 — 15; 2v2 — 15, from round 50 — 30)|r
+|c00FF8080(3v3 and 4v4 — 30, from round 50 — 50)|r
 |c0000FF00[Income:]|r +10
 
 === A0E1 atp1/1
@@ -15493,7 +15493,7 @@ Increases the King's regeneration by 12.5, and his guards' attack by 2.5 and hea
 |c00C0C0C0Пaccивный эффeкт:|r 
 |c0000FFFFУвeличивaeт вoccтaнoвлeниe мaны кopoля нa 1%|r 
 |c00A9A9A9(Пepeзapядкa 180 ceкyнд)|r 
-|c00FF4500(Oткpывaeтcя пocлe 60 payндa)|r
+|c00FF4500(Oткpывaeтcя пocлe 60 payндa, только 4x4)|r
 |c0000FF00[Инкoм:]|r +15
 ---
 |c0000FF00[Cost 300 lumber]|r
@@ -15502,7 +15502,7 @@ Increases multishot to 6 targets, and within 1000 of the King slows enemy moveme
 |c00C0C0C0Passive effect:|r
 |c0000FFFFIncreases the King's mana regeneration by 1%|r
 |c00A9A9A9(Cooldown 180 seconds)|r
-|c00FF4500(Unlocks after round 60)|r
+|c00FF4500(Unlocks after round 60, 4v4 only)|r
 |c0000FF00[Income:]|r +15
 
 === A0E1 anam, A0E2 anam
@@ -15522,7 +15522,7 @@ B paдиyce 1000 oт Kopoля вpaжecкиe юниты пocтeпeннo тepяю�
 |c00C0C0C0Пaccивный эффeкт:|r 
 |c0000FFFFУвeличивaeт вoccтaнoвлeниe мaны кopoля нa 1%|r 
 |c00A9A9A9(Пepeзapядкa 180 ceкyнд)|r 
-|c00FF4500(Oткpывaeтcя пocлe 60 payндa)|r
+|c00FF4500(Oткpывaeтcя пocлe 60 payндa, только 4x4)|r
 |c0000FF00[Инкoм:]|r +15
 ---
 |c0000FF00[Cost 300 lumber]|r
@@ -15531,7 +15531,7 @@ Within 1000 of the King, enemy units gradually lose 1.5% health over 10 seconds,
 |c00C0C0C0Passive effect:|r
 |c0000FFFFIncreases the King's mana regeneration by 1%|r
 |c00A9A9A9(Cooldown 180 seconds)|r
-|c00FF4500(Unlocks after round 60)|r
+|c00FF4500(Unlocks after round 60, 4v4 only)|r
 |c0000FF00[Income:]|r +15
 
 === A0E5 anam, A0E6 anam
@@ -15552,7 +15552,7 @@ B этo вpeмя кopoль пoлyчaeт 100% шaнc к yвopoтy.
 |c00C0C0C0Пaccивный эффeкт:|r 
 |c0000FFFFУвeличивaeт вoccтaнoвлeниe мaны кopoля нa 1%|r 
 |c00A9A9A9(Пepeзapядкa 180 ceкyнд)|r 
-|c00FF4500(Oткpывaeтcя пocлe 60 payндa)|r
+|c00FF4500(Oткpывaeтcя пocлe 60 payндa, только 4x4)|r
 |c0000FF00[Инкoм:]|r +15
 ---
 |c0000FF00[Cost 300 lumber]|r
@@ -15562,7 +15562,7 @@ During that time the King has a 100% chance to evade.
 |c00C0C0C0Passive effect:|r
 |c0000FFFFIncreases the King's mana regeneration by 1%|r
 |c00A9A9A9(Cooldown 180 seconds)|r
-|c00FF4500(Unlocks after round 60)|r
+|c00FF4500(Unlocks after round 60, 4v4 only)|r
 |c0000FF00[Income:]|r +15
 
 === A0E9 anam, A0EA anam
@@ -15735,7 +15735,7 @@ Detect Spell Damage
 |c0000FFFF[Tactics]|r (|cffffcc00E|r)
 
 === A004 aub1/1
-|c00FF8000Oткpывaeт мeню, гдe мoжнo выбpaть кaкиe пpoдaжи вы xoтитe иcпoльзoвaть|r 
+|c00FF8000Oткpывaeт мeню, гдe мoжнo выбpaть кaкиe пpoдaжи вы xoтитe иcпoльзoвaть|r
 |c00FF8080Пepeзapядкa 300 ceкyнд|r
 ---
 |c00FF8000Opens a menu where you choose which sales to use|r
@@ -15757,7 +15757,7 @@ Reverse
 |c0000FFFF[Sell Unit]|r (|cffffcc00E|r)
 
 === A005 aub1/1
-|c00FF8000Пpoдaёт вaшeгo юнитa зa пoлнyю cтoимocть|r 
+|c00FF8000Пpoдaёт вaшeгo юнитa зa пoлнyю cтoимocть|r
 |c00FF8080Пepeзapядкa 300 ceкyнд|r
 ---
 |c00FF8000Sells your unit for its full price|r
@@ -15799,7 +15799,7 @@ Totem
 |c0000FFFF[Sell Artifact]|r (|cffffcc00O|r)
 
 === A00H aub1/1
-|c00FF8000Продаёт ваш артефакт за полную стоимость|r 
+|c00FF8000Продаёт ваш артефакт за полную стоимость|r
 |c00FF8080Перезарядка 300 секунд|r
 ---
 |c00FF8000Sells your artifact for its full price|r
@@ -17521,3 +17521,813 @@ Absorbs damage
 ---
 Sand Protection
 
+=== A0IS / h0MV (способность и фиктивное здание: имя)
+Переместить
+---
+Move
+
+=== A0IS (способность: подсказка)
+Переместить |cffffcc00(V)|r
+---
+Move |cffffcc00(V)|r
+
+=== A0IS (способность: описание)
+Переставляет здание в выбранную клетку своей базы. Место должно быть свободным. Каждое здание — только один раз.
+---
+Moves the building to the chosen cell of your base. The spot must be free. Each building can be moved only once. Each building can be moved only once.
+
+
+# ---- PvE: Забытые, Терминатор, генератор (wurst/objects/units/UnitsPve.wurst) ----
+
+=== UPB1 / UPB2 (имя)
+Забытый
+---
+Forgotten
+
+=== UPB3 (имя)
+Злой Бог
+---
+Evil God
+
+=== UPB4 (имя)
+Забытый (ложный)
+---
+Forgotten (fake)
+
+=== nPB5 (имя)
+Терминатор
+---
+Terminator
+
+=== hPGN (имя)
+Генератор энергии
+---
+Energy Generator
+
+=== hPGN (описание)
+Монстры линии сначала ломают генератор. Разрушен — монстры прорываются к Богу Войны.
+---
+Monsters of the lane attack the generator first. Once it is destroyed, monsters break through to the War God.
+
+=== APB1 / APB2 / APB3 (имя)
+Ледяная скорбь
+---
+Frostmourne's Sorrow
+
+=== APB1 / APB2 / APB3 (описание)
+Таинственный клинок: атака поражает сразу несколько врагов.
+---
+A mysterious blade: the attack hits several enemies at once.
+
+=== APBL (имя)
+Благословение
+---
+Blessing
+
+=== APBL (подсказка)
+Благословение (|cffffcc00R|r)
+---
+Blessing (|cffffcc00R|r)
+
+=== APBL (описание)
+После молитвы вы получите «100 + раунд·3» золота.|n|n|cffc0c0c0Перезарядка: 300 секунд|nИспользований: PvE 1 — 3, PvE 2 — 2, PvE 3 — 1|r
+---
+After praying you receive "100 + round·3" gold.|n|n|cffc0c0c0Cooldown: 300 seconds|nUses: PvE 1 - 3, PvE 2 - 2, PvE 3 - 1|r
+
+
+# ---- PvE: Хаотическая Пустота (wurst/objects/units/UnitsPveVoid.wurst) ----
+
+=== hPCV unam, hPCV utip
+Хаотическая Пустота
+---
+Chaotic Void
+
+=== hPCV utub
+Пульт бесконечного режима: сложность монстров, вожаки, обмен маны и технологии Пустоты.
+---
+Endless mode control: monster difficulty, leaders, MP exchange and Void Technologies.
+
+=== nPL1 unam, nPL1 utip
+Отчуждённый Бог
+---
+Alienated God
+
+=== nPL2 unam, nPL2 utip
+Отчуждённый Убийца теней
+---
+Alienated Shadow Killer
+
+=== nPL3 unam, nPL3 utip
+Отчуждённый Демон
+---
+Alienated Demon
+
+=== nPL4 unam, nPL4 utip
+Отчуждённый Владыка Ада
+---
+Alienated Hell Lord
+
+=== nPL5 unam, nPL5 utip
+Отчуждённая Древняя Медуза
+---
+Alienated Ancient Medusa
+
+=== nPL6 unam, nPL6 utip
+Отчуждённая Гоблинская броня
+---
+Alienated Goblin Armor
+
+=== nPL7 unam, nPL7 utip
+Отчуждённый Повелитель Бездны
+---
+Alienated Pit Lord
+
+=== IPCV unam, IPCV utip
+Очки Хаотической Пустоты
+---
+Chaotic Void Points
+
+=== IPCV utub
+Заряды — ваши очки бесконечного режима: монстры, монстры со свойствами, вожаки и Забытые.
+---
+Charges are your endless points: monsters, monsters with traits, leaders and Forgotten.
+
+=== IPCV ides
+Очки бесконечного режима.
+---
+Endless mode points.
+
+=== APV1 anam
+Тирания
+---
+Tyranny
+
+=== APV1 atp1/1
+Тирания (ур. 0)
+---
+Tyranny (lv. .)
+
+=== APV1 aub1/1, APV1 aub1/2, APV1 aub1/3, APV1 aub1/4
+Повышает уровень Тирании монстров: новые монстры получают её с шансом 20%.|n|n|cffff9900Ур. 1: +10 урона и +30% скорости атаки (7 маны Пустоты за убийство)|nУр. 2: +20 урона и +60% скорости атаки (14 маны)|nУр. 3: +30 урона и +90% скорости атаки (21 маны)|r|n|n|cffff8080Действие необратимо — оцените свои силы.|r
+---
+Increases the Tyranny level of monsters: new monsters get it with a 20% chance.|n|n|cffff9900LVL 1: +10 damage and +30% attack speed (7 Void MP per kill)|nLVL 2: +20 damage and +60% attack speed (14 MP)|nLVL 3: +30 damage and +90% attack speed (21 MP)|r|n|n|cffff8080This action is irreversible - measure your strength properly.|r
+
+=== APV1 atp1/2
+Тирания (ур. 1)
+---
+Tyranny (lv. .)
+
+=== APV1 atp1/3
+Тирания (ур. 2)
+---
+Tyranny (lv. .)
+
+=== APV1 atp1/4
+Тирания (ур. 3)
+---
+Tyranny (lv. .)
+
+=== APV2 anam
+Хаос-ген
+---
+Chaotic Gene
+
+=== APV2 atp1/1
+Хаос-ген (ур. 0)
+---
+Chaotic Gene (lv. .)
+
+=== APV2 aub1/1, APV2 aub1/2, APV2 aub1/3, APV2 aub1/4
+Повышает уровень Хаос-гена монстров: новые монстры получают его с шансом 20%.|n|n|cffff9900Ур. 1: 10% уклонения, после смерти 500 магического урона убийце (7 маны Пустоты за убийство)|nУр. 2: 20% уклонения, 1000 урона (14 маны)|nУр. 3: 30% уклонения, 1500 урона (21 маны)|r|n|n|cffff8080Действие необратимо — оцените свои силы.|r
+---
+Increases the Chaotic Gene level of monsters: new monsters get it with a 20% chance.|n|n|cffff9900LVL 1: 10% evasion, deals 500 spell damage to the killer after death (7 Void MP per kill)|nLVL 2: 20% evasion, 1000 damage (14 MP)|nLVL 3: 30% evasion, 1500 damage (21 MP)|r|n|n|cffff8080This action is irreversible - measure your strength properly.|r
+
+=== APV2 atp1/2
+Хаос-ген (ур. 1)
+---
+Chaotic Gene (lv. .)
+
+=== APV2 atp1/3
+Хаос-ген (ур. 2)
+---
+Chaotic Gene (lv. .)
+
+=== APV2 atp1/4
+Хаос-ген (ур. 3)
+---
+Chaotic Gene (lv. .)
+
+=== APV3 anam
+Прочный панцирь
+---
+Tough Shell
+
+=== APV3 atp1/1
+Прочный панцирь (ур. 0)
+---
+Tough Shell (lv. .)
+
+=== APV3 aub1/1, APV3 aub1/2, APV3 aub1/3, APV3 aub1/4
+Повышает уровень Прочного панциря монстров: новые монстры получают его с шансом 20%.|n|n|cffff9900Ур. 1: +300 здоровья и +6 брони (7 маны Пустоты за убийство)|nУр. 2: +600 здоровья и +12 брони (14 маны)|nУр. 3: +900 здоровья и +18 брони (21 маны)|r|n|n|cffff8080Действие необратимо — оцените свои силы.|r
+---
+Increases the Tough Shell level of monsters: new monsters get it with a 20% chance.|n|n|cffff9900LVL 1: +300 HP and +6 armor (7 Void MP per kill)|nLVL 2: +600 HP and +12 armor (14 MP)|nLVL 3: +900 HP and +18 armor (21 MP)|r|n|n|cffff8080This action is irreversible - measure your strength properly.|r
+
+=== APV3 atp1/2
+Прочный панцирь (ур. 1)
+---
+Tough Shell (lv. .)
+
+=== APV3 atp1/3
+Прочный панцирь (ур. 2)
+---
+Tough Shell (lv. .)
+
+=== APV3 atp1/4
+Прочный панцирь (ур. 3)
+---
+Tough Shell (lv. .)
+
+=== APV4 anam
+Турбулентность Пустоты
+---
+Void Turbulence
+
+=== APV4 atp1/1
+Турбулентность Пустоты (ур. 0)
+---
+Void Turbulence (lv. .)
+
+=== APV4 aub1/1, APV4 aub1/2, APV4 aub1/3, APV4 aub1/4
+Повышает уровень Турбулентности монстров: новые монстры получают её с шансом 20%.|n|n|cffff9900Ур. 1: атакованный бойцом дальнего боя монстр переносится к нему (один раз) и получает 15% шанс утроенного удара (7 маны Пустоты за убийство)|nУр. 2: 30% шанс (14 маны)|nУр. 3: 45% шанс (21 маны)|r|n|n|cffff8080Действие необратимо — оцените свои силы.|r
+---
+Increases the Void Turbulence level of monsters: new monsters get it with a 20% chance.|n|n|cffff9900LVL 1: when attacked by a ranged unit, the monster teleports to it (once) and gets a 15% chance to deal triple damage (7 Void MP per kill)|nLVL 2: 30% chance (14 MP)|nLVL 3: 45% chance (21 MP)|r|n|n|cffff8080This action is irreversible - measure your strength properly.|r
+
+=== APV4 atp1/2
+Турбулентность Пустоты (ур. 1)
+---
+Void Turbulence (lv. .)
+
+=== APV4 atp1/3
+Турбулентность Пустоты (ур. 2)
+---
+Void Turbulence (lv. .)
+
+=== APV4 atp1/4
+Турбулентность Пустоты (ур. 3)
+---
+Void Turbulence (lv. .)
+
+=== APV5 anam
+Вызов вожака
+---
+Challenge Leader
+
+=== APV5 atp1/1
+Вызов вожака (ур. 0)
+---
+Challenge Leader (lv. .)
+
+=== APV5 aub1/1, APV5 aub1/2, APV5 aub1/3, APV5 aub1/4, APV5 aub1/5, APV5 aub1/6, APV5 aub1/7
+Вызвать вожака: он появится на вашей линии в начале следующего раунда, за убийство — богатая награда (200 · номер вожака маны и очков Пустоты). Каждый вожак — один раз, по очереди: Отчуждённый Бог, Убийца теней, Демон, Владыка Ада, Древняя Медуза, Гоблинская броня, Повелитель Бездны.|n|n|cffff8080Действие необратимо — оцените свои силы.|r
+---
+Challenge a leader: he appears on your lane at the start of the next round; killing him gives a rich reward (200 · leader number Void MP and points). Each leader only once, in order: Alienated God, Shadow Killer, Demon, Hell Lord, Ancient Medusa, Goblin Armor, Pit Lord.|n|n|cffff8080This action is irreversible - measure your strength properly.|r
+
+=== APV5 atp1/2
+Вызов вожака (ур. 1)
+---
+Challenge Leader (lv. .)
+
+=== APV5 atp1/3
+Вызов вожака (ур. 2)
+---
+Challenge Leader (lv. .)
+
+=== APV5 atp1/4
+Вызов вожака (ур. 3)
+---
+Challenge Leader (lv. .)
+
+=== APV5 atp1/5
+Вызов вожака (ур. 4)
+---
+Challenge Leader (lv. .)
+
+=== APV5 atp1/6
+Вызов вожака (ур. 5)
+---
+Challenge Leader (lv. .)
+
+=== APV5 atp1/7
+Вызов вожака (ур. 6)
+---
+Challenge Leader (lv. .)
+
+=== APV6 aub1/1
+700 маны Пустоты -> 300 золота.
+---
+700 Void MP -> 300 gold.
+
+=== APV7 anam, APV7 atp1/1
+Больше дерева
+---
+More Lumber
+
+=== APV7 aub1/1
+700 маны Пустоты -> 100 дерева.
+---
+700 Void MP -> 100 lumber.
+
+=== APV8 anam
+Технология Пустоты A
+---
+Type A Technology
+
+=== APV8 atp1/1
+Технология Пустоты A (ур. 0)
+---
+Type A Technology (lv. .)
+
+=== APV8 aub1/1, APV8 aub1/2, APV8 aub1/3, APV8 aub1/4, APV8 aub1/5, APV8 aub1/6, APV8 aub1/7, APV8 aub1/8, APV8 aub1/9
+|cffffff00Цена: 300 золота и 100 дерева|r|n|nНовые бойцы с шансом 10% получают +10% урона за уровень.|n|n|cffccffccСочетания (обе технологии от 5-го уровня, новым бойцам с шансом 10%):|nA + B — Меткость: дальнему бою 15% шанс двойного урона|nA + C — Кровожадность: ближнему бою 30% вампиризма|nA + D — Псионика: юнитам с маной атака с шансом 20% восполняет ману|nB + C — Твёрдая кожа: ближнему бою 50% шанс снизить урон на 50|nB + D — Святой щит: дальнему бою 20% шанс неуязвимости на 2 с|nC + D — Уклонение: ближнему бою 25% уклонения|r
+---
+|cffffff00Cost: 300 gold & 100 lumber|r|n|nYour newly spawned units have a 10% chance to gain +10% attack damage per level.|n|n|cffccffccCombinations (both technologies level 5+, new units with a 10% chance):|nA + B — Accurate: ranged units get a 15% chance to deal double damage|nA + C — Bloodthirsty: melee units get 30% lifesteal|nA + D — Psychic: units with mana get a 20% chance on attack to restore full mana|nB + C — Hardened Skin: melee units get a 50% chance to reduce damage taken by 50|nB + D — Holy Shield: ranged units get a 20% chance to become invulnerable for 2 s|nC + D — Evasion: melee units get 25% evasion|r
+
+=== APV8 atp1/2
+Технология Пустоты A (ур. 1)
+---
+Type A Technology (lv. .)
+
+=== APV8 atp1/3
+Технология Пустоты A (ур. 2)
+---
+Type A Technology (lv. .)
+
+=== APV8 atp1/4
+Технология Пустоты A (ур. 3)
+---
+Type A Technology (lv. .)
+
+=== APV8 atp1/5
+Технология Пустоты A (ур. 4)
+---
+Type A Technology (lv. .)
+
+=== APV8 atp1/6
+Технология Пустоты A (ур. 5)
+---
+Type A Technology (lv. .)
+
+=== APV8 atp1/7
+Технология Пустоты A (ур. 6)
+---
+Type A Technology (lv. .)
+
+=== APV8 atp1/8
+Технология Пустоты A (ур. 7)
+---
+Type A Technology (lv. .)
+
+=== APV8 atp1/9
+Технология Пустоты A (ур. 8)
+---
+Type A Technology (lv. .)
+
+=== APV9 anam
+Технология Пустоты B
+---
+Type B Technology
+
+=== APV9 atp1/1
+Технология Пустоты B (ур. 0)
+---
+Type B Technology (lv. .)
+
+=== APV9 aub1/1, APV9 aub1/2, APV9 aub1/3, APV9 aub1/4, APV9 aub1/5, APV9 aub1/6, APV9 aub1/7, APV9 aub1/8, APV9 aub1/9
+|cffffff00Цена: 300 золота и 100 дерева|r|n|nНовые бойцы с шансом 10% получают +10% скорости атаки за уровень.|n|n|cffccffccСочетания (обе технологии от 5-го уровня, новым бойцам с шансом 10%):|nA + B — Меткость: дальнему бою 15% шанс двойного урона|nA + C — Кровожадность: ближнему бою 30% вампиризма|nA + D — Псионика: юнитам с маной атака с шансом 20% восполняет ману|nB + C — Твёрдая кожа: ближнему бою 50% шанс снизить урон на 50|nB + D — Святой щит: дальнему бою 20% шанс неуязвимости на 2 с|nC + D — Уклонение: ближнему бою 25% уклонения|r
+---
+|cffffff00Cost: 300 gold & 100 lumber|r|n|nYour newly spawned units have a 10% chance to gain +10% attack speed per level.|n|n|cffccffccCombinations (both technologies level 5+, new units with a 10% chance):|nA + B — Accurate: ranged units get a 15% chance to deal double damage|nA + C — Bloodthirsty: melee units get 30% lifesteal|nA + D — Psychic: units with mana get a 20% chance on attack to restore full mana|nB + C — Hardened Skin: melee units get a 50% chance to reduce damage taken by 50|nB + D — Holy Shield: ranged units get a 20% chance to become invulnerable for 2 s|nC + D — Evasion: melee units get 25% evasion|r
+
+=== APV9 atp1/2
+Технология Пустоты B (ур. 1)
+---
+Type B Technology (lv. .)
+
+=== APV9 atp1/3
+Технология Пустоты B (ур. 2)
+---
+Type B Technology (lv. .)
+
+=== APV9 atp1/4
+Технология Пустоты B (ур. 3)
+---
+Type B Technology (lv. .)
+
+=== APV9 atp1/5
+Технология Пустоты B (ур. 4)
+---
+Type B Technology (lv. .)
+
+=== APV9 atp1/6
+Технология Пустоты B (ур. 5)
+---
+Type B Technology (lv. .)
+
+=== APV9 atp1/7
+Технология Пустоты B (ур. 6)
+---
+Type B Technology (lv. .)
+
+=== APV9 atp1/8
+Технология Пустоты B (ур. 7)
+---
+Type B Technology (lv. .)
+
+=== APV9 atp1/9
+Технология Пустоты B (ур. 8)
+---
+Type B Technology (lv. .)
+
+=== APVA anam
+Технология Пустоты C
+---
+Type C Technology
+
+=== APVA atp1/1
+Технология Пустоты C (ур. 0)
+---
+Type C Technology (lv. .)
+
+=== APVA aub1/1, APVA aub1/2, APVA aub1/3, APVA aub1/4, APVA aub1/5, APVA aub1/6, APVA aub1/7, APVA aub1/8, APVA aub1/9
+|cffffff00Цена: 300 золота и 100 дерева|r|n|nНовые бойцы с шансом 10% получают +100 здоровья за уровень.|n|n|cffccffccСочетания (обе технологии от 5-го уровня, новым бойцам с шансом 10%):|nA + B — Меткость: дальнему бою 15% шанс двойного урона|nA + C — Кровожадность: ближнему бою 30% вампиризма|nA + D — Псионика: юнитам с маной атака с шансом 20% восполняет ману|nB + C — Твёрдая кожа: ближнему бою 50% шанс снизить урон на 50|nB + D — Святой щит: дальнему бою 20% шанс неуязвимости на 2 с|nC + D — Уклонение: ближнему бою 25% уклонения|r
+---
+|cffffff00Cost: 300 gold & 100 lumber|r|n|nYour newly spawned units have a 10% chance to gain +100 HP per level.|n|n|cffccffccCombinations (both technologies level 5+, new units with a 10% chance):|nA + B — Accurate: ranged units get a 15% chance to deal double damage|nA + C — Bloodthirsty: melee units get 30% lifesteal|nA + D — Psychic: units with mana get a 20% chance on attack to restore full mana|nB + C — Hardened Skin: melee units get a 50% chance to reduce damage taken by 50|nB + D — Holy Shield: ranged units get a 20% chance to become invulnerable for 2 s|nC + D — Evasion: melee units get 25% evasion|r
+
+=== APVA atp1/2
+Технология Пустоты C (ур. 1)
+---
+Type C Technology (lv. .)
+
+=== APVA atp1/3
+Технология Пустоты C (ур. 2)
+---
+Type C Technology (lv. .)
+
+=== APVA atp1/4
+Технология Пустоты C (ур. 3)
+---
+Type C Technology (lv. .)
+
+=== APVA atp1/5
+Технология Пустоты C (ур. 4)
+---
+Type C Technology (lv. .)
+
+=== APVA atp1/6
+Технология Пустоты C (ур. 5)
+---
+Type C Technology (lv. .)
+
+=== APVA atp1/7
+Технология Пустоты C (ур. 6)
+---
+Type C Technology (lv. .)
+
+=== APVA atp1/8
+Технология Пустоты C (ур. 7)
+---
+Type C Technology (lv. .)
+
+=== APVA atp1/9
+Технология Пустоты C (ур. 8)
+---
+Type C Technology (lv. .)
+
+=== APVB anam
+Технология Пустоты D
+---
+Type D Technology
+
+=== APVB atp1/1
+Технология Пустоты D (ур. 0)
+---
+Type D Technology (lv. .)
+
+=== APVB aub1/1, APVB aub1/2, APVB aub1/3, APVB aub1/4, APVB aub1/5, APVB aub1/6, APVB aub1/7, APVB aub1/8, APVB aub1/9
+|cffffff00Цена: 300 золота и 100 дерева|r|n|nНовые бойцы с шансом 10% получают +2 брони за уровень.|n|n|cffccffccСочетания (обе технологии от 5-го уровня, новым бойцам с шансом 10%):|nA + B — Меткость: дальнему бою 15% шанс двойного урона|nA + C — Кровожадность: ближнему бою 30% вампиризма|nA + D — Псионика: юнитам с маной атака с шансом 20% восполняет ману|nB + C — Твёрдая кожа: ближнему бою 50% шанс снизить урон на 50|nB + D — Святой щит: дальнему бою 20% шанс неуязвимости на 2 с|nC + D — Уклонение: ближнему бою 25% уклонения|r
+---
+|cffffff00Cost: 300 gold & 100 lumber|r|n|nYour newly spawned units have a 10% chance to gain +2 armor per level.|n|n|cffccffccCombinations (both technologies level 5+, new units with a 10% chance):|nA + B — Accurate: ranged units get a 15% chance to deal double damage|nA + C — Bloodthirsty: melee units get 30% lifesteal|nA + D — Psychic: units with mana get a 20% chance on attack to restore full mana|nB + C — Hardened Skin: melee units get a 50% chance to reduce damage taken by 50|nB + D — Holy Shield: ranged units get a 20% chance to become invulnerable for 2 s|nC + D — Evasion: melee units get 25% evasion|r
+
+=== APVB atp1/2
+Технология Пустоты D (ур. 1)
+---
+Type D Technology (lv. .)
+
+=== APVB atp1/3
+Технология Пустоты D (ур. 2)
+---
+Type D Technology (lv. .)
+
+=== APVB atp1/4
+Технология Пустоты D (ур. 3)
+---
+Type D Technology (lv. .)
+
+=== APVB atp1/5
+Технология Пустоты D (ур. 4)
+---
+Type D Technology (lv. .)
+
+=== APVB atp1/6
+Технология Пустоты D (ур. 5)
+---
+Type D Technology (lv. .)
+
+=== APVB atp1/7
+Технология Пустоты D (ур. 6)
+---
+Type D Technology (lv. .)
+
+=== APVB atp1/8
+Технология Пустоты D (ур. 7)
+---
+Type D Technology (lv. .)
+
+=== APVB atp1/9
+Технология Пустоты D (ур. 8)
+---
+Type D Technology (lv. .)
+
+
+# ---- Артас (Mini War God Assistant Just Fight, UnitsArthasJf) ----
+
+=== hAF1 unam
+Мини-Буревестник
+---
+Mini Storm War God
+
+=== hAF2 unam
+Мини-Бог Земли
+---
+Mini War God of Earth
+
+=== hAF3 unam
+Мини-Бог Огня
+---
+Mini Fire War God
+
+=== AAB1 anam
+Благословение Бога
+---
+God's Blessing
+
+=== AAB1 atp1/1
+Благословение Бога (|cffffcc00D|r)
+---
+God's Blessing (|cffffcc00D|r)
+
+=== AAB3 anam
+Генератор энергии - помощь
+---
+Energy Generator - Assistance
+
+=== AAB3 atp1/1
+|cff00ffffГенератор энергии|r|cff00ff00 - помощь|r (|cffffcc00E|r)
+---
+|cff00ffffEnergy Generator|r|cff00ff00 - Assistance|r (|cffffcc00E|r)
+
+=== AAB3 aub1/1
+|cffffff00Мгновенно запускает любой свой барак (не героя): он сразу выпускает бойцов, как в начале раунда.|r|n|n|cffc0c0c0Только в PvE. Перезарядка: 300 секунд|r
+---
+|cffffff00Instantly activates any of your barracks (not a hero building): it sends its fighters right away, as at the start of a round.|r|n|n|cffc0c0c0PvE only. Cooldown: 300 seconds|r
+
+=== AAB4 anam, AAB4 atp1/1
+Многоцелевая атака
+---
+Multi-target Attack
+
+=== AAB4 aub1/1
+Атака поражает сразу до 5 врагов.
+---
+The attack hits up to 5 enemies at once.
+
+# ---- Таланты Артаса (UnitsArthasJf) ----
+
+=== AT01 anam, AT01 atp1/1
+Талант 01 - Аура натиска
+---
+Talent 01 - Assault Aura
+
+=== AT01 aub1/1
+Увеличивает базовую атаку всех ваших бойцов дальнего боя на 2%.
+---
+Increases the base attack damage of all your ranged units by 2%.
+
+=== AT02 anam, AT02 atp1/1
+Талант 02 - Аура жизни
+---
+Talent 02 - Life Aura
+
+=== AT02 aub1/1
+Увеличивает максимальное здоровье всех ваших бойцов на 6.
+---
+Increases the max HP of all your units by 6.
+
+=== AT03 anam, AT03 atp1/1
+Талант 03 - |cff00ff00Лесозаготовка [редкий]|r
+---
+Talent 03 - |cff00ff00Logging Technology [rare]|r
+
+=== AT03 aub1/1
+Каждый раунд вы получаете ещё 3 дерева.
+---
+Each round you get an additional 3 lumber.
+
+=== AT04 anam, AT04 atp1/1
+Талант 04 - Аура командира
+---
+Talent 04 - Command Aura
+
+=== AT04 aub1/1
+Увеличивает атаку всех ваших бойцов ближнего боя на 2%.
+---
+Increases the attack damage of all your melee units by 2%.
+
+=== AT05 anam, AT05 atp1/1
+Талант 05 - Аура восстановления
+---
+Talent 05 - Restoration Aura
+
+=== AT05 aub1/1
+Увеличивает восстановление здоровья ваших бойцов в радиусе 1000 на 1.
+---
+Increases the HP regeneration of your units within 1000 range by 1.
+
+=== AT06 anam, AT06 atp1/1
+Талант 06 - |cff00ff00Золотодобыча [редкий]|r
+---
+Talent 06 - |cff00ff00Gold Mining Technology [rare]|r
+
+=== AT06 aub1/1
+Каждый раунд вы получаете ещё 2 золота.
+---
+Each round you get an additional 2 gold.
+
+=== AT07 anam, AT07 atp1/1
+Талант 07 - Аура выносливости
+---
+Talent 07 - Endurance Aura
+
+=== AT07 aub1/1
+Увеличивает скорость атаки всех ваших бойцов на 1%.
+---
+Increases the attack speed of all your units by 1%.
+
+=== AT08 anam, AT08 atp1/1
+Талант 08 - Огневая мощь дома
+---
+Talent 08 - Home Firepower
+
+=== AT08 aub1/1
+Увеличивает атаку ваших бойцов в радиусе 1000 на 2%.
+---
+Increases the attack damage of your units within 1000 range by 2%.
+
+=== AT09 anam, AT09 atp1/1
+Талант 09 - Аура боевых барабанов
+---
+Talent 09 - War Drums Aura
+
+=== AT09 aub1/1
+Увеличивает атаку всех ваших бойцов на 1%.
+---
+Increases the attack damage of all your units by 1%.
+
+=== AT10 anam, AT10 atp1/1
+Талант 10 - Дотация древесины
+---
+Talent 10 - Lumber Subsidy
+
+=== AT10 aub1/1
+В начале игры вы получаете ещё 12 дерева.
+---
+At the beginning of the game you get an additional 12 lumber.
+
+=== AT11 anam, AT11 atp1/1
+Талант 11 - Аура сосредоточенности
+---
+Talent 11 - Concentration Aura
+
+=== AT11 aub1/1
+Увеличивает базовую броню всех ваших бойцов на 6%.
+---
+Increases the base armor of all your units by 6%.
+
+=== AT12 anam, AT12 atp1/1
+Талант 12 - Стража дома
+---
+Talent 12 - Home Guard
+
+=== AT12 aub1/1
+Увеличивает базовую броню ваших бойцов в радиусе 1000 на 10%.
+---
+Increases the base armor of your units within 1000 range by 10%.
+
+=== AT13 anam, AT13 atp1/1
+Талант 13 - Аура вампиризма
+---
+Talent 13 - Vampiric Aura
+
+=== AT13 aub1/1
+Все ваши бойцы получают 1% вампиризма.
+---
+All your units get 1% lifesteal.
+
+=== AT14 anam, AT14 atp1/1
+Талант 14 - Награда за убийство
+---
+Talent 14 - Kill Reward
+
+=== AT14 aub1/1
+За каждого убитого (не призванного) с шансом 20% вы получаете 1 золото.
+---
+Every time you kill a non-summoned unit, there is a 20% chance to get 1 gold.
+
+=== AT15 anam, AT15 atp1/1
+Талант 15 - Аура атаки
+---
+Talent 15 - Attack Aura
+
+=== AT15 aub1/1
+Увеличивает атаку всех ваших бойцов на 1.
+---
+Increases the attack damage of all your units by 1.
+
+=== AT16 anam, AT16 atp1/1
+Талант 16 - Аура холода
+---
+Talent 16 - Frost Aura
+
+=== AT16 aub1/1
+Замедляет передвижение врагов в радиусе 1000 на 2%.
+---
+Reduces the movement speed of enemies within 1000 range by 2%.
+
+=== AT17 anam, AT17 atp1/1
+Талант 17 - Аура накопительства
+---
+Talent 17 - Hoarding Aura
+
+=== AT17 aub1/1
+Замедляет передвижение ваших бойцов в радиусе 1000 на 2%.
+---
+Reduces the movement speed of your units within 1000 range by 2%.
+
+=== AT18 anam, AT18 atp1/1
+Талант 18 - Нечестивая аура
+---
+Talent 18 - Unholy Aura
+
+=== AT18 aub1/1
+Увеличивает восстановление здоровья всех ваших бойцов на 0.5 в секунду.
+---
+Increases the HP regeneration of all your units by 0.5 per second.
+
+=== AT19 anam, AT19 atp1/1
+Талант 19 - Аура мудрости
+---
+Talent 19 - Brilliance Aura
+
+=== AT19 aub1/1
+Увеличивает восстановление маны всех ваших бойцов на 0.08 в секунду.
+---
+Increases the mana regeneration of all your units by 0.08 per second.
+
+=== AT20 anam, AT20 atp1/1
+Талант 20 - Аура скорости
+---
+Talent 20 - Haste Aura
+
+=== AT20 aub1/1
+Увеличивает скорость передвижения всех ваших бойцов на 2%.
+---
+Increases the movement speed of all your units by 2%.
+
+=== AT21 anam, AT21 atp1/1
+Талант 21 - |cffff9900Высшая золотодобыча [эпический]|r
+---
+Talent 21 - |cffff9900Advanced Gold Mining [epic]|r
+
+=== AT21 aub1/1
+Каждый раунд вы получаете ещё 3 золота.
+---
+Each round you get an additional 3 gold.
+
+=== AAB5 anam
+Молитва - талант
+---
+Pray - Talent
+
+=== AAB5 atp1/1
+|cffff99ccМолитва - талант|r (|cffffcc00T|r)
+---
+|cffff99ccPray - Talent|r (|cffffcc00T|r)

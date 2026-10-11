@@ -1,0 +1,107 @@
+package UnitHoverTooltip
+import TableUi
+import ClosureTimers
+import BaseShortcuts
+
+/*
+    Окно описания при наведении: правый нижний угол над командной карточкой (там же, где подсказки кнопок
+    зданий BaseShortcuts). Что показывать, игрок выбирает кнопкой «Tips» (PlayerOptions):
+    - Off   — ничего;
+    - Icons — только иконки пика на воде (PickIcons): это картинки, у них наведения нет — PickIcons сам ловит
+              движение мыши и передаёт сюда текст через showHoverText;
+    - All   — ещё и юниты/здания под курсором (BlzGetMouseFocusUnit — локальное значение, в сеть не уходит).
+    Окно (фон + текст) создаётся у всех одинаково, локально меняются лишь его текст и видимость; каждый видит
+    описание только того, на что навёл сам. Описание типа — его подсказка из данных карты (Ubertip;
+    BlzGetAbilityExtendedTooltip отдаёт её и для типов юнитов); без описания окна нет. */
+
+constant WIDTH = 0.24
+constant PAD_X = 0.008
+constant PAD_Y = 0.006
+/** Как часто проверять юнита под курсором */
+constant TICK = 0.1
+
+constant MODE_OFF = 0
+constant MODE_ICONS = 1
+constant MODE_ALL = 2
+constant MODES = 3
+
+/** Режим подсказок игрока (синхронно: меняется по клику кнопки) */
+int array hoverMode
+
+framehandle box
+framehandle textFrame
+/** Текст в окне у этого клиента, "" — окно скрыто */
+string shownText = ""
+/** Текст от иконки пика под курсором у этого клиента */
+string iconText = ""
+
+/** Название и описание типа юнита/здания для окна; "" — если описания нет */
+public function describeType(int typeId) returns string
+    let description = BlzGetAbilityExtendedTooltip(typeId, 0)
+    if description == null or description == "" or description == "Tool tip missing!"
+        return ""
+    return "|cffffcc00" + GetObjectName(typeId) + "|r|n" + description
+
+/** Подпись кнопки режима подсказок игрока p */
+public function hoverModeText(player p) returns string
+    switch hoverMode[p.getId()]
+        case MODE_OFF
+            return "Tips: Off"
+        case MODE_ALL
+            return "Tips: All"
+        default
+            return "Tips: Icons"
+
+/** Следующий режим подсказок игрока p (Icons → All → Off → Icons) */
+public function cycleHoverMode(player p)
+    let id = p.getId()
+    hoverMode[id] = (hoverMode[id] + 1) mod MODES
+    if localPlayer == p
+        refresh()
+
+/** Иконка пика под курсором игрока p дала text ("" — ушёл с иконки). Только у его клиента */
+public function showHoverText(player p, string text)
+    if localPlayer == p
+        iconText = text
+        refresh()
+
+/** Обновить окно — только у этого клиента */
+function refresh()
+    if box == null
+        return
+    let mode = hoverMode[localPlayer.getId()]
+    var text = ""
+    if mode == MODE_ALL
+        let u = BlzGetMouseFocusUnit()
+        if u != null
+            text = describeType(u.getTypeId())
+    if text == "" and mode != MODE_OFF
+        text = iconText
+    if text == shownText
+        return
+    shownText = text
+    if text == ""
+        box.hide()
+        return
+    textFrame
+        ..setText(text)
+        ..setSize(WIDTH, 0.)
+    box.show()
+
+init
+    for i = 0 to bj_MAX_PLAYER_SLOTS - 1
+        hoverMode[i] = MODE_ICONS
+    // UI — после блокирующего init (так требует TableLayout)
+    doAfter(0.0) ->
+        let context = nextUiContext()
+        box = createFrame("TableUiTooltipBackdrop", Layer.OVERLAY.getFrame(), 0, context)
+        textFrame = createTextFrame("TableUiTooltipText", box, context)
+            ..setSize(WIDTH, 0.)
+            ..disable()
+            ..setAbsPoint(FRAMEPOINT_BOTTOMRIGHT, TOOLTIP_CORNER)
+        box
+            ..setPoint(FRAMEPOINT_BOTTOMLEFT, textFrame, FRAMEPOINT_BOTTOMLEFT, vec2(-PAD_X, -PAD_Y))
+            ..setPoint(FRAMEPOINT_TOPRIGHT, textFrame, FRAMEPOINT_TOPRIGHT, vec2(PAD_X, PAD_Y))
+            ..hide()
+        doPeriodically(TICK) cb ->
+            refresh()

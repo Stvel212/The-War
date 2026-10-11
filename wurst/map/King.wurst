@@ -4,10 +4,13 @@ import MapGlobals
 import ClosureEvents
 import UnitEvents
 import ClosureTimers
+import GameMode
+import BaseShortcuts
 
 /** Сообщение всей команде a (1 — левая, 2 — правая) */
 function teamText(int a, string msg)
-    if forceG[a].containsPlayer(localPlayer)
+    // PvE: король один на всех
+    if forceG[a].containsPlayer(localPlayer) or isPve()
         DisplayTextToPlayer(localPlayer, 0.0, 0.0, msg)
 
 // ============================================================
@@ -62,12 +65,30 @@ function statName(int stat) returns string
         return "vitality"
     return "regeneration"
 
+/** Улучшения короля зависят от размера команд (1x1 … 4x4) и раунда — только в PvP; в PvE и PvEvP — всегда
+    максимум и особые умения не только в 4x4 */
+public function kingUpgradesByTeamSize() returns bool
+    return not isPve() and not isPvevp()
+
+/** Сколько улучшений каждого типа можно сделать королю. PvP — по teamSize и раунду: 1x1 — 15; 2x2 — 15, с 50-го
+    раунда 30; 3x3 и 4x4 — 30, с 50-го раунда 50 (как было в оригинале для всех). PvE и PvEvP — всегда 50 */
+public function kingUpgradeCap() returns int
+    if not kingUpgradesByTeamSize()
+        return 50
+    let late = round >= 50
+    if teamSize <= 1
+        return 15
+    if teamSize == 2
+        return late ? 30 : 15
+    return late ? 50 : 30
+
 /** Улучшение характеристики короля команды a игроком p: +inc за cost дерева (+income к инкому).
-    Потолок 360 (после 50-го раунда 560) для шага 10 и на 40 меньше для шага 50; живучесть даёт ещё +35·inc HP */
+    Характеристика начинается с 60, одно улучшение — +10, так что потолок 60 + 10·kingUpgradeCap() для шага 10
+    и на 40 меньше для шага 50 (5 улучшений разом); живучесть даёт ещё +35·inc HP */
 function upgradeKing(int a, player p, int stat, int inc)
     let king = kings[a]
     let cost = inc == 10 ? 40 : 200
-    let limit = (round < 50 ? 360 : 560) - (inc - 10)
+    let limit = 60 + 10 * kingUpgradeCap() - (inc - 10)
     if king.getStat(stat) < limit and p.getLumber() >= cost
         king.addStat(stat, inc)
         income[p.getId()] += inc == 10 ? 2 : 10
@@ -79,8 +100,13 @@ function upgradeKing(int a, player p, int stat, int inc)
         StartSound(knightNoGold)
         DisplayTextToPlayer(p, 0.0, 0.0, inc == 10 ? "|c00FF8080No lumber or already at maximum!|r" : "|c00FF8080No lumber, already at maximum, or fewer than 5 upgrades required!|r")
 
-/** Особое умение короля (одно из трёх на команду): 10 вкладов по 300 дерева после 60-го раунда, потом abil + 'A0E3' */
+/** Особое умение короля (одно из трёх на команду): 10 вкладов по 300 дерева после 60-го раунда, потом abil + 'A0E3'.
+    В PvP — только в режиме 4x4 */
 function upgradeKingSpecial(int a, player p, int which, int abil, string name)
+    if kingUpgradesByTeamSize() and teamSize < 4
+        StartSound(knightNoGold)
+        DisplayTextToPlayer(p, 0.0, 0.0, "|c00FF8080The King's special abilities are only available in 4v4!|r")
+        return
     let free = (which == 1 or not prezens1[a]) and (which == 2 or not prezens2[a]) and (which == 3 or not prezens3[a]) and not prezens4[a]
     if presens[a] < 10 and free and round > 60 and p.getLumber() >= 300
         if which == 1
@@ -103,7 +129,8 @@ function upgradeKingSpecial(int a, player p, int which, int abil, string name)
 @noinline
 function kingUpgreid(unit caster, int ab)
     let p = caster.getOwner()
-    let a = p.isLeftTeam() ? 1 : 2
+    // PvE: король один — Бог Войны (левый), его улучшают все
+    let a = p.isLeftTeam() or isPve() ? 1 : 2
     if ab == 'A03B'
         upgradeKing(a, p, STAT_AGI, 10)
     else if ab == 'A03D'
@@ -129,7 +156,8 @@ function kingUpgreid(unit caster, int ab)
 
 @noinline
 function kingSpell()
-    for a = 1 to 2
+    // PvE: kings[2] — Злой Бог, ему королевские способности не нужны
+    for a = 1 to (isPve() ? 1 : 2)
         let king = kings[a]
         if round > 10
             king.addAbility('A02Y')
@@ -156,9 +184,12 @@ function kingSpell()
 function kingControl()
     let u = GetTriggerUnit()
     let p = GetTriggerPlayer()
-    let a = p.isLeftTeam() ? 1 : 2
+    let a = p.isLeftTeam() or isPve() ? 1 : 2
     if u == kings[a] and p.getId() < 8 and not IsUnitSelected(u, u.getOwner())
         u.setOwner(p, true)
+        // король у игрока — герой: игра ставит его на панель героев, кнопку прячем (BaseShortcuts)
+        doAfter(0.) ->
+            hideExtraHeroButtons()
 
 // ============================================================
 // Триггер: KingMesage — при атаке на короля: сообщения о HP команде и автолечение из запаса heals

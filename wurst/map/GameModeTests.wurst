@@ -1,0 +1,107 @@
+package GameModeTests
+import GameMode
+import Energies
+import CreepWaves
+import PveWaveTables
+import Pve
+import ArthasJf
+import King
+import MapGlobals
+
+@Test function laneAtPicksNearestLane()
+    laneAt(-4990.).assertEquals(0)
+    laneAt(-2000.).assertEquals(1)
+    laneAt(3300.).assertEquals(2)
+    laneAt(6000.).assertEquals(3)
+
+@Test function midLaneBand()
+    isMidLane(250.).assertTrue()
+    isMidLane(-2400.).assertFalse()
+    isMidLane(3050.).assertFalse()
+
+@Test function pveMonstersSpawnBetweenCenterAndGenerator()
+    gameMode = GameModeKind.PVE
+    // как порталы Just Fight: на половине игрока, между центром линии и его генератором
+    (spawnX(true) < LANE_CENTER_X and spawnX(true) > GENERATOR_LEFT_X).assertTrue()
+    (spawnX(false) > LANE_CENTER_X and spawnX(false) < GENERATOR_RIGHT_X).assertTrue()
+    gameMode = GameModeKind.PVP
+
+@Test function pvevpMonstersSpawnOnTheirHalf()
+    gameMode = GameModeKind.PVEVP
+    // между центром и линией обороны своей команды
+    (spawnX(true) > HOLD_LEFT_X and spawnX(true) < HOLD_RIGHT_X).assertTrue()
+    (spawnX(false) > HOLD_LEFT_X and spawnX(false) < HOLD_RIGHT_X).assertTrue()
+    (spawnX(true) < spawnX(false)).assertTrue()
+    gameMode = GameModeKind.PVP
+
+@Test function energyPrices()
+    energyLevelCost(1).assertEquals(10)
+    energyLevelCost(39).assertEquals(390)
+    energyActivateChance(0).assertEquals(50)
+    energyActivateChance(7).assertEquals(7)
+    energyActivateChance(ENERGY_KINDS).assertEquals(0)
+
+@Test function terminatorsFollowJustFightTables()
+    // таблица 1: 1 / 2 / 3 Терминатора; 2-3: 3 / 5 / 7; 4: до 13 к 300-й; обычные волны — без них
+    terminatorsPerPlayer(1, 69).assertEquals(0)
+    terminatorsPerPlayer(1, 70).assertEquals(1)
+    terminatorsPerPlayer(1, 85).assertEquals(2)
+    terminatorsPerPlayer(1, 120).assertEquals(3)
+    terminatorsPerPlayer(1, 121).assertEquals(0)
+    terminatorsPerPlayer(2, 80).assertEquals(3)
+    terminatorsPerPlayer(3, 90).assertEquals(7)
+    terminatorsPerPlayer(4, 100).assertEquals(5)
+    terminatorsPerPlayer(4, 300).assertEquals(13)
+    waveExists(4, 301).assertFalse()
+    // в таблице 3 нет 69-й волны (пустая), Терминаторы — с 70-й
+    waveExists(3, 69).assertFalse()
+    terminatorsPerPlayer(3, 70).assertEquals(3)
+
+@Test function waveTablesHaveEntriesForEveryWave()
+    for w = 1 to WAVES_1
+        (waveFirst1[w + 1] > waveFirst1[w]).assertTrue()
+    for w = 1 to WAVES_4
+        (waveFirst4[w + 1] > waveFirst4[w]).assertTrue()
+    for i = 0 to waveFirst4[WAVES_4 + 1] - 1
+        (waveCount4[i] > 0).assertTrue()
+
+@Test function waveEntriesUseJustFightProfiles()
+    // запись волны — либо копия юнита Just Fight (UnitsPveJf, ID ?J??), либо юнит The War с профилем характеристик
+    // Just Fight; без того и другого — только юнит без экспорта (N01C)
+    var plain = 0
+    for i = 0 to waveFirst1[WAVES_1 + 1] - 1
+        (waveStat1[i] >= 0 and waveStat1[i] <= STAT_PROFILES).assertTrue()
+        let copy = (waveType1[i] div 65536) mod 256 == 'J'
+        if waveStat1[i] == 0 and not copy
+            plain++
+    (plain <= 1).assertTrue()
+    // у оставшихся юнитов The War — профили Just Fight с заданным базовым типом
+    (STAT_PROFILES > 50).assertTrue()
+    for p = 1 to STAT_PROFILES
+        (statBase[p] != 0).assertTrue()
+
+@Test function elitesOnPveLevelsTwoAndThree()
+    // Just Fight: элитные на волнах 31-60 при LIlLI 2..3
+    levelHasElites(1).assertFalse()
+    levelHasElites(2).assertTrue()
+    levelHasElites(3).assertTrue()
+    levelHasElites(4).assertFalse()
+
+@Test function blessingCostGrowsLikeJustFight()
+    // Just Fight: повышение с уровня L — L·100 заслуг
+    blessingCost(0).assertEquals(100)
+    blessingCost(1).assertEquals(100)
+    blessingCost(35).assertEquals(3500)
+
+@Test function kingUpgradeCapIs50InPveAndPvevp()
+    // PvE и PvEvP: всегда 50 улучшений, без зависимости от 1x1 … 4x4 и раунда
+    teamSize = 1
+    round = 1
+    gameMode = GameModeKind.PVE
+    kingUpgradeCap().assertEquals(50)
+    gameMode = GameModeKind.PVEVP
+    kingUpgradeCap().assertEquals(50)
+    gameMode = GameModeKind.PVP
+    kingUpgradeCap().assertEquals(15)
+    teamSize = 0
+    round = 0

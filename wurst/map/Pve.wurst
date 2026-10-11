@@ -1,0 +1,403 @@
+package Pve
+import GameMode
+import CreepWaves
+import Initialization
+import MapGlobals
+import Profile
+import MMD
+import ClosureTimers
+import ClosureEvents
+import ClosureForGroups
+import UnitEvents
+import ChaoticVoid
+
+/*
+    PvE — копия «PvE Mode» Just Fight 5.6 (уровни: Massacre of the War God, Battlefield of Flames, Art of War,
+    Deadly Conflict, Extreme Abyss и бесконечный Chaotic Void), перенесённая на раскладку The War (она та же:
+    4 общие линии, короли на средней линии).
+    - Все игроки — одна команда. Левый король — Бог Войны (H0BW): его смерть — поражение. На месте правого короля —
+      Злой Бог (H0BM, «Забытый 1000 ур.»), перед ним на средней линии — Забытые 500 ур. (H0BR, в 1000) и 200 ур.
+      (H0BS, в 2000); на 1-м уровне по одному, дальше по два. С 3-го уровня сначала стоит ложный Забытый (H0C9):
+      после его смерти (враги в 800 вокруг исчезают) появляется настоящий Злой Бог. Смерть Злого Бога — победа.
+    - Армии игроков идут через линию как в PvP; прошедший дальний портал получает награду за прорыв и по средней
+      линии идёт на Злого Бога (Main.passLanePve) — там армии и перемалываются.
+    - Каждую волну на каждого игрока у центра на его половине (порталы ILIlI) появляются монстры и идут ломать его
+      Генератор энергии (h0BN, у выхода с базы). Генератор разрушен — взрыв (50000 урона монстрам в 1000), дальше
+      монстры его линии прорываются: к воротам Злого Бога и по средней линии на Бога Войны.
+    - Волны — таблицы Just Fight (CreepWaves: уровни 1-4 — свои, 5 и бесконечный — случайная; на уровне 2 с 31-й
+      по 60-ю ещё элитные), после 69-й — Терминаторы по таблице уровня.
+      У генератора — «Благословение» (золото 100 + раунд·3, 3/2/1 раза на уровнях 1-3).
+    - Награды — монеты вместо «боевых заслуг» Just Fight (×5): за удержание 30/50/70 волн, за Забытых всем и за
+      последний удар, за победу; бесконечный — очки (Забытые 25/50, ложный 100, он возрождается), рекорд — в профиле.
+    - Выход игрока ослабляет Забытых (минус интеллект — их урон), как в оригинале. */
+
+constant SMALL_BOSS = 'UPB1'
+constant MEDIUM_BOSS = 'UPB2'
+constant EVIL_GOD = 'UPB3'
+constant FAKE_GOD = 'UPB4'
+constant GENERATOR = 'hPGN'
+/** На сколько строитель стоит от генератора вглубь линии */
+constant BUILDER_SHIFT = 300.
+constant BLESSING = 'APBL'
+
+/** Место Злого Бога — место правого короля; Забытые — в 1000 и 2000 от него к Богу Войны */
+constant EVIL_GOD_POS = vec2(2550., 250.)
+constant MEDIUM_BOSS_X = 1550.
+constant SMALL_BOSS_X = 550.
+constant GUARD_OFFSET_Y = 300.
+
+constant levelNames = ["Massacre of the War God", "Battlefield of Flames", "Art of War", "Deadly Conflict",
+    "Extreme Abyss", "Chaotic Void (Endless)"]
+/** Таблица волн Just Fight уровня (CreepWaves): 1-4 — своя, 5 и бесконечный — случайная из четырёх */
+var waveTable = 1
+/** Использований «Благословения» по уровню */
+constant blessingUses = [3, 2, 1, 0, 0, 0]
+/** Энергия (заслуги Just Fight ×2 — нет их магазина, заданий и ежедневных наград) всем за удержание 30 / 50 / 70
+    волн по уровню: [(уровень - 1)·3 + 0..2] (Just Fight: 3/5/7, 3/7/11, с 3-го 7/11/15) */
+constant holdEnergy = [6, 10, 14, 6, 14, 22, 14, 22, 30, 14, 22, 30, 14, 22, 30, 14, 22, 30]
+/** Энергия всем за Забытого 200 / 500 / 1000 ур. (Just Fight: 6/10/16) и убившему — уровень·5 (×2) */
+constant SMALL_KILL_ENERGY = 12
+constant MEDIUM_KILL_ENERGY = 20
+constant GOD_KILL_ENERGY = 32
+constant lastHitEnergy = [10, 20, 30, 40, 50, 60]
+/** Бесконечный: ложный Забытый возрождается, энергия за него (Just Fight: 15) — не больше FAKE_REWARDS раз */
+constant FAKE_KILL_ENERGY = 30
+constant FAKE_REWARDS = 10
+constant VICTORY_COINS = 20
+constant VICTORY_COINS_PER_LEVEL = 10
+
+var ended = false
+var currentWave = 0
+var fakeKills = 0
+int array blessingsLeft
+
+public function pveLevelName(int level) returns string
+    return levelNames[level - 1]
+
+function isEndless() returns bool
+    return pveLevel == PVE_ENDLESS
+
+function isHuman(int id) returns bool
+    return isInGame(players[id])
+
+function printAll(string msg, real duration)
+    if bj_FORCE_ALL_PLAYERS.containsPlayer(localPlayer)
+        localPlayer.print(msg, duration)
+
+function addEnergyAll(int energy, string reason)
+    // в одиночной игре профиль ничего не получает (Profile.profileRewards)
+    if not profileRewards()
+        return
+    for pid = 0 to 7
+        if isHuman(pid)
+            players[pid].addEnergy(energy)
+    printAll("|cffffff00All players receive " + energy + " energy: " + reason + "|r", 15.)
+
+// ============================================================
+// Старт
+// ============================================================
+
+/** Забытый на средней линии (неподвижный герой Злого Бога); level — только для вида, характеристики свои */
+function createBoss(int typeId, vec2 pos, int level) returns unit
+    let u = CreateUnit(players[CREEP_PVE], typeId, pos.x, pos.y, 180.)
+    SetHeroLevel(u, level, false)
+    u.removeGuardPosition()
+    return u
+
+/** Главный: ложный Забытый с 3-го уровня (и в бесконечном), иначе сразу Злой Бог; он же — kings[2] в таблице */
+function createGod(int typeId)
+    kings[2] = createBoss(typeId, EVIL_GOD_POS, 999)
+
+function createGenerators()
+    for pid = 0 to 7
+        generatorAlive[pid] = false
+        if isHuman(pid)
+            let x = pid < 4 ? GENERATOR_LEFT_X : GENERATOR_RIGHT_X
+            let y = laneY(pid mod 4)
+            // середина линии — земля «нельзя строить»: созданное здание игра сдвигает на ближайшую стройплощадку.
+            // Переставить: SetUnitPosition при выключенной проходимости ставит точно (SetUnitX/Y здание двигает, а модель — нет)
+            let gen = CreateUnit(players[pid], GENERATOR, x, y, 270.)..setPathing(false)
+            SetUnitPosition(gen, x, y)
+            generators[pid] = gen
+            generatorAlive[pid] = true
+            // генератор стоит на месте портала: портал появится, когда генератор снесут
+            showPortal(pid, false)
+            // строитель появляется вплотную к порталу — отходит вглубь линии, чтобы не стоять в генераторе
+            SetUnitPosition(builders[pid], x + (pid < 4 ? BUILDER_SHIFT : -BUILDER_SHIFT), y)
+            addLanePortal(pid, true)
+            blessingsLeft[pid] = blessingUses[pveLevel - 1]
+            if blessingsLeft[pid] == 0
+                gen.removeAbility(BLESSING)
+
+public function startPve(int level)
+    gameMode = GameModeKind.PVE
+    pveLevel = level
+    waveTable = level <= 4 ? level : GetRandomInt(1, 4)
+    updateBoardTitle()
+    let enemy = players[CREEP_PVE]
+    enemy.setName("|cffff0000Evil God|r")
+    enemy.setColor(PLAYER_COLOR_BLACK_AGGRESSIVE)
+    // все игроки и Бог Войны (король 1) — одна команда с общим обзором
+    for a = 0 to 9
+        for b = a + 1 to 9
+            setAllied(players[a], players[b], true)
+    // монстры — враги всем: явно, иначе слот 12 остаётся в союзе по силам карты (с правой командой)
+    for i = 0 to 9
+        setEnemies(enemy, players[i])
+    // правый король уступает место Злому Богу с Забытыми
+    kings[2].remove()
+    createGod(level >= 3 ? FAKE_GOD : EVIL_GOD)
+    let pairs = level >= 2
+    for i = 0 to (pairs ? 1 : 0)
+        let dy = pairs ? (i == 0 ? GUARD_OFFSET_Y : -GUARD_OFFSET_Y) : 0.
+        createBoss(MEDIUM_BOSS, vec2(MEDIUM_BOSS_X, EVIL_GOD_POS.y + dy), 500)
+        createBoss(SMALL_BOSS, vec2(SMALL_BOSS_X, EVIL_GOD_POS.y + dy), 200)
+    createGenerators()
+    // порталы только на линиях: у ворот средней линии прячутся у всех слотов (и пустых — у них генератора нет)
+    for pid = 0 to 7
+        hideGatePortals(pid)
+    if isEndless()
+        startChaoticVoid()
+    // порча на средней линии — земля Злого Бога (Just Fight: через 5 с SetBlightRect(Player 11, l111I))
+    doAfter(5.) ->
+        let mid = Rect(-4320., -480., 3808., 960.)
+        SetBlightRect(enemy, mid, true)
+        mid.remove()
+    printAll("|cffff0000Host selected " + pveLevelName(level) + " (PvE" + (isEndless() ? " - S2" : " - " + level) + ")|r", 15.)
+    printAll("|cffff8080The long-planned attack of the Evil God is about to begin!|r", 15.)
+    printAll("|cffff8080Protect the War God (left King) and destroy the Evil God on the place of the right King!|r", 15.)
+    printAll("|cffff8080Monsters attack your Energy Generator. If it is destroyed, monsters break through to the War God.|r", 15.)
+    if isEndless()
+        printAll("|cffff8080Chaotic Void: the Forgotten is reborn again and again - score as many points as you can.|r", 15.)
+
+/** Лечений у Бога Войны больше этого не бывает (по одному на игрока: 2 игрока — 2, 5 и больше — 4) */
+constant MAX_HEALS = 4
+
+/** Первый раунд: все лечения — Богу Войны, не больше MAX_HEALS (таблица для PvE — Scoreboard.buildBoard) */
+function firstRound()
+    heals[1] = min(MAX_HEALS, heals[1] + heals[2])
+    heals[2] = 0
+
+// ============================================================
+// Волны
+// ============================================================
+
+/** Элитные (герои бараков Just Fight) на волнах 31-60 — уровни 2 и 3 (Just Fight: LIlLI >= 2 и <= 3) */
+public function levelHasElites(int level) returns bool
+    return level == 2 or level == 3
+
+/** Волна w для одного игрока по таблице уровня; уровни 2-3 на волнах 31-60 — ещё элитные (Just Fight: ILLILII,
+    через 3 с): до 49-й из ранних, дальше из поздних, по (w / 10 - 2) или (w / 10 - 4) штуки */
+function spawnFor(int pid, int w)
+    let goesLeft = pid < 4
+    spawnTableWave(waveTable, w, players[CREEP_PVE], pid mod 4, goesLeft)
+    if levelHasElites(pveLevel) and w >= 31 and w <= 60
+        let n = w >= 50 ? w div 10 - 4 : w div 10 - 2
+        doAfter(3.) ->
+            for i = 1 to n
+                spawnElite(w, players[CREEP_PVE], pid mod 4, goesLeft)
+
+function announceNext(int w)
+    if waveExists(waveTable, w)
+        printAll("Next wave: [" + w + "]    Unit: [" + waveDescription(waveTable, w, 1) + "]", 20.)
+
+/** Удержание 30 / 50 / 70 волн — монеты всем (в начале следующей волны) */
+function holdReward(int w)
+    let held = w - 1
+    let index = held == 30 ? 0 : (held == 50 ? 1 : (held == 70 ? 2 : -1))
+    if index >= 0
+        addEnergyAll(holdEnergy[(pveLevel - 1) * 3 + index], "held " + held + " waves")
+
+@noinline
+function onRoundStart(int r)
+    if not isPve() or ended
+        return
+    if r == 1
+        firstRound()
+        announceNext(1)
+        return
+    let w = r - 1
+    currentWave = w
+    holdReward(w)
+    for pid = 0 to 7
+        if isHuman(pid)
+            spawnFor(pid, w)
+    if isEndless()
+        modeString = modeTitle() + ": " + voidScoreTotal() + " points"
+        if udg_Board != null
+            udg_Board.setTitle("The War Reborn " + modeString)
+    doAfter(10.) ->
+        announceNext(w + 1)
+
+// ============================================================
+// Генераторы
+// ============================================================
+
+/** Генератор разрушен: взрыв по монстрам вокруг, монстры этой линии теперь прорываются (Just Fight: ILLl1LI) */
+@noinline
+function onGeneratorDeath()
+    let gen = GetDyingUnit()
+    let p = gen.getOwner()
+    let pid = p.getId()
+    if pid >= 8 or generators[pid] != gen
+        return
+    generatorAlive[pid] = false
+    showPortal(pid, true)
+    forUnitsInRange(gen.getPos(), 1000.) u ->
+        if u.isAlive() and u.isCreep()
+            addEffect("Abilities\\Spells\\Demon\\DemonBoltImpact\\DemonBoltImpact.mdl", u.getPos()).destr()
+            gen.damageTarget(u, 50000., false, false, ATTACK_TYPE_NORMAL, DAMAGE_TYPE_ENHANCED, WEAPON_TYPE_WHOKNOWS)
+    printAll(p.getName() + "|cffff8080's Energy Generator was destroyed - monsters of this lane break through to the War God!|r", 15.)
+
+/** «Благословение» генератора: 100 + раунд·3 золота */
+function onBlessing(unit gen)
+    let p = gen.getOwner()
+    let pid = p.getId()
+    if pid >= 8 or blessingsLeft[pid] <= 0
+        return
+    blessingsLeft[pid]--
+    let gold = 100 + round * 3
+    p.addGold(gold)
+    DisplayTextToPlayer(p, 0., 0., "|cffffcc00Blessing:|r +" + gold + " gold (" + blessingsLeft[pid] + " left)")
+    if blessingsLeft[pid] == 0
+        gen.removeAbility(BLESSING)
+
+// ============================================================
+// Забытые, победа, поражение
+// ============================================================
+
+/** Последний удар по Забытому — энергия убившему */
+function lastHit(unit killer)
+    if killer != null and killer.getOwner().getId() < 8 and profileRewards()
+        let p = killer.getOwner()
+        let energy = lastHitEnergy[pveLevel - 1]
+        p.addEnergy(energy)
+        printAll(p.getName() + " dealt the final blow and receives |cff00ffff+" + energy + " energy|r", 15.)
+
+/** Очки бесконечного режима всем (Хаотическая Пустота: у каждого свои) */
+function addScore(int points)
+    addVoidScoreAll(points)
+    printAll("|cffffff00Chaotic Void points +" + points + " for every player|r", 10.)
+
+@noinline
+function onGuardDeath(int reward, int points)
+    if not isPve() or ended
+        return
+    addEnergyAll(reward, "a Forgotten has fallen")
+    lastHit(GetKillingUnit())
+    if isEndless()
+        addScore(points)
+
+/** Ложный Забытый: враги в 800 вокруг исчезают, через 1 с — настоящий Злой Бог (в бесконечном — снова ложный) */
+@noinline
+function onFakeDeath()
+    if not isPve() or ended
+        return
+    let fake = GetDyingUnit()
+    let pos = fake.getPos()
+    forUnitsInRange(pos, 800.) u ->
+        if u.isAlive() and u.getOwner().getId() < 9 and not u.isType(UNIT_TYPE_STRUCTURE) and u != kings[1]
+            addEffect("Abilities\\Spells\\Demon\\DemonBoltImpact\\DemonBoltImpact.mdl", u.getPos()).destr()
+            u.remove()
+    for i = 1 to 8
+        addEffect("Abilities\\Spells\\Human\\Resurrect\\ResurrectTarget.mdl", pos.polarOffset((45. * i).asAngleDegrees(), 128.)).destr()
+    if isEndless()
+        addScore(100)
+        fakeKills++
+        if fakeKills <= FAKE_REWARDS
+            addEnergyAll(FAKE_KILL_ENERGY, "the Forgotten has fallen")
+        lastHit(GetKillingUnit())
+    doAfter(1.) ->
+        if not ended
+            createGod(isEndless() ? FAKE_GOD : EVIL_GOD)
+            if isEndless()
+                kings[2].setVertexColor(GetRandomInt(0, 255), GetRandomInt(0, 255), GetRandomInt(0, 255), 255)
+            else
+                kings[2].setVertexColor(255, 0, 0, 255)
+                printAll("|cffff0000The true Evil God has appeared!|r", 15.)
+
+function endGame(bool won)
+    doAfter(5.) ->
+        for pid = 0 to 7
+            let p = players[pid]
+            if p.isIngame()
+                if won
+                    CustomVictoryBJ(p, true, true)
+                else
+                    CustomDefeatBJ(p, "Defeat!")
+
+@noinline
+function victory()
+    if ended or not isPve()
+        return
+    ended = true
+    addEnergyAll(GOD_KILL_ENERGY, "the Evil God has fallen")
+    lastHit(GetKillingUnit())
+    printAll("|cff00ff00The Ultimate Boss is dead, all players won! (" + pveLevelName(pveLevel) + ")|r", 20.)
+    for pid = 0 to 7
+        let p = players[pid]
+        if isHuman(pid)
+            MMD.flagPlayer(p, PlayerFlag.Winner)
+            if profileReady[pid] and p.profile().pveBeaten < pveLevel
+                p.profile().pveBeaten = pveLevel
+                if pveLevel < PVE_LEVELS
+                    DisplayTextToPlayer(p, 0., 0., "|cff00ff00Unlocked: " + pveLevelName(pveLevel + 1) + "|r")
+    finishCoop(true, VICTORY_COINS + VICTORY_COINS_PER_LEVEL * pveLevel)
+    endGame(true)
+
+@noinline
+function defeat(unit warGod)
+    if ended or not isPve() or warGod != kings[1]
+        return
+    ended = true
+    SetCameraPosition(warGod.getX(), warGod.getY())
+    if isEndless()
+        // очки у каждого свои (Just Fight: предмет I02Q): рекорд и энергия (десятая часть) — по своим очкам
+        for pid = 0 to 7
+            let p = players[pid]
+            if isHuman(pid)
+                let points = p.voidScore()
+                DisplayTextToPlayer(p, 0., 0., "|cffffcc00Chaotic Void: your endless score is " + points + "|r")
+                if profileRewards()
+                    p.addEnergy(points div 10)
+                if profileReady[pid] and points > p.profile().pveBest
+                    p.profile().pveBest = points
+                    DisplayTextToPlayer(p, 0., 0., "|cff00ff00New personal record!|r")
+    else
+        printAll("|cffff0000DEFEAT! The War God has fallen on wave " + currentWave + ".|r", 20.)
+    for pid = 0 to 7
+        if isHuman(pid)
+            MMD.flagPlayer(players[pid], PlayerFlag.Loser)
+    finishCoop(false, 0)
+    endGame(false)
+
+/** Игрок вышел — Забытые слабеют (Just Fight: ILLlILI) */
+function onLeave()
+    if not isPve() or ended
+        return
+    forUnitsOfPlayer(players[CREEP_PVE]) u ->
+        if u.isAlive()
+            let t = u.getTypeId()
+            let loss = t == SMALL_BOSS ? 14 : (t == MEDIUM_BOSS ? 28 : (t == EVIL_GOD or t == FAKE_GOD ? 56 : 0))
+            if loss > 0
+                SetHeroInt(u, max(1, u.getInt(false) - loss), true)
+
+init
+    onRound() r ->
+        onRoundStart(r)
+    onDeathOf(GENERATOR) ->
+        onGeneratorDeath()
+    EventListener.onCast(BLESSING) (caster) ->
+        onBlessing(caster)
+    onDeathOf(SMALL_BOSS) ->
+        onGuardDeath(SMALL_KILL_ENERGY, 25)
+    onDeathOf(MEDIUM_BOSS) ->
+        onGuardDeath(MEDIUM_KILL_ENERGY, 50)
+    onDeathOf(FAKE_GOD) ->
+        onFakeDeath()
+    onDeathOf(EVIL_GOD) ->
+        victory()
+    onDeathOf('H003') ->
+        defeat(GetDyingUnit())
+    EventListener.add(EVENT_PLAYER_LEAVE) ->
+        onLeave()

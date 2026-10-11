@@ -1,0 +1,141 @@
+package MoveBuilding
+import AbilityObjEditing
+import ClosureEvents
+import ClosureTimers
+import OnUnitEnterLeave
+import MapGlobals
+import LinkedList
+
+/*
+    Перемещение зданий по клетке. Кнопка «Переместить» — способность-«постройка маленькой фермы» ('AIbf'),
+    которая ставит невидимое фиктивное здание MOVE_DUMMY_ID: игрок видит курсор постройки с сеткой, а игра сама
+    не даёт указать занятую/нестроимую клетку (у фиктивного здания пути 4x4 как у бараков и запрет на unbuildable).
+    Клетку берём по самому фиктивному зданию (игра ставит его точно по сетке; точка цели заклинания у 'AIbf'
+    с ней не совпадает), фиктивное здание удаляем, а здание пересоздаём в этой клетке: простой SetUnitX/Y
+    оставляет тень здания на старом месте. Каждое здание переносится один раз: у пересозданного кнопки нет. */
+
+public constant MOVE_ABIL_ID = 'A0IS'
+/** Фиктивное здание для курсора постройки (размер как у бараков) */
+public constant MOVE_DUMMY_ID = 'h0MV'
+
+@compiletime function genMoveDummy()
+    new BuildingDefinition(MOVE_DUMMY_ID, 'hhou')
+        ..setName("Переместить")
+        ..setModelFile("dummy.mdl")
+        ..setShadowTextureBuilding("")
+        ..setPathingMap("PathTextures\\4x4unbuildable.tga")
+        ..setPlacementRequires("unbuildable") // stdlib путает имена: это поле upap — «запрещено размещение»
+        ..setCollisionSize(72.0)
+        ..setBuildTime(1)
+        ..setGoldCost(0)
+        ..setLumberCost(0)
+        ..setFoodCost(0)
+        ..setFoodProduced(0)
+        ..setNormalAbilities("")
+        ..setRequirements("")
+        ..setUpgradesUsed("")
+        ..setUnitSoundSet("")
+
+@compiletime function genMoveAbility()
+    new AbilityDefinitionBuildTinyFarm(MOVE_ABIL_ID)
+        ..setUnitCreatedperplayerrace(1, "h0MV")
+        ..setItemAbility(false)
+        ..setRace(Race.Creeps)
+        ..setLevels(1)
+        ..setCastRange(1, 20000.0)
+        ..setDurationNormal(1, 1.0)
+        ..setCooldown(1, 0.0)
+        ..setManaCost(1, 0)
+        ..setName("Переместить")
+        ..setTooltipNormal(1, "Переместить |cffffcc00(V)|r")
+        ..setTooltipNormalExtended(1, "Переставляет здание в выбранную клетку своей базы. Место должно быть свободным. Каждое здание — только один раз.")
+        ..setIconNormal("ReplaceableTextures\\CommandButtons\\BTNUnloadDwarf.blp")
+        ..setButtonPositionNormalX(3)
+        ..setButtonPositionNormalY(2)
+        ..setHotkeyNormal("V")
+
+/** Базы игроков */
+constant bases = new LinkedList<rect>()..add(rct_Baza1, rct_Baza2, rct_Baza3, rct_Baza4, rct_Baza5, rct_Baza6, rct_Baza7, rct_Baza8)
+
+/** Здание, которое игрок сейчас переносит: кнопку нажали (SPELL_CAST), клетку узнаём, когда появится фиктивное здание */
+unit array moving
+/** Здания, которые уже переносили (перенос — один раз на здание) */
+constant moved = CreateGroup()
+
+/** База (rct_Baza1..8), в которой стоит точка, или null */
+function baseAt(vec2 pos) returns rect
+    for r in bases
+        if r.contains(pos)
+            return r
+    return null
+
+/** Здание u пересоздаётся в точке target: тип, владелец, поворот, уровень продажи 'A006', кнопка перемещения,
+    место в buildUnits (с кого идёт волна). Остальное (анимация, цвет) выставляет build1 на появление юнита */
+@noinline
+function rebuildAt(unit u, vec2 target)
+    let p = u.getOwner()
+    let base = baseAt(u.getPos())
+    if base == null or not base.contains(target)
+        DisplayTextToPlayer(p, 0.0, 0.0, "|cffff0000Must be within bounds of your base!|r")
+        return
+    let typeId = u.getTypeId()
+    // камень ставится только на белый мрамор (kamenStavit удалит его на другой земле)
+    if typeId == 'h02Q' and GetTerrainType(target.x, target.y) != 'Ywmb'
+        DisplayTextToPlayer(p, 0.0, 0.0, "|cffff0000Can only be placed on white marble!|r")
+        return
+    let oldPos = u.getPos()
+    let facing = u.getFacingAngle()
+    let sellLevel = u.getAbilityLevel('A006')
+    let spawns = buildUnits.has(u)
+    buildUnits.remove(u)
+    u.remove()
+    let nu = createUnit(p, typeId, target, facing)
+    if sellLevel > 0
+        nu.setAbilityLevel('A006', sellLevel)
+    // перемещение — один раз на здание: у пересозданного кнопки нет (и после улучшения не появится)
+    moved.add(nu)
+    nu.removeAbility('ARal')
+    if spawns
+        buildUnits.add(nu)
+    addEffect("Abilities\\Spells\\Human\\Polymorph\\PolyMorphDoneGround.mdl", target).destr()
+    addEffect("Abilities\\Spells\\Human\\Polymorph\\PolyMorphDoneGround.mdl", oldPos).destr()
+    if localPlayer == p
+        ClearSelection()
+        SelectUnit(nu, true)
+
+/** Кнопки здания: «Переместить» и без точки сбора ('ARal', игра сама даёт её зданиям, которые обучают юнитов;
+    бараки ничего не обучают — юниты волны создаются кодом) */
+function setupBuilding(unit u)
+    u.addAbility(MOVE_ABIL_ID)
+    u.removeAbility('ARal')
+
+/** Зданиям игроков (0..7) на базах — как только они достроены или улучшены */
+function giveMoveAbility(unit u)
+    if u.isType(UNIT_TYPE_STRUCTURE) and u.getTypeId() != MOVE_DUMMY_ID and u.getOwner().getId() < 8 and baseAt(u.getPos()) != null
+        and not moved.has(u)
+        setupBuilding(u)
+
+/** Появилось фиктивное здание: его клетка — куда переносить здание игрока; само оно убирается */
+function onMoveDummy()
+    let dummy = getEnterLeaveUnit()
+    if dummy.getTypeId() != MOVE_DUMMY_ID
+        return
+    doAfter(0.0) ->
+        let id = dummy.getOwner().getId()
+        let target = dummy.getPos()
+        dummy.remove()
+        let u = moving[id]
+        moving[id] = null
+        if u != null and u.isAlive()
+            rebuildAt(u, target)
+
+init
+    onEnter(function onMoveDummy)
+    EventListener.add(EVENT_PLAYER_UNIT_CONSTRUCT_FINISH) ->
+        giveMoveAbility(GetConstructedStructure())
+    EventListener.add(EVENT_PLAYER_UNIT_UPGRADE_FINISH) ->
+        giveMoveAbility(GetTriggerUnit())
+    EventListener.add(EVENT_PLAYER_UNIT_SPELL_CAST) ->
+        if GetSpellAbilityId() == MOVE_ABIL_ID
+            let u = GetTriggerUnit()
+            moving[u.getOwner().getId()] = u

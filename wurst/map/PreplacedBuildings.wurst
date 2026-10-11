@@ -1,0 +1,32 @@
+package PreplacedBuildings
+
+/*
+    Здания баз, которые раньше стояли на карте в редакторе (CreateAllUnits в war3map.j): у каждого игрока 0..7
+    Алтарь Короля 'h09H', Алтарь Вызова 'h001', два Дома Странника 'h002'/'h04E' и Флаг 'h05T'.
+    Их типы существуют только в wurst/objects, поэтому World Editor 3.0 выбрасывал их при сохранении карты —
+    теперь они создаются кодом. init этого пакета идёт раньше init MapStart (как CreateAllUnits раньше триггеров),
+    а onEnter (stdlib OnUnitEnterLeave) получает их так же, как расставленных в редакторе. */
+
+/** Высота базы по линии 0..3 (снизу вверх), от неё отсчитываются здания */
+constant laneY = [-4992.0, -2432.0, 3072.0, 5632.0]
+
+/** Сколько зданий на базе у игрока и их типы по порядку */
+public constant BASE_BUILDINGS = 5
+public constant baseBuildingTypes = ['h09H', 'h001', 'h002', 'h04E', 'h05T']
+/** Здания баз: baseBuildings[a * BASE_BUILDINGS + k] — здание k (по baseBuildingTypes) игрока a */
+public unit array baseBuildings
+
+init
+    let facing = (270.0).fromDeg()
+    for a = 0 to 7
+        let p = players[a]
+        let left = a < 4
+        let y = laneY[a mod 4]
+        // колонка у края карты (алтарь короля, дома) и колонка ближе к центру (алтарь вызова, флаг)
+        let outer = left ? -4032.0 : 3520.0
+        let inner = left ? -2304.0 : 1792.0
+        let positions = [vec2(outer, y), vec2(inner, y + 448.0), vec2(outer, y + 192.0), vec2(outer, y - 192.0), vec2(inner, y - 448.0)]
+        for k = 0 to BASE_BUILDINGS - 1
+            // без «Указать точку сбора» ('ARal'): игра даёт её зданиям, которые обучают (Алтарь Вызова), а она не нужна
+            baseBuildings[a * BASE_BUILDINGS + k] = createUnit(p, baseBuildingTypes[k], positions[k], facing)
+                ..removeAbility('ARal')

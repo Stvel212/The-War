@@ -1,0 +1,220 @@
+package ProfileUi
+import TableUi
+import ClosureTimers
+import Profile
+import MapGlobals
+import BaseShortcuts
+import SkinsUi
+import EnergyUi
+import GameMode
+
+/*
+    Окно профиля (Profile): кнопка «Profile» над миникартой справа от «Artifacts», по клику — окно по центру:
+    аватарка, ник, уровень, полоса опыта, монеты, статистика и выбор аватарки (сетка; закрытые — затемнены, в
+    подсказке уровень, с которого откроется). Окно своё у каждого игрока (perPlayerFrames), данные профиля
+    синхронны, поэтому окно обновляется у всех клиентов одинаково (onProfileChange). */
+
+constant OPEN_W = 0.07
+constant OPEN_H = 0.03
+/** Слева кнопка «Artifacts» (ArtifactShop): та же высота над миникартой, правее неё */
+constant OPEN_X = 0.094
+constant ABOVE_MINIMAP = 0.03
+
+constant W = 0.40
+constant PAD = 0.014
+constant AVATAR = 0.06
+constant ICON = 0.034
+constant ICON_GAP = 0.004
+constant COLS = 9
+constant ROWS = 5
+constant LINE = 0.016
+constant BAR_W = 0.2
+constant BAR_H = 0.012
+/** Полоса опыта на экране (как MainXpBar в DS): слева вверху под кнопками меню */
+constant HUD_POS = vec2(0.005, 0.565)
+constant HUD_W = 0.21
+constant HUD_H = 0.018
+/** Список игроков (как UIPlayerNameIcon в DS): у правого края над нижней панелью */
+constant LIST_AVATAR = 0.03
+constant LIST_ROW = 0.036
+constant LIST_TEAM_GAP = 0.014
+constant LIST_W = 0.14
+/** Низ списка — над каменной кромкой нижней панели */
+constant LIST_BOTTOM = 0.175
+
+framehandle array avatarImg
+framehandle array levelText
+framehandle array coinsText
+framehandle array statsText
+framehandle array xpFill
+framehandle array xpText
+framehandle array hudFill
+framehandle array hudText
+framehandle array listAvatar
+framehandle array listLevel
+/** [pid * AVATARS + индекс] */
+framehandle array lockScrim
+framehandle array avatarMark
+bool array built
+/** Окно профиля создано — при первом открытии (сотни фреймов на старте давали фриз перед первым раундом) */
+bool array windowBuilt
+framehandle array windows
+bool array windowOpen
+
+function refresh(player p)
+    let pid = p.getId()
+    if not built[pid]
+        return
+    let data = p.profile()
+    let level = p.profileLevel()
+    let progress = p.levelProgress()
+    hudFill[pid].setSize(max(0.001, HUD_W * progress.x / max(1., progress.y)), HUD_H)
+    hudText[pid].setText(level >= MAX_LEVEL ? "Level " + level : "XP: " + data.xp + "/" + (data.xp + (progress.y - progress.x).toInt()) + " - Level " + level)
+    if listAvatar[pid] != null
+        listAvatar[pid].setTexture(p.avatarIcon(), 0, true)
+        listLevel[pid].setText("|cff999999Level " + level + "|r")
+    if not windowBuilt[pid]
+        return
+    avatarImg[pid].setTexture(p.avatarIcon(), 0, true)
+    levelText[pid].setText("Level |cffffcc00" + level + "|r")
+    coinsText[pid].setText("Coins: |cffffcc00" + data.coins + "|r    Energy: |cff00ffff" + data.energy + "|r")
+    statsText[pid].setText("Games: " + data.games + "    Wins: |cff00ff00" + data.wins + "|r    Losses: |cffff4040" + data.losses + "|r    Kills: " + data.kills
+        + "|nPvE: " + data.pveBeaten + "/" + PVE_LEVELS + " levels beaten    Endless record: " + data.pveBest + " points")
+    xpFill[pid].setSize(max(0.001, BAR_W * progress.x / max(1., progress.y)), BAR_H)
+    xpText[pid].setText(level >= MAX_LEVEL ? "MAX" : progress.x.toInt() + " / " + progress.y.toInt() + " XP")
+    for i = 0 to AVATARS - 1
+        lockScrim[pid * AVATARS + i].setVisible(level < avatarLevel(i))
+        avatarMark[pid * AVATARS + i].setVisible(i == data.avatar)
+
+function buildWindow(player owner, framehandle parent) returns framehandle
+    let pid = owner.getId()
+    let gridH = ROWS * ICON + (ROWS - 1) * ICON_GAP
+    // заголовок «Avatars» (h4) выше строки текста, плюс запас под рамку panel()
+    let h = PAD + AVATAR + 0.008 + LINE + 0.006 + 0.026 + 0.004 + gridH + PAD + 0.006
+    // panel() ставит себя абсолютной точкой — сбросить и поставить по центру экрана
+    let window = panel(parent, W, h)
+        ..clearAllPoints()
+        ..setAbsPoint(FRAMEPOINT_CENTER, vec2(0.3, 0.35))
+    avatarImg[pid] = img(window, owner.avatarIcon(), AVATAR)
+        ..setPoint(FRAMEPOINT_TOPLEFT, window, FRAMEPOINT_TOPLEFT, PAD, -PAD)
+    let name = h3(window, owner.getName())
+        ..setPoint(FRAMEPOINT_TOPLEFT, avatarImg[pid], FRAMEPOINT_TOPRIGHT, 0.01, 0.)
+    levelText[pid] = p(window, "")
+        ..setPoint(FRAMEPOINT_TOPLEFT, name, FRAMEPOINT_BOTTOMLEFT, 0., -0.004)
+    coinsText[pid] = p(window, "")
+        ..setPoint(FRAMEPOINT_LEFT, levelText[pid], FRAMEPOINT_RIGHT, 0.02, 0.)
+    // полоса опыта: фон и заливка (ширина = доля уровня)
+    let barBg = img(window, "Replaceabletextures\\Teamcolor\\Teamcolor24.blp", BAR_W, BAR_H)
+        ..setPoint(FRAMEPOINT_BOTTOMLEFT, avatarImg[pid], FRAMEPOINT_BOTTOMRIGHT, 0.01, 0.)
+    xpFill[pid] = img(window, "Replaceabletextures\\Teamcolor\\Teamcolor04.blp", 0.001, BAR_H)
+        ..setPoint(FRAMEPOINT_LEFT, barBg, FRAMEPOINT_LEFT)
+    xpText[pid] = p(window, "")
+        ..setPoint(FRAMEPOINT_LEFT, barBg, FRAMEPOINT_RIGHT, 0.006, 0.)
+    statsText[pid] = p(window, "")
+        ..setPoint(FRAMEPOINT_TOPLEFT, avatarImg[pid], FRAMEPOINT_BOTTOMLEFT, 0., -0.008)
+    let avatarsTitle = h4(window, "Avatars")
+        ..setPoint(FRAMEPOINT_TOPLEFT, statsText[pid], FRAMEPOINT_BOTTOMLEFT, 0., -0.006)
+    for i = 0 to AVATARS - 1
+        let index = i
+        let b = iconButton(window, avatarIcon(i), ICON)
+            ..setPoint(FRAMEPOINT_TOPLEFT, avatarsTitle, FRAMEPOINT_BOTTOMLEFT, (i mod COLS) * (ICON + ICON_GAP), -0.004 - (i div COLS) * (ICON + ICON_GAP))
+            ..cornerTooltip("Avatar (level " + avatarLevel(i) + ")")
+        b.onClick(() -> owner.setAvatar(index))
+        avatarMark[pid * AVATARS + i] = selectionHighlight(b)
+        // закрытая: затемнена, клик глотается, подсказка — с какого уровня
+        lockScrim[pid * AVATARS + i] = disabledOverlay(b)
+            ..cornerTooltip("|cffff4040Unlocks at profile level " + avatarLevel(i) + "|r")
+    // своя «X» внутри окна: closeButton библиотеки создаётся в общем родителе и видна даже при закрытом окне
+    let close = textButton(window, "X", 0.022, 0.022)
+        ..setPoint(FRAMEPOINT_TOPRIGHT, window, FRAMEPOINT_TOPRIGHT, -0.006, -0.006)
+    close.onClick() ->
+        windowOpen[pid] = false
+        window.hide()
+    // скины — своё окно на том же месте: профиль закрывается
+    let skins = textButton(window, "Skins", 0.07, 0.024)
+        ..setPoint(FRAMEPOINT_TOPRIGHT, close, FRAMEPOINT_TOPLEFT, -0.006, 0.)
+        ..cornerTooltip("Skins for the builder, main building, Arthas and heroes - bought with coins")
+    skins.onClick() ->
+        windowOpen[pid] = false
+        window.hide()
+        toggleSkinsWindow(owner, parent) ->
+            windowOpen[pid] = true
+            window.show()
+    // энергии PvE (EnergyUi) — тоже своё окно вместо профиля
+    let energies = textButton(window, "Energies", 0.08, 0.024)
+        ..setPoint(FRAMEPOINT_TOPRIGHT, skins, FRAMEPOINT_TOPLEFT, -0.006, 0.)
+        ..cornerTooltip("PvE Energies: permanent bonuses in PvE mode - bought with energy")
+    energies.onClick() ->
+        windowOpen[pid] = false
+        window.hide()
+        toggleEnergyWindow(owner, parent) ->
+            windowOpen[pid] = true
+            window.show()
+    return window
+
+/** Кнопка «Profile» игрока owner и его окно (только игроки баз 0..7) */
+function buildPanel(player owner) returns framehandle
+    let pid = owner.getId()
+    if pid >= 8
+        return null
+    // родитель ConsoleUIBackdrop: кнопка за краем области 4:3 (над миникартой)
+    let root = container(BlzGetFrameByName("ConsoleUIBackdrop", 0), OPEN_W, OPEN_H)
+    let open = textButton(root, "Profile", OPEN_W, OPEN_H)
+        ..setPoint(FRAMEPOINT_TOPLEFT, root, FRAMEPOINT_TOPLEFT)
+        ..cornerTooltip("Profile: level, coins, energy, stats, avatars")
+    // полоса опыта — дочерняя root: видна только владельцу (perPlayerFrames)
+    let hud = container(root, HUD_W, HUD_H)
+        ..setAbsPoint(FRAMEPOINT_TOPLEFT, HUD_POS)
+    img(hud, "Replaceabletextures\\Teamcolor\\Teamcolor24.blp", HUD_W, HUD_H)
+        ..setPoint(FRAMEPOINT_LEFT, hud, FRAMEPOINT_LEFT)
+    hudFill[pid] = img(hud, "Replaceabletextures\\Teamcolor\\Teamcolor05.blp", 0.001, HUD_H)
+        ..setPoint(FRAMEPOINT_LEFT, hud, FRAMEPOINT_LEFT)
+    hudText[pid] = p(hud, "")
+        ..setPoint(FRAMEPOINT_CENTER, hud, FRAMEPOINT_CENTER)
+    open.onClick() ->
+        // клик синхронный — окно строится у всех клиентов одинаково
+        if not windowBuilt[pid]
+            windows[pid] = buildWindow(owner, root)..hide()
+            windowBuilt[pid] = true
+            refresh(owner)
+        windowOpen[pid] = not windowOpen[pid]
+        windows[pid].setVisible(windowOpen[pid])
+    root.setPoint(FRAMEPOINT_BOTTOMLEFT, BlzGetOriginFrame(ORIGIN_FRAME_MINIMAP, 0), FRAMEPOINT_TOPLEFT, OPEN_X, ABOVE_MINIMAP)
+    built[pid] = true
+    refresh(owner)
+    return root
+
+/** Список игроков у правого края: ник в цвете игрока, уровень профиля и аватарка; одинаковый у всех */
+function buildPlayerList()
+    var rows = 0
+    for pid = 0 to 7
+        if players[pid].isIngame()
+            rows++
+    let h = rows * LIST_ROW + LIST_TEAM_GAP
+    let console = BlzGetFrameByName("ConsoleUIBackdrop", 0)
+    let root = container(console, LIST_W, h)
+    var y = 0.
+    for pid = 0 to 7
+        let pl = players[pid]
+        if pid == 4
+            y -= LIST_TEAM_GAP
+        if pl.isIngame()
+            listAvatar[pid] = img(root, pl.avatarIcon(), LIST_AVATAR)
+                ..setPoint(FRAMEPOINT_TOPRIGHT, root, FRAMEPOINT_TOPRIGHT, 0., y)
+            let name = p(root, "|c00" + colorCode[pid] + pl.getName() + "|r")
+                ..setPoint(FRAMEPOINT_TOPRIGHT, listAvatar[pid], FRAMEPOINT_TOPLEFT, -0.004, 0.)
+            listLevel[pid] = p(root, "|cff999999Level " + pl.profileLevel() + "|r")
+                ..setPoint(FRAMEPOINT_TOPRIGHT, name, FRAMEPOINT_BOTTOMRIGHT, 0., -0.002)
+            y -= LIST_ROW
+    // у правого края экрана: на широком экране он правее области 4:3 (x = 0.8), поэтому край считается из
+    // соотношения сторон окна (локальное значение — влияет только на положение фрейма); родитель ConsoleUIBackdrop,
+    // иначе за 4:3 не рисуется
+    let screenRight = 0.4 + 0.3 * BlzGetLocalClientWidth().toReal() / max(1., BlzGetLocalClientHeight().toReal())
+    root.setAbsPoint(FRAMEPOINT_BOTTOMRIGHT, vec2(screenRight - 0.004, LIST_BOTTOM))
+
+init
+    onProfileChange(p -> refresh(p))
+    // UI — после блокирующего init (так требует TableLayout)
+    doAfter(0.0) ->
+        buildPlayerList()
+        perPlayerFrames(owner -> buildPanel(owner)).showEach()

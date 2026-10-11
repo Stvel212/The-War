@@ -1,0 +1,336 @@
+package Energies
+import Profile
+import GameMode
+import DamageEvent
+import OnUnitEnterLeave
+import ClosureTimers
+import ClosureForGroups
+import GameTimer
+import StringUtils
+import MapGlobals
+import AbilitiesEnergy
+import ClosureEvents
+
+/*
+    Энергии PvE — система очков из Just Fight 5.6 («Energy»: Золото, Дерево, Вода, Огонь, Земля, Ветер, Гром,
+    Электричество), там за «Боевые заслуги», здесь — за энергию профиля (очки прокачки; монеты — на скины). Как в оригинале:
+    - «Активировать энергию» стоит энергию и с шансом (50% при 0 открытых … 7% при 7) открывает случайную
+      ещё закрытую энергию на 1-м уровне; победы в PvE снижают цену активации;
+    - открытая энергия качается до 40-го уровня, уровень L → L+1 стоит LEVEL_COST·L энергии (как в оригинале: 10·L);
+    - действуют только в PvE (с первого раунда): стартовые золото/дерево, броня, скорость атаки, регенерация и урон
+      бойцов, шанс сильного удара; Вода — генератор энергии на последних 9% здоровья разом лечится и бьёт вокруг.
+    Уровни хранятся в профиле строкой (ProfileData.energies, «5,0,12,…»); всё синхронно (клики окна — синхронные). */
+
+public constant ENERGY_KINDS = 8
+public constant ENERGY_MAX_LEVEL = 40
+public constant ENERGY_GOLD = 0
+public constant ENERGY_LUMBER = 1
+public constant ENERGY_WATER = 2
+public constant ENERGY_FIRE = 3
+public constant ENERGY_EARTH = 4
+public constant ENERGY_WIND = 5
+public constant ENERGY_THUNDER = 6
+public constant ENERGY_ELECTRICITY = 7
+
+/** Цена активации по числу пройденных уровней PvE: 0, 1, 2+ (Just Fight: 100, 90, 75 заслуг по прогрессу PvE) */
+constant activateCosts = [100, 90, 75]
+constant LEVEL_COST = 10
+/** Шанс открыть новую энергию при 0..7 уже открытых, % */
+constant activateChance = [50, 44, 38, 32, 25, 19, 13, 7]
+constant energyNames = ["Gold", "Lumber", "Water", "Fire", "Earth", "Wind", "Thunder", "Electricity"]
+constant energyIcons = ["BTNChestOfGold", "BTNBundleOfLumber", "BTNSummonWaterElemental", "BTNImmolationOn",
+    "BTNEarthquake", "BTNCyclone", "BTNThunderclap", "BTNChainLightning"]
+
+/** Вода: лечит генератор, когда здоровья меньше WATER_THRESHOLD, не чаще раза в WATER_COOLDOWN с */
+constant WATER_THRESHOLD = 0.09
+constant WATER_COOLDOWN = 60.
+constant WATER_RADIUS = 600.
+/** Огонь: шанс сильного удара */
+constant FIRE_CHANCE = 20
+
+/** Уровни энергий: [pid * ENERGY_KINDS + вид] */
+int array levels
+real array waterReadyAt
+
+public function energyName(int kind) returns string
+    return energyNames[kind]
+
+public function energyIcon(int kind) returns string
+    return "ReplaceableTextures\\CommandButtons\\" + energyIcons[kind] + ".blp"
+
+/** Что даёт энергия kind на уровне level (для подсказок) */
+public function energyEffect(int kind, int level) returns string
+    switch kind
+        case ENERGY_GOLD
+            return "+" + 5 * level + " starting gold"
+        case ENERGY_LUMBER
+            return "+" + 5 * level + " starting lumber"
+        case ENERGY_WATER
+            return "your Energy Generator below 9% HP instantly heals " + min(100, 3 * level) + "% max HP and deals as much damage around (60 s cooldown)"
+        case ENERGY_FIRE
+            return FIRE_CHANCE + "% chance for attacks of your units to deal +" + 5 * level + "% damage"
+        case ENERGY_EARTH
+            return "+" + (0.15 * level).toString(2) + " armor to your units"
+        case ENERGY_WIND
+            return "+" + (0.5 * level).toString(1) + "% attack speed to your units"
+        case ENERGY_THUNDER
+            return "+" + (0.3 * level).toString(1) + " HP regeneration to your units"
+        default
+            return "+" + (0.5 * level).toString(1) + "% attack damage to your units"
+
+// ---- состояние ----
+
+public function player.energyLevel(int kind) returns int
+    return levels[this.getId() * ENERGY_KINDS + kind]
+
+public function player.activeEnergies() returns int
+    var n = 0
+    for k = 0 to ENERGY_KINDS - 1
+        if this.energyLevel(k) > 0
+            n++
+    return n
+
+public function player.energyActivateCost() returns int
+    return activateCosts[min(2, this.profile().pveBeaten)]
+
+public function energyActivateChance(int active) returns int
+    return active < ENERGY_KINDS ? activateChance[active] : 0
+
+public function energyLevelCost(int level) returns int
+    return LEVEL_COST * level
+
+/** Разобрать уровни из профиля («5,0,12,…») */
+function readProfile(player p)
+    let pid = p.getId()
+    for k = 0 to ENERGY_KINDS - 1
+        levels[pid * ENERGY_KINDS + k] = 0
+    let parts = p.profile().energies.split(",")
+    var kind = 0
+    for part in parts
+        if kind < ENERGY_KINDS
+            levels[pid * ENERGY_KINDS + kind] = max(0, min(ENERGY_MAX_LEVEL, part.toInt()))
+        kind++
+    destroy parts
+
+function writeProfile(player p)
+    var s = ""
+    for k = 0 to ENERGY_KINDS - 1
+        s += (k > 0 ? "," : "") + p.energyLevel(k)
+    p.profile().energies = s
+
+function saveLevels(player p)
+    writeProfile(p)
+    p.profileChanged()
+    p.saveProfile()
+
+// ---- покупки (синхронные клики окна) ----
+
+/** Попытка открыть новую энергию: энергия списывается в любом случае, как в оригинале */
+public function player.activateEnergy()
+    let pid = this.getId()
+    if pid >= 8 or not profileReady[pid]
+        return
+    let active = this.activeEnergies()
+    if active >= ENERGY_KINDS
+        DisplayTextToPlayer(this, 0., 0., "|cffff8080All energies are already active|r")
+        return
+    let cost = this.energyActivateCost()
+    if not this.spendEnergy(cost)
+        DisplayTextToPlayer(this, 0., 0., "|cffff4040Not enough energy|r (" + cost + " needed)")
+        return
+    if GetRandomInt(1, 100) <= energyActivateChance(active)
+        // случайная из закрытых
+        var pick = GetRandomInt(1, ENERGY_KINDS - active)
+        for k = 0 to ENERGY_KINDS - 1
+            if this.energyLevel(k) == 0 and pick > 0
+                pick--
+                if pick == 0
+                    levels[pid * ENERGY_KINDS + k] = 1
+                    DisplayTextToPlayer(this, 0., 0., "|cff00ffffEnergy activated:|r |cffffcc00" + energyName(k) + "|r")
+    else
+        DisplayTextToPlayer(this, 0., 0., "|cffc0c0c0The energy did not respond... (" + energyActivateChance(active) + "% chance)|r")
+    saveLevels(this)
+
+public function player.levelUpEnergy(int kind)
+    let pid = this.getId()
+    if pid >= 8 or not profileReady[pid]
+        return
+    let level = this.energyLevel(kind)
+    if level == 0
+        DisplayTextToPlayer(this, 0., 0., "|cffff8080This energy is not active yet - use Activate|r")
+        return
+    if level >= ENERGY_MAX_LEVEL
+        DisplayTextToPlayer(this, 0., 0., "|cffff8080This energy is already at maximum level|r")
+        return
+    let cost = energyLevelCost(level)
+    if not this.spendEnergy(cost)
+        DisplayTextToPlayer(this, 0., 0., "|cffff4040Not enough energy|r (" + cost + " needed)")
+        return
+    levels[pid * ENERGY_KINDS + kind] = level + 1
+    DisplayTextToPlayer(this, 0., 0., "|cff00ffff" + energyName(kind) + "|r energy: level |cffffcc00" + (level + 1) + "|r")
+    saveLevels(this)
+
+// ---- слоты особых зданий (супер-юнитов) ----
+
+/** Слот особого здания сверх одного — навсегда в профиле (как скрытые юниты Just Fight за 700 заслуг), до
+    SUPER_SLOTS_MAX; в PvP слоты даёт улучшение камня, в PvE камня нет — работают эти */
+public constant SUPER_SLOT_COST = 700
+public constant SUPER_SLOTS_MAX = 3
+
+public function player.superSlots() returns int
+    return profileReady[this.getId()] ? this.profile().superSlots : 0
+
+public function player.buySuperSlot()
+    let pid = this.getId()
+    if pid >= 8 or not profileReady[pid]
+        return
+    let have = this.superSlots()
+    if have >= SUPER_SLOTS_MAX
+        DisplayTextToPlayer(this, 0., 0., "|cffff8080All super unit slots are already unlocked|r")
+        return
+    if not this.spendEnergy(SUPER_SLOT_COST)
+        DisplayTextToPlayer(this, 0., 0., "|cffff4040Not enough energy|r (" + SUPER_SLOT_COST + " needed)")
+        return
+    this.profile().superSlots = have + 1
+    this.profileChanged()
+    this.saveProfile()
+    DisplayTextToPlayer(this, 0., 0., "|cff00ffffSuper unit slot unlocked:|r |cffffcc00" + (have + 1) + "/" + SUPER_SLOTS_MAX
+        + "|r (PvE, from the next game)")
+
+// ---- действие в PvE ----
+
+/** Стартовые золото и дерево — после первого раунда (он ставит стартовое золото); слоты особых зданий сверх
+    одного (Main.antiKamen: всего не больше unitS + 1) */
+@noinline
+function startBonus()
+    for pid = 0 to 7
+        let p = players[pid]
+        unitS[pid] = p.superSlots()
+        let gold = 5 * p.energyLevel(ENERGY_GOLD)
+        let lumber = 5 * p.energyLevel(ENERGY_LUMBER)
+        if p.isIngame() and (gold > 0 or lumber > 0)
+            p.addGold(gold)
+            p.addLumber(lumber)
+            DisplayTextToPlayer(p, 0., 0., "|cff00ffffEnergies:|r +" + gold + " gold, +" + lumber + " lumber")
+
+/** Новый боец игрока: броня, скорость атаки, регенерация */
+@noinline
+function onUnitEnter()
+    if not isPve()
+        return
+    let u = getEnterLeaveUnit()
+    let p = u.getOwner()
+    if p.getId() >= 8 or u.isType(UNIT_TYPE_STRUCTURE) or u.isType(UNIT_TYPE_PEON)
+        return
+    let earth = p.energyLevel(ENERGY_EARTH)
+    if earth > 0
+        u.setArmor(u.getArmor() + 0.15 * earth)
+    let wind = p.energyLevel(ENERGY_WIND)
+    let cooldown = u.getAttackCooldown(0)
+    if wind > 0 and cooldown > 0.
+        u.setAttackCooldown(cooldown / (1. + 0.005 * wind), 0)
+    let thunder = p.energyLevel(ENERGY_THUNDER)
+    if thunder > 0
+        u.setField(UNIT_RF_HIT_POINTS_REGENERATION_RATE, u.getField(UNIT_RF_HIT_POINTS_REGENERATION_RATE) + 0.3 * thunder)
+
+/** Урон атакой бойцов игрока: Электричество и Огонь */
+@noinline
+function onDamage()
+    if not isPve() or DamageEvent.getType() != DamageType.ATTACK
+        return
+    let source = DamageEvent.getSource()
+    if source == null
+        return
+    let p = source.getOwner()
+    if p.getId() >= 8
+        return
+    var k = 1. + 0.005 * p.energyLevel(ENERGY_ELECTRICITY)
+    let fire = p.energyLevel(ENERGY_FIRE)
+    if fire > 0 and GetRandomInt(1, 100) <= FIRE_CHANCE
+        k *= 1. + 0.05 * fire
+    if k > 1.
+        DamageEvent.setAmount(DamageEvent.getAmount() * k)
+
+/** Вода (как в Just Fight): генератор игрока ниже 9% здоровья разом лечится на 3%·уровень и бьёт монстров вокруг
+    на столько же (по уровню владельца, не чаще раза в WATER_COOLDOWN с) */
+@noinline
+function waterCheck()
+    if not isPve()
+        return
+    for pid = 0 to 7
+        let gen = generators[pid]
+        let level = players[pid].energyLevel(ENERGY_WATER)
+        if level > 0 and gen != null and gen.isAlive() and gen.getHP() < gen.getMaxHP() * WATER_THRESHOLD and getElapsedGameTime() >= waterReadyAt[pid]
+            waterReadyAt[pid] = getElapsedGameTime() + WATER_COOLDOWN
+            let amount = gen.getMaxHP() * min(100, 3 * level) / 100.
+            gen.setHP(gen.getHP() + amount)
+            addEffect("Abilities\\Spells\\Other\\CrushingWave\\CrushingWaveDamage.mdl", gen.getPos()).destr()
+            forUnitsInRange(gen.getPos(), WATER_RADIUS) u ->
+                if u.isAlive() and u.isCreep()
+                    gen.damageTarget(u, amount, false, false, ATTACK_TYPE_MAGIC, DAMAGE_TYPE_MAGIC, WEAPON_TYPE_WHOKNOWS)
+            DisplayTextToPlayer(players[pid], 0., 0., "|cff00ffffWater energy|r saved your Energy Generator!")
+
+
+// ---- кнопки энергий на генераторе (PvE, как в Just Fight) ----
+
+/** Подсказки кнопок по уровням (у всех одинаковые: уровень кнопки = уровень энергии) */
+function initGeneratorTooltips()
+    for kind = 0 to ENERGY_KINDS - 1
+        let id = energyAbility(kind)
+        for level = 1 to ENERGY_MAX_LEVEL
+            BlzSetAbilityTooltip(id, "|cff00ffffEnergy - " + energyName(kind) + " [Level " + level + "]|r", level - 1)
+            var s = "|cffffff00Current:|n" + energyEffect(kind, level) + "|r"
+            if level < ENERGY_MAX_LEVEL
+                s += "|n|n|cffc0c0c0Next level:|n" + energyEffect(kind, level + 1) + "|nClick to level up: |cff00ffff"
+                    + energyLevelCost(level) + "|r energy|r"
+            BlzSetAbilityExtendedTooltip(id, s + "|n|cffc0c0c0Works only in PvE mode. Max level: " + ENERGY_MAX_LEVEL + "|r", level - 1)
+    BlzSetAbilityTooltip(ENERGY_ACTIVATE, "|cff00ffffActivate Energy|r", 0)
+    BlzSetAbilityExtendedTooltip(ENERGY_ACTIVATE, "Randomly activates one of the energies you do not have yet: Gold, Lumber, Water, "
+        + "Fire, Earth, Wind, Thunder or Electricity.|n|cffc0c0c0Costs " + activateCosts[0] + " energy (" + activateCosts[1] + " after 1 beaten PvE level, "
+        + activateCosts[2] + " after 2). The chance drops with every active energy; energy is spent even if none responds.|r", 0)
+
+/** Кнопки генератора игрока p — по его энергиям: активные энергии с их уровнем и «Activate», пока есть закрытые */
+function refreshGenerator(player p)
+    let pid = p.getId()
+    if not isPve() or pid >= 8
+        return
+    let gen = generators[pid]
+    if gen == null or not gen.isAlive()
+        return
+    if p.activeEnergies() < ENERGY_KINDS
+        if gen.getAbilityLevel(ENERGY_ACTIVATE) == 0
+            gen.addAbility(ENERGY_ACTIVATE)
+    else if gen.getAbilityLevel(ENERGY_ACTIVATE) > 0
+        gen.removeAbility(ENERGY_ACTIVATE)
+    for kind = 0 to ENERGY_KINDS - 1
+        let id = energyAbility(kind)
+        let level = p.energyLevel(kind)
+        if level > 0
+            if gen.getAbilityLevel(id) == 0
+                gen.addAbility(id)
+            gen.setAbilityLevel(id, level)
+
+init
+    onProfileChange(p -> readProfile(p))
+    onEnter(function onUnitEnter)
+    DamageEvent.addListener() ->
+        onDamage()
+    onRound() r ->
+        if r == 1 and isPve()
+            startBonus()
+    doPeriodically(1.) cb ->
+        waterCheck()
+    initGeneratorTooltips()
+    // генераторы ставятся при выборе режима, профили грузятся когда угодно: синхронизировать и при старте, и при
+    // каждом изменении профиля
+    onProfileChange(p -> refreshGenerator(p))
+    onRound() r ->
+        if r == 1
+            for pid = 0 to 7
+                refreshGenerator(players[pid])
+    for kind = 0 to ENERGY_KINDS - 1
+        let k = kind
+        EventListener.onCast(energyAbility(kind)) (caster) ->
+            caster.getOwner().levelUpEnergy(k)
+    EventListener.onCast(ENERGY_ACTIVATE) (caster) ->
+        caster.getOwner().activateEnergy()

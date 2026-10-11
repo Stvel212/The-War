@@ -1,0 +1,6 @@
+package MMD_config
+import MMD
+
+/** Отладочные сообщения MMD («Guard Raised! (message skipping)») игрокам не показывать: в одиночной игре и без
+    бота-статистики сообщения MMD не подтверждаются, и проверка от подделки пишет это в чат */
+@config public constant bool SHOW_DEBUG_MESSAGES = false

@@ -1,0 +1,166 @@
+package UnitsArthasJf
+import AbilityObjEditing
+
+/*
+    Артас — «Mini War God Assistant» Just Fight 5.6 (h0B1 и его формы h0B2…h0DR), здесь — пакет ArthasJf:
+    - 'AAB1' Благословение Бога (A0HD): за монеты профиля, 36 уровней — урон Артаса и награда за победу;
+    - 'AAB3' Генератор энергии — помощь (A0K7, только PvE): мгновенно запускает выбранный барак;
+    - 'AAB4' многоцелевая атака формы «Ветрокрылая» (A0IW, с шансом 10% на атаку в PvE);
+    - 'hAF1'…'hAF3' — источники вида для форм-панд (скины Артаса, Skins): своих стандартных типов у моделей нет. */
+
+/** Источник вида (только модель и значок): юнит не создаётся */
+function skinSource(int id, string name, string model, string icon)
+	new UnitDefinition(id, 'hhes')
+		..setName(name)
+		..setModelFile(model)
+		..setIconGameInterface("ReplaceableTextures\\CommandButtons\\" + icon + ".blp")
+		..setScalingValue(0.4)
+
+@compiletime function create_w3u_ArthasSkins()
+	skinSource('hAF1', "Мини-Буревестник", "Units\\Creeps\\StormPandarenBrewmaster\\StormPandarenBrewmaster.mdl", "BTNStormBrewmaster")
+	skinSource('hAF2', "Мини-Бог Земли", "Units\\Creeps\\EarthPandarenBrewmaster\\EarthPandarenBrewmaster.mdl", "BTNEarthBrewmaster")
+	skinSource('hAF3', "Мини-Бог Огня", "Units\\Creeps\\FirePandarenBrewmaster\\FirePandarenBrewmaster.mdl", "BTNFireBrewmaster")
+
+/** Мгновенный канал Артаса */
+function arthasButton(int id, string order, string icon, int x, int y, string hotkey, real cooldown) returns AbilityDefinitionIllidanChannel
+	return new AbilityDefinitionIllidanChannel(id)
+		..setLevels(1)
+		..setIconNormal("ReplaceableTextures\\CommandButtons\\" + icon + ".blp")
+		..setButtonPositionNormalX(x)
+		..setButtonPositionNormalY(y)
+		..setHotkeyNormal(hotkey)
+		..setCooldown(1, cooldown)
+		..setManaCost(1, 0)
+		..setOptions(1, 1)
+		..setFollowThroughTime(1, 0.0)
+		..setArtDuration(1, 0.0)
+		..setDisableOtherAbilities(1, false)
+		..setBaseOrderID(1, order)
+		..setArtEffect("")
+		..setArtTarget("")
+		..setArtCaster("")
+		..setRace(Race.Other)
+		..setEditorSuffix("(Артас)")
+
+@compiletime function create_w3a_ArthasJf()
+	// подсказка Благословения — по уровню игрока, ставится из кода (ArthasJf)
+	arthasButton('AAB1', "shockwave", "BTNStatUp", 2, 1, "D", 0.6)
+		..setName("Благословение Бога")
+		..setTooltipNormal(1, "Благословение Бога (|cffffcc00D|r)")
+		..setTooltipNormalExtended(1, "")
+		..setTargetType(1, 0)
+	arthasButton('AAB3', "revenge", "BTNManaFlare", 3, 1, "E", 300.0)
+		..setName("Генератор энергии - помощь")
+		..setTooltipNormal(1, "|cff00ffffГенератор энергии|r|cff00ff00 - помощь|r (|cffffcc00E|r)")
+		..setTooltipNormalExtended(1, "|cffffff00Мгновенно запускает любой свой барак (не героя): он сразу выпускает бойцов, как в начале раунда.|r|n|n|cffc0c0c0Только в PvE. Перезарядка: 300 секунд|r")
+		..setTargetType(1, 1)
+		..setTargetsAllowed(1, "ground,structure,player,invulnerable,vulnerable,nonhero")
+		..setCastRange(1, 100000.0)
+		..setAreaofEffect(1, 0.0)
+		..setArtCaster("Abilities\\Spells\\Human\\ManaFlare\\ManaFlareBoltImpact.mdl")
+	new AbilityDefinitionRocketAttack('AAB4')
+		..setName("Многоцелевая атака")
+		..setTooltipNormal(1, "Многоцелевая атака")
+		..setTooltipNormalExtended(1, "Атака поражает сразу до 5 врагов.")
+		..setIconNormal("ReplaceableTextures\\CommandButtons\\BTNMultishot.blp")
+		..setButtonPositionNormalX(3)
+		..setButtonPositionNormalY(2)
+		..setRequirements("")
+		..setTargetsAllowed(1, "ground,ward,enemies,air")
+		..setMaximumNumberofTargets(1, 5)
+		..setMaximumTotalDamage(1, 1000.0)
+		..setDamagePerTarget(1, 0.0)
+		..setCooldown(1, 0.5)
+		..setAreaofEffect(1, 500.0)
+		..setDurationHero(1, 0.1)
+		..setDurationNormal(1, 0.1)
+		..setMissileArt("Abilities\\Weapons\\SearingArrow\\SearingArrowMissile.mdl")
+		..setMissileArc(0.0)
+		..setMissileSpeed(1200)
+		..setRace(Race.Other)
+		..setEditorSuffix("(Артас)")
+
+// ---- Таланты (Just Fight «Молитва - талант»: A0GX / A0H3 и 21 талант A06Z…A0ES) ----
+
+/** Пассивная иконка таланта на Артасе (у него всегда одна; эффект — сама аура или код ArthasJf) */
+function talentLook(AbilityDefinition a, string name, string description, string icon)
+	a..setName(name)
+		..setTooltipNormal(1, name)
+		..setTooltipNormalExtended(1, description)
+		..setIconNormal(icon)
+		..setButtonPositionNormalX(0)
+		..setButtonPositionNormalY(2)
+		..setLevels(1)
+		..setRace(Race.Other)
+		..setEditorSuffix("(талант Артаса)")
+
+/** Талант без своего действия (золото, дерево, здоровье — в коде): Благодать Элуны без изменений урона */
+function talentMarker(int id, string name, string description, string icon)
+	let a = new AbilityDefinitionElunesGrace(id)
+		..setMagicDamageReduction(1, 1.0)
+		..setDamageTaken(1, 1.0)
+		..setArtTarget("")
+	talentLook(a, name, description, icon)
+
+constant ALL = "ground,ward,player,air,self,nonhero"
+
+@compiletime function create_w3a_ArthasTalents()
+	let cb = "ReplaceableTextures\\CommandButtons\\"
+	let pb = "ReplaceableTextures\\PassiveButtons\\"
+	talentLook(new AbilityDefinitionAuraTrueshotCreep('AT01')..setDamageBonus(1, 0.02)..setMeleeBonus(1, false)..setRangedBonus(1, true)
+		..setTargetsAllowed(1, ALL)..setAreaofEffect(1, 100000.0),
+		"Талант 01 - Аура натиска", "Увеличивает базовую атаку всех ваших бойцов дальнего боя на 2%.", pb + "PASBTNTrueShot.blp")
+	talentMarker('AT02', "Талант 02 - Аура жизни", "Увеличивает максимальное здоровье всех ваших бойцов на 6.", cb + "BTNPeriapt1.blp")
+	talentMarker('AT03', "Талант 03 - |cff00ff00Лесозаготовка [редкий]|r", "Каждый раунд вы получаете ещё 3 дерева.", cb + "BTNHumanLumberUpgrade1.blp")
+	talentLook(new AbilityDefinitionAuraTrueshotCreep('AT04')..setDamageBonus(1, 0.02)..setMeleeBonus(1, true)..setRangedBonus(1, false)
+		..setTargetsAllowed(1, ALL)..setAreaofEffect(1, 100000.0),
+		"Талант 04 - Аура командира", "Увеличивает атаку всех ваших бойцов ближнего боя на 2%.", pb + "PASBTNGnollCommandAura.blp")
+	talentLook(new AbilityDefinitionUnholyAuracreep('AT05')..setMovementSpeedIncrease(1, 0.0)..setLifeRegenerationIncrease(1, 1.0)
+		..setTargetsAllowed(1, ALL)..setAreaofEffect(1, 1000.0),
+		"Талант 05 - Аура восстановления", "Увеличивает восстановление здоровья ваших бойцов в радиусе 1000 на 1.", cb + "BTNRegenerate.blp")
+	talentMarker('AT06', "Талант 06 - |cff00ff00Золотодобыча [редкий]|r", "Каждый раунд вы получаете ещё 2 золота.", cb + "BTNChestOfGold.blp")
+	talentLook(new AbilityDefinitionAuraEnduranceCreep('AT07')..setAttackSpeedIncrease(1, 0.01)..setMovementSpeedIncrease(1, 0.0)
+		..setTargetsAllowed(1, ALL)..setAreaofEffect(1, 100000.0),
+		"Талант 07 - Аура выносливости", "Увеличивает скорость атаки всех ваших бойцов на 1%.", pb + "PASBTNCommand.blp")
+	talentLook(new AbilityDefinitionAuraTrueshotCreep('AT08')..setDamageBonus(1, 0.02)..setMeleeBonus(1, true)..setRangedBonus(1, true)
+		..setTargetsAllowed(1, ALL)..setAreaofEffect(1, 1000.0),
+		"Талант 08 - Огневая мощь дома", "Увеличивает атаку ваших бойцов в радиусе 1000 на 2%.", cb + "BTNHumanMissileUpOne.blp")
+	talentLook(new AbilityDefinitionAuraTrueshotCreep('AT09')..setDamageBonus(1, 0.01)..setMeleeBonus(1, true)..setRangedBonus(1, true)
+		..setTargetsAllowed(1, ALL)..setAreaofEffect(1, 100000.0),
+		"Талант 09 - Аура боевых барабанов", "Увеличивает атаку всех ваших бойцов на 1%.", pb + "PASBTNDrum.blp")
+	talentMarker('AT10', "Талант 10 - Дотация древесины", "В начале игры вы получаете ещё 12 дерева.", cb + "BTNBundleOfLumber.blp")
+	talentLook(new AbilityDefinitionAuraDevotionCreep('AT11')..setArmorBonus(1, 0.06)..setPercentBonus(1, true)
+		..setTargetsAllowed(1, ALL)..setAreaofEffect(1, 100000.0),
+		"Талант 11 - Аура сосредоточенности", "Увеличивает базовую броню всех ваших бойцов на 6%.", pb + "PASBTNDevotion.blp")
+	talentLook(new AbilityDefinitionAuraDevotionCreep('AT12')..setArmorBonus(1, 0.1)..setPercentBonus(1, true)
+		..setTargetsAllowed(1, ALL)..setAreaofEffect(1, 1000.0),
+		"Талант 12 - Стража дома", "Увеличивает базовую броню ваших бойцов в радиусе 1000 на 10%.", cb + "BTNUndeadCaptureFlag.blp")
+	talentLook(new AbilityDefinitionVampiricAuracreep('AT13')..setAttackDamageStolen(1, 0.01)
+		..setTargetsAllowed(1, ALL)..setAreaofEffect(1, 100000.0),
+		"Талант 13 - Аура вампиризма", "Все ваши бойцы получают 1% вампиризма.", pb + "PASBTNVampiricAura.blp")
+	talentMarker('AT14', "Талант 14 - Награда за убийство", "За каждого убитого (не призванного) с шансом 20% вы получаете 1 золото.", cb + "BTNMGExchange.blp")
+	talentLook(new AbilityDefinitionAuraTrueshotCreep('AT15')..setDamageBonus(1, 1.0)..setFlatBonus(1, true)..setMeleeBonus(1, true)..setRangedBonus(1, true)
+		..setTargetsAllowed(1, ALL)..setAreaofEffect(1, 100000.0),
+		"Талант 15 - Аура атаки", "Увеличивает атаку всех ваших бойцов на 1.", cb + "BTNNightElfCaptureFlag.blp")
+	talentLook(new AbilityDefinitionUnholyAuracreep('AT16')..setMovementSpeedIncrease(1, -0.02)..setLifeRegenerationIncrease(1, 0.0)
+		..setTargetsAllowed(1, "enemies,ground,nonhero,air,ward")..setAreaofEffect(1, 1000.0),
+		"Талант 16 - Аура холода", "Замедляет передвижение врагов в радиусе 1000 на 2%.", pb + "PASBTNFreezingBreath.blp")
+	talentLook(new AbilityDefinitionUnholyAuracreep('AT17')..setMovementSpeedIncrease(1, -0.02)..setLifeRegenerationIncrease(1, 0.0)
+		..setTargetsAllowed(1, ALL)..setAreaofEffect(1, 1000.0),
+		"Талант 17 - Аура накопительства", "Замедляет передвижение ваших бойцов в радиусе 1000 на 2%.", cb + "BTNNightElfCaptureFlag.blp")
+	talentLook(new AbilityDefinitionUnholyAuracreep('AT18')..setMovementSpeedIncrease(1, 0.0)..setLifeRegenerationIncrease(1, 0.5)
+		..setTargetsAllowed(1, ALL)..setAreaofEffect(1, 100000.0),
+		"Талант 18 - Нечестивая аура", "Увеличивает восстановление здоровья всех ваших бойцов на 0.5 в секунду.", pb + "PASBTNUnholyAura.blp")
+	talentLook(new AbilityDefinitionArchMageBrillianceAura('AT19')..setHeroAbility(false)..setManaRegenerationIncrease(1, 0.08)
+		..setTargetsAllowed(1, ALL)..setAreaofEffect(1, 100000.0),
+		"Талант 19 - Аура мудрости", "Увеличивает восстановление маны всех ваших бойцов на 0.08 в секунду.", pb + "PASBTNBrilliance.blp")
+	talentLook(new AbilityDefinitionUnholyAuracreep('AT20')..setMovementSpeedIncrease(1, 0.02)..setLifeRegenerationIncrease(1, 0.0)
+		..setTargetsAllowed(1, ALL)..setAreaofEffect(1, 100000.0),
+		"Талант 20 - Аура скорости", "Увеличивает скорость передвижения всех ваших бойцов на 2%.", cb + "BTNScrollOfHaste.blp")
+	talentMarker('AT21', "Талант 21 - |cffff9900Высшая золотодобыча [эпический]|r", "Каждый раунд вы получаете ещё 3 золота.", cb + "BTNGoldMine.blp")
+	// Молитва: подсказка с ценой и текущим талантом — из кода (ArthasJf)
+	arthasButton('AAB5', "ravenform", "BTNResurrection", 2, 2, "T", 0.6)
+		..setName("Молитва - талант")
+		..setTooltipNormal(1, "|cffff99ccМолитва - талант|r (|cffffcc00T|r)")
+		..setTooltipNormalExtended(1, "")
+		..setTargetType(1, 0)

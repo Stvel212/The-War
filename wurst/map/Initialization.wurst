@@ -4,6 +4,11 @@ import MapGlobals
 import UnitEvents
 import ClosureTimers
 import ClosureForGroups
+import GameMode
+import StandardTextTags
+import ArrayList
+import HashMap
+import PveWaveTables
 
 // ============================================================
 // Общие помощники (используются всеми пакетами карты)
@@ -22,9 +27,10 @@ public function isInGame(player p) returns bool
 public function player.isLeftTeam() returns bool
     return this.getId() < 4 or this.getId() == 8
 
-/** Приказ идти в атаку по своей линии на высоте y: левая команда — вправо (x = 2750), правая — влево (x = -3300) */
+/** Приказ идти в атаку по своей линии на высоте y: в PvP левая команда — вправо (x = 2750), правая — влево
+    (x = -3300); в PvE/PvEvP — по правилам режима (GameMode.laneTarget) */
 public function unit.attackLane(real y)
-    let target = vec2(this.getOwner().isLeftTeam() ? 2750.0 : -3300.0, y)
+    let target = this.laneTarget(y)
     // "attack" не принимается юнитом без атаки (или обезоруженным) — тогда хотя бы "move", чтобы не стоял
     if not this.issuePointOrder("attack", target)
         this.issuePointOrder("move", target)
@@ -59,13 +65,23 @@ public function text(unit c, string s, real size, real time, real z)
         ..setLifespan(time)
         ..setFadepoint(time * 0.66)
 
-/** Всплывающее «+N» золота над юнитом, видное только игроку p (у остальных пустой текст, как в оригинале) */
+/** Всплывающее «+N» золота над юнитом, видное только игроку p (стандартный текст награды, StandardTextTags) */
 public function goldText(unit at, player p, int gold)
-    text(at, localPlayer == p ? "|cffFFFF00+" + gold + "|r" : "", 10.0, 3.50, 50.0)
+    createGoldBountyTextTag(at, gold, p)
 
-/** Цена юнита в «еде» ×2 (по базовому типу из EFFECT_TYPE_TARGET), а если нет — из таблицы getUnitFood по типу t */
+/** Всплывающее «+N» дерева над юнитом, видное только игроку p */
+public function lumberText(unit at, player p, int lumber)
+    createLumberBountyTextTag(at, lumber, p)
+
+/** Золото за скопированных юнитов Just Fight (PveWaveTables.jfBounty) по типу */
+constant jfBounties = new HashMap<int, int>()
+
+/** Цена юнита в «еде» ×2 (по базовому типу из EFFECT_TYPE_TARGET), а если нет — из таблицы getUnitFood по типу t;
+    скопированные юниты Just Fight — по их таблице (jfBounty) */
 public function unitGold(unit u, int t) returns int
     let food = 2 * GetFoodUsed(UnitId(GetAbilityEffectById(u.getTypeId(), EFFECT_TYPE_TARGET, 0)))
+    if food == 0 and jfBounties.has(t)
+        return jfBounties.get(t)
     return food == 0 ? getUnitFood(t) : food
 
 /** +hp к максимуму здоровья (и к текущему, как давала бывшая способность-бонус 'A1ZV') */
@@ -126,7 +142,7 @@ function tierSize(int tier) returns int
     return 8
 
 /** Тип здания № i тира tier */
-function tierType(int tier, int i) returns int
+public function tierType(int tier, int i) returns int
     if tier == 1
         return tier1[i]
     else if tier == 2
@@ -174,8 +190,8 @@ public function random(player p)
 // ============================================================
 
 public function zadania()
-    CreateQuestBJ(bj_QUESTTYPE_REQ_DISCOVERED, "TRIGSTR_6718", "TRIGSTR_6719", "icons\\PASBTNLibertyYellow.blp")
-    CreateQuestBJ(bj_QUESTTYPE_REQ_DISCOVERED, "TRIGSTR_6720", "TRIGSTR_6721", "icons\\PASHeroShadoPan.blp")
+    CreateQuestBJ(bj_QUESTTYPE_REQ_DISCOVERED, "Рассеивающиеся баффы", "|c00FF0000Cyщecтвa, y кoтopыx cyщecтвyeт cпocoбнocть, cвязaннaя c бaффoм или дeбaффoм, кoтopый мoжнo pacceять:|r\n|c006969FFЖpeц, Xpaмoвник (дyxoвнoe плaмя)\nCлyжитeль пpeдкoв, Пингвин (дyxoвнoe плaмя)\nШaмaн, Opaкyл (cкopocть aтaки)\nБeзyмный Aлxимик, Cмoлянoй Cтpaж, Углepoдиcтый Упыpь, Бeopн Шaмaн (киcлoтнaя бoмбa)\nБaнши, Пpизpaк (yвeчьe)\nГapпия, Гapпия Beдьмa (пpoклятьe)\nCyккyбa, Гocпoжa Бoли, Дeмoнecca (кpит/ypoн)\nДpaкoнчик пycтoты (cкopocть aтaки)\nБeзликий Ужac, Дpyид Meдвeдь (кpик)\nBoжaк Гнoллoв (бoeвoй кpик)\nBoлчий Гoнeц (cкopocть пepeмeщeния)\nKopoль Бaгypгл (пapaзит)\nCлyжaнкa, Haгa Гopгoнa, Лeдянoй Tpoлль (лeдянoй щит)\nKoшмapнaя Oшибкa, Beкcaлиyc (бoeвoй кpик, oчищeниe)\nПapoвoй Cтpaж, Bиxpeткaч (cкopocть aтaки)\nKeл-Tyзeд (лeдянoй щит)\nЗaгpoбник, Пылaющий Maгмoeд (блoкиpoвкa ypoнa)|r\n\n|c007EBFF1Пpeдмeты:\nKaвaлepия\nTpeниpoвкa (зaщитa)\nBинныe пapы|r", "icons\\PASBTNLibertyYellow.blp")
+    CreateQuestBJ(bj_QUESTTYPE_REQ_DISCOVERED, "Aвтopы", "Aвтopы кapты: |c00FFFF00Stvel|r, |c0000FF00regint|r, |c00FFA500LordofKodoes|r\nCпoнcopы кapты: |c0000FFFFThe War|r, |c00FFA07AHELL|r, |c004682B4IIoBaPeHoK |r, |c0000FF00Pentium4|r, |c0000FF00Delovet|r, |c00800080BuriTos|r, |c00FF0000Djanbo1djan-_-|r, |c0000FFFF-sandro-|r\nOтдeльнaя блaгoдapнocть: |c00FF00FFaleks_sanya|r, |c00FF0000AgaraSatan|r, |c00800080Dobriy_Undead|r, |c00FFA500XxRiKxX123|r\n|c00FFA500Диcкopд cepвep|r: https://discord.gg/YQPMtKj8hk", "icons\\PASHeroShadoPan.blp")
 
 // ============================================================
 // Триггер: Int — глобалы, звуки, короли, строители, магазины, таблицы тиров
@@ -408,29 +424,15 @@ public function initGame()
         baza[a] = CreateUnit(players[a], 'h000', left ? -3672.0 : 3138.0, y, 270.0)
         forceG[left ? 1 : 2].addPlayer(players[a])
         SetCameraFieldForPlayer(players[a], CAMERA_FIELD_TARGET_DISTANCE, 2400.0, 0.0)
-    magazin[0] = CreateUnit(players[8], 'n012', -3968.0, 723.0, 270.0)
-    magazin[1] = CreateUnit(players[8], 'n02H', -3775.0, 736.0, 270.0)
-    magazin[2] = CreateUnit(players[8], 'n030', -3965.0, 491.0, 270.0)
-    magazin[3] = CreateUnit(players[8], 'n031', -3775.0, 479.0, 270.0)
-    magazin[4] = CreateUnit(players[8], 'n032', -3968.0, 231.0, 270.0)
-    magazin[5] = CreateUnit(players[8], 'n033', -3775.0, 244.0, 270.0)
-    magazin[6] = CreateUnit(players[8], 'n03N', -3968.0, -40.0, 270.0)
-    magazin[7] = CreateUnit(players[8], 'n03P', -3900.0, -315.0, 270.0)
-    magazin[8] = CreateUnit(players[8], 'n03O', -3775.0, -40.0, 270.0)
-    magazin[9] = CreateUnit(players[9], 'n012', 3262.0, 736.0, 270.0)
-    magazin[10] = CreateUnit(players[9], 'n02H', 3469.0, 732.0, 270.0)
-    magazin[11] = CreateUnit(players[9], 'n030', 3262.0, 483.0, 270.0)
-    magazin[12] = CreateUnit(players[9], 'n031', 3469.0, 481.0, 270.0)
-    magazin[13] = CreateUnit(players[9], 'n032', 3262.0, 248.0, 270.0)
-    magazin[14] = CreateUnit(players[9], 'n033', 3469.0, 235.0, 270.0)
-    magazin[15] = CreateUnit(players[9], 'n03N', 3262.0, -31.0, 270.0)
-    magazin[16] = CreateUnit(players[9], 'n03P', 3362.0, -330.0, 270.0)
-    magazin[17] = CreateUnit(players[9], 'n03O', 3460.0, -31.0, 270.0)
-    roundTimer.start(3.0, null)
+        // обзор своей половины сразу, а не с первым раундом: иначе пока хост выбирает режим, карта под туманом
+        let vision = left ? rct_Vision1 : rct_Vision2
+        CreateFogModifierRect(players[a], FOG_OF_WAR_VISIBLE, vision, true, false).start()
+        SetFogStateRect(players[a], FOG_OF_WAR_VISIBLE, vision, true)
+    // первый раунд запускает выбор режима (ModeSelect), когда хост выберет режим
     fillTiers()
 
 // ============================================================
-// Триггер: Int2 — первый раунд: особые «скины» баз по никам, рабочие, надписи, обзор
+// Триггер: Int2 — первый раунд: особые «скины» баз по никам, рабочие, надписи
 // ============================================================
 
 /** Заменить строителя/базу/Артаса игрока a на особые типы и выдать рабочего wispId; вернуть рабочего */
@@ -469,6 +471,7 @@ function decorateBase(int a, int treeId, int terrainId)
 
 /** Особый скин игрока a + украшение базы (treeId == 0 — без украшения); вернуть рабочего */
 function skin(int a, int wispId, int builderId, int bazaId, int arthasId, int treeId, int terrainId) returns unit
+    nickSkin[a] = true
     let w = applySkin(a, wispId, builderId, bazaId, arthasId)
     if treeId != 0
         decorateBase(a, treeId, terrainId)
@@ -532,10 +535,29 @@ public function shopLabel(unit u)
             ..setText("|cffFF0000" + s + "|r", 10)
             ..setPos(u.getX() + dx, u.getY(), 0.0)
 
+/** Дальность добычи светлячка ('A00T') — он не ходит, рубит с места */
+constant HARVEST_RANGE = 1100.
+
+/** Рабочий — на ближайшее живое дерево в досягаемости (раньше брал последнее из квадрата 2000×2000: оно могло
+    быть дальше дальности добычи или не деревом — тогда приказа не было вовсе). Приказ проходит только на деревья */
+public function unit.harvestNearestTree()
+    let u = this
+    let pos = u.getPos()
+    let r = Rect(pos.x - HARVEST_RANGE, pos.y - HARVEST_RANGE, pos.x + HARVEST_RANGE, pos.y + HARVEST_RANGE)
+    let trees = new ArrayList<destructable>()
+    forDestructablesInRect(r) d ->
+        if d.getLife() > 0 and d.getPos().distanceTo(pos) <= HARVEST_RANGE
+            trees.add(d)
+    r.remove()
+    trees.sortWith((a, b) -> (a.getPos().distanceToSq(pos) - b.getPos().distanceToSq(pos)).toInt())
+    for i = 0 to trees.size() - 1
+        if u.issueTargetOrder("harvest", trees.get(i))
+            break
+    destroy trees
+
 @noinline
 function initPlayers()
     for a = 0 to 7
-        let p = players[a]
         let wisp = createWorker(a)
         baza[a].setVertexColor(255, 255, 255, 180)
         // текст ресурсов над базой — виден только своей команде
@@ -544,14 +566,8 @@ function initPlayers()
             ..setPos(baza[a].getX() - 50, baza[a].getY(), 0.0)
         if (forceG[1].containsPlayer(localPlayer) and a > 3) or (forceG[2].containsPlayer(localPlayer) and a < 4)
             textR[a].setVisibility(false)
-        // рабочий сразу идёт рубить ближайшее дерево
-        let r = Rect(wisp.getX() - 1000, wisp.getY() - 1000, wisp.getX() + 1000, wisp.getY() + 1000)
-        forDestructablesInRect(r) dest ->
-            wisp.issueTargetOrder("harvest", dest)
-        r.remove()
-        let vision = a < 4 ? rct_Vision1 : rct_Vision2
-        CreateFogModifierRect(p, FOG_OF_WAR_VISIBLE, vision, true, false).start()
-        SetFogStateRect(p, FOG_OF_WAR_VISIBLE, vision, true)
+        // рабочий сразу рубит ближайшее дерево
+        wisp.harvestNearestTree()
     // объявление о турнире 2x2 (два постоянных текстага у воды) убрано по просьбе
 
 // ============================================================
@@ -719,7 +735,7 @@ function applyElementalSynergies(unit s)
 
 /** Юниты с постройки u на раунд: по одному (3 у 'h04A', 2 у 'h04N'/'h09Z'), с бонусами владельца */
 @noinline
-function spawnFrom(unit u)
+public function spawnFrom(unit u)
     let p = u.getOwner()
     let t = u.getTypeId()
     if u.getAbilityLevel('A006') == 1
@@ -756,6 +772,9 @@ function naimAttack(unit u)
     let p = u.getOwner()
     naimGroup.remove(u)
     u.setPathing(true)
+    if isPvevp()
+        u.becomeSend()
+        return
     SetUnitPosition(u, u.getX() + (u.getX() < 0 ? 900 : -900), u.getY() + 700)
     u.attackLane()
     if u.getTypeId() == 'n03T'
@@ -790,11 +809,12 @@ function firstRound()
             elemLeft[elemLimit(slot, a)] = 2
         p.setGold(700)
         // лимиты построек: рабочие и особые здания
+        // защитный камень h02Q — только в PvP (в PvE и PvEvP через порталы никто не ходит)
         p..limit(8, 'e003')..limit(8, 'e01S')..limit(8, 'e01R')..limit(8, 'e01T')..limit(8, 'e01X')..limit(8, 'e01U')
             ..limit(8, 'e01Z')..limit(8, 'e01Y')..limit(8, 'e01E')..limit(8, 'e01D')..limit(8, 'h07J')
             ..limit(6, 'h05N')..limit(6, 'h012')..limit(6, 'h06E')..limit(6, 'h06T')
             ..limit(5, 'h054')..limit(5, 'h00W')..limit(5, 'h047')..limit(5, 'h015')
-            ..limit(1, 'h06U')..limit(1, 'h02Q')..limit(1, 'h017')..limit(1, 'h04D')..limit(1, 'h055')
+            ..limit(1, 'h06U')..limit(gameMode == GameModeKind.PVP ? 1 : 0, 'h02Q')..limit(1, 'h017')..limit(1, 'h04D')..limit(1, 'h055')
             ..limit(1, 'h05X')..limit(1, 'h06L')..limit(1, 'h08E')..limit(1, 'h09Z')
         random(p)
         for i = 1 to 6
@@ -818,25 +838,34 @@ function wave()
         zamedlo = 4
     else if round >= 30
         zamedlo = 2
-    roundTimer.start((38 + zamedlo).toReal(), null)
-    timerD = CreateTimerDialog(roundTimer)
-        ..setTitle("Round " + round)
-        ..display(true)
+    if not manualRounds
+        // PvP: раунд удлиняется с 30-го; PvE — всегда ROUND_TIME
+        roundTimer.start(gameMode == GameModeKind.PVP ? (ROUND_TIME + zamedlo).toReal() : ROUND_TIME.toReal(), null)
+        timerD = CreateTimerDialog(roundTimer)
+            ..setTitle("Round " + round)
+            ..display(true)
     if round == 1
         firstRound()
+        fireRoundHooks(round)
         return
     kingGuards(1)
-    kingGuards(2)
+    // PvE: правого короля нет — на его месте Злой Бог
+    if not isPve()
+        kingGuards(2)
     for a = 0 to 7
         incomeR[a] += 3
-        players[a].setGold(players[a].getGold() + income[a] + (100 + incomeR[a]))
+        // PvEvP: награду за раунд даёт конец волны (Pvevp.waveReward), здесь — только инком
+        let reward = isPvevp() ? 0 : 100 + incomeR[a]
+        players[a].setGold(players[a].getGold() + income[a] + reward)
         wDammiAtt(arthas[a], 1)
-        DisplayTextToPlayer(players[a], 0.0, 0.0, "|cffFFD700Round " + round + "|r\nRound reward: |cffffff00" + (100 + incomeR[a]) + " gold!|r \nYour income: |cffffff00" + income[a] + " gold!|r")
+        DisplayTextToPlayer(players[a], 0.0, 0.0, "|cffFFD700Round " + round + "|r\nRound reward: |cffffff00" + reward + " gold!|r \nYour income: |cffffff00" + income[a] + " gold!|r")
     buildUnits.forEachIn() u ->
         spawnFrom(u)
-    doAfter(1.0) ->
+    // наёмники — через 1 с (PvEvP: через 2.5 с после начала волны, как в Just Fight)
+    doAfter(isPvevp() ? 2.5 : 1.0) ->
         naimGroup.forEachIn() u ->
             naimAttack(u)
+    fireRoundHooks(round)
 
 // ============================================================
 // Триггер: Win — смерть короля: через 3 с победа/поражение командам
@@ -845,7 +874,8 @@ function wave()
 @noinline
 function win()
     let d = GetDyingUnit()
-    if d != kings[1] and d != kings[2]
+    // в PvE оба короля — свои: поражение всем объявляет Pve
+    if (d != kings[1] and d != kings[2]) or isPve()
         return
     SetCameraPosition(d.getX(), d.getY())
     let losers = d == kings[1] ? 0 : 4
@@ -858,6 +888,8 @@ function win()
             CustomDefeatBJ(players[losers + i], "Defeat!")
 
 init
+    for i = 0 to JF_BOUNTIES - 1
+        jfBounties.put(jfBountyType[i], jfBounty[i])
     CreateTrigger()
         ..registerTimerExpireEvent(roundTimer)
         ..addAction(function wave)

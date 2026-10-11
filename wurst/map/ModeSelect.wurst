@@ -1,0 +1,115 @@
+package ModeSelect
+import GameMode
+import Pve
+import Pvevp
+import Profile
+import Initialization
+import MapGlobals
+import DialogBox
+import ClosureTimers
+
+/*
+    Выбор режима хостом в начале игры (как «Gamemode Settings» в Just Fight 5.6): PvP (классика), PvE (уровни
+    1-5 и бесконечный), PvEvP («LTD»). Хост — первый игрок-человек по номеру слота. Уровни PvE открываются по
+    прогрессу хоста (Profile.pveBeaten): следующий после пройденного; бесконечный — после 3-го, как «Хаотическая
+    Пустота» в оригинале. Не выбрал за SELECT_TIME секунд — PvP. Первый раунд стартует только после выбора. */
+
+constant SELECT_TIME = 25.
+/** Через сколько после выбора первый раунд (раньше initGame ставил таймер на 3 с от старта) */
+constant FIRST_ROUND_DELAY = 3.
+/** Бесконечный режим открывается после этого уровня */
+constant ENDLESS_UNLOCK = 3
+
+var chosen = false
+player host = null
+DialogBox mainBox = null
+DialogBox pveBox = null
+
+function printAll(string msg, real duration)
+    if bj_FORCE_ALL_PLAYERS.containsPlayer(localPlayer)
+        localPlayer.print(msg, duration)
+
+function findHost() returns player
+    for pid = 0 to 7
+        if isInGame(players[pid])
+            return players[pid]
+    return players[0]
+
+/** Закрыть диалог: уничтожение — на следующем кадре (кнопка диалога ещё выполняет своё замыкание) */
+function close(DialogBox box)
+    if box != null
+        box.display(host, false)
+        doAfter(0.) ->
+            destroy box
+
+function startGame()
+    chosen = true
+    close(mainBox)
+    close(pveBox)
+    mainBox = null
+    pveBox = null
+    roundTimer.start(FIRST_ROUND_DELAY, null)
+
+function choosePvp()
+    if chosen
+        return
+    gameMode = GameModeKind.PVP
+    updateBoardTitle()
+    printAll("|cffff0000Host selected PvP (classic)|r", 10.)
+    startGame()
+
+function choosePve(int level)
+    if chosen
+        return
+    startPve(level)
+    startGame()
+
+function choosePvevp()
+    if chosen
+        return
+    startPvevp()
+    startGame()
+
+function hostBeaten() returns int
+    let pid = host.getId()
+    return profileReady[pid] ? host.profile().pveBeaten : 0
+
+function showMain()
+    if chosen
+        return
+    if mainBox == null
+        mainBox = new DialogBox("Game mode")
+        mainBox.addButton("PvP - classic |cff00ff00[default]|r", () -> choosePvp())
+        mainBox.addButton("PvE - against the Evil God", () -> showPve())
+        mainBox.addButton("PvEvP - Battle Chess (LTD)", () -> choosePvevp())
+    mainBox.display(host, true)
+
+function showPve()
+    if chosen
+        return
+    close(pveBox)
+    let beaten = hostBeaten()
+    pveBox = new DialogBox("Select the PvE level")
+    for lvl = 1 to PVE_LEVELS
+        let level = lvl
+        if level <= beaten + 1
+            pveBox.addButton(pveLevelName(level) + " (PvE " + level + ") |cff00ff00[Unlocked]|r", () -> choosePve(level))
+        else
+            pveBox.addButton("|cffc0c0c0" + pveLevelName(level) + " (PvE " + level + ") [Locked]|r", () -> showPve())
+    if beaten >= ENDLESS_UNLOCK
+        pveBox.addButton(pveLevelName(PVE_ENDLESS) + " |cff00ff00[Unlocked]|r", () -> choosePve(PVE_ENDLESS))
+    else
+        pveBox.addButton("|cffc0c0c0" + pveLevelName(PVE_ENDLESS) + " [Unlocks after PvE " + ENDLESS_UNLOCK + "]|r", () -> showPve())
+    pveBox.addButton("Back", () -> showMain())
+    pveBox.display(host, true)
+
+init
+    // диалоги нельзя показывать в инициализации карты
+    doAfter(0.5) ->
+        host = findHost()
+        printAll(host.getName() + " is selecting the game mode...", SELECT_TIME)
+        showMain()
+    doAfter(SELECT_TIME) ->
+        if not chosen
+            printAll("|cffff8080No mode selected in time.|r", 10.)
+            choosePvp()

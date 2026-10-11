@@ -8,6 +8,8 @@ import ClosureForGroups
 import OnUnitEnterLeave
 import Dummies
 import HashMap
+import GameMode
+import PickIcons
 
 /** Регион из прямоугольников */
 function regionOf(rect r1, rect r2) returns region
@@ -44,11 +46,34 @@ function unit.isFighter() returns bool
 // Триггер: DeathGold — золото за убитого (не иллюзию) игрокам-людям; 'n02T' получает ещё столько же дерева
 // ============================================================
 
+/** Золото за убитых королём 1 / 2 с прошлого раунда (PvE/PvEvP) */
+int array kingKillGold
+
+/** Начало раунда: копилка короля делится поровну между игроками его команды (в PvE команда одна — все) */
+function shareKingKills()
+    for team = 1 to 2
+        let gold = kingKillGold[team]
+        kingKillGold[team] = 0
+        var count = 0
+        for pid = 0 to 7
+            if isInGame(players[pid]) and (isPve() or (pid < 4) == (team == 1))
+                count++
+        if gold > 0 and count > 0
+            let share = gold div count
+            for pid = 0 to 7
+                if isInGame(players[pid]) and (isPve() or (pid < 4) == (team == 1))
+                    players[pid].addGold(share)
+                    DisplayTextToPlayer(players[pid], 0.0, 0.0, "War God Kills: |cffffff00" + share + " gold!|r")
+
 @noinline
 function deathGold()
     let k = GetKillingUnit()
     let d = GetDyingUnit()
     let p = k.getOwner()
+    // PvE/PvEvP: убитые королём — в общую копилку команды (Just Fight «War God Kills»), делится в начале раунда
+    if k.getTypeId() == 'H003' and gameMode != GameModeKind.PVP and (k == kings[1] or k == kings[2])
+        kingKillGold[k == kings[1] ? 1 : 2] += unitGold(d, d.getTypeId())
+        return
     if p.getId() >= 8 or k.getTypeId() == 'H003'
         return
     if not (d.isType(UNIT_TYPE_GIANT) or d.isType(UNIT_TYPE_TAUREN) or not d.isIllusion())
@@ -62,8 +87,7 @@ function deathGold()
     goldText(d, p, gold)
     if k.getTypeId() == 'n02T'
         p.setLumber(p.getLumber() + gold)
-        goldText(d, p, gold)
-        text(d, localPlayer == p ? "|cff00FF00+" + gold + "|r" : "", 10.0, 3.50, 50.0)
+        lumberText(d, p, gold)
 
 // ============================================================
 // Триггер: Proxod — юнит прошёл через чужой портал: награда его игроку (и «камню» той линии), юнит идёт обратно
@@ -106,16 +130,37 @@ function passLane(unit u, player a, int food, bool leftPassed)
     // входил в Proxod вне нейтральной полосы — повторное золото и телепорт
     u.attackLane()
     if not rock[a.getId()]
-        a.setGold(a.getGold() + food * 2)
-        DisplayTextToPlayer(a, 0.0, 0.0, "|cffff0000You received:|r |cffffff00+" + (food * 2) + " gold!|r")
-        let r1 = GetPlayerTechCount(a, 'R001', true)
-        if r1 > 0
-            u.addAbility('A09T')
-            u.setAbilityLevel('A09T', r1)
-        let r2 = GetPlayerTechCount(a, 'R002', true)
-        if r2 > 0
-            u.addAbility('A09U')
-            u.setAbilityLevel('A09U', r2)
+        passReward(u, a, food)
+
+/** Награда за проход игроку a: food·2 золота и бонусы исследований 'R001'/'R002' юниту */
+function passReward(unit u, player a, int food)
+    a.setGold(a.getGold() + food * 2)
+    DisplayTextToPlayer(a, 0.0, 0.0, "|cffff0000You received:|r |cffffff00+" + (food * 2) + " gold!|r")
+    let r1 = GetPlayerTechCount(a, 'R001', true)
+    if r1 > 0
+        u.addAbility('A09T')
+        u.setAbilityLevel('A09T', r1)
+    let r2 = GetPlayerTechCount(a, 'R002', true)
+    if r2 > 0
+        u.addAbility('A09U')
+        u.setAbilityLevel('A09U', r2)
+
+/** PvE: юнит игрока вошёл в портал в конце своей половины линии (как в Just Fight, ILLLLII) — награда за прорыв и
+    на среднюю линию за Богом Войны (между воротами и левым королём, обе команды), оттуда на Злого Бога */
+function passLanePve(unit u, player a, int food)
+    let x = PVE_TELEPORT_X
+    SetUnitPosition(u, x + GetRandomReal(-100.0, 100.0), GetRandomReal(-300.0, 850.0))
+    addEffect("Abilities\\Spells\\Human\\MassTeleport\\MassTeleportCaster.mdl", u.getPos()).destr()
+    u.attackLane()
+    passReward(u, a, food)
+
+/** PvE: боец дошёл до портала в конце своей половины линии — на мид */
+@noinline
+function pvePortal()
+    let u = GetTriggerUnit()
+    if isPve() and u.isLaneFighter()
+        let food = GetFoodUsed(UnitId(GetAbilityEffectById(u.getTypeId(), EFFECT_TYPE_TARGET, 0)))
+        passLanePve(u, u.getOwner(), food)
 
 @noinline
 function proxod()
@@ -126,12 +171,25 @@ function proxod()
     let y = u.getY().toInt()
     if y <= 1200 and y >= -500
         return
-    if id == 12
-        SetUnitPosition(u, 2950.0, GetRandomReal(-300.0, 850.0))
-        u.issuePointOrder("attack", vec2(-3300.0, u.getY()))
+    // монстры PvE/PvEvP прорываются к королю своей стороны (бывшая ветка id == 12 — нейтральные крипы старого PVE)
+    if u.isCreep()
+        // PvE: генератор стоит на месте портала — пока он цел, монстр не прорывается, а ломает его
+        if isPve() and generatorAlive[u.creepTargetPlayer()]
+            u.attackLane()
+        else
+            creepBreakthrough(u)
+    // в PvEvP бойцы игроков держат линию: через порталы не проходят, а возвращаются. Только бойцы: регион портала
+    // накрывает и базы — обученные там рабочие получали приказ идти на линию
+    else if isPvevp()
+        if u.isFighter()
+            u.attackLane()
     else if u.getTypeId() != 'e01Q'
         let food = GetFoodUsed(UnitId(GetAbilityEffectById(u.getTypeId(), EFFECT_TYPE_TARGET, 0)))
-        if id > 3 and id != 8 and x < 0
+        // PvE: прошедший дальний портал (левые — правый, правые — левый) — к воротам Бога Войны
+        if isPve() and id < 8
+            if (a.isLeftTeam() and x > 0) or (not a.isLeftTeam() and x < 0)
+                passLanePve(u, a, food)
+        else if id > 3 and id != 8 and x < 0
             passLane(u, a, food, false)
         else if a.isLeftTeam() and x > 0
             passLane(u, a, food, true)
@@ -269,22 +327,8 @@ function stop()
 // Приказ по текущей высоте нужен именно каждые 3 с: после прохода через портал юнит выходит у своих ворот
 // (y от -300 до 850) и через 3 с идёт по середине, а не обратно в свою линию (иначе он снова входит в Proxod
 // вне «нейтральной» полосы — повторное золото и телепорт).
-// В оригинале условие было `… or (x > 0 and id == 12 and y > 1200 or y < -500)` — из-за приоритета and/or любой юнит
-// с y < -500 (нижние линии правой команды!) шёл к x = 2750, т.е. к своей базе, и там толпился. Исправлены скобки:
-// y > 1200 / y < -500 относятся только к нейтральным крипам (id 12) на правой половине.
-
-/** Точка attack-move по линии для юнита (по своей текущей высоте) */
-function unit.laneTarget() returns vec2
-    let id = this.getOwner().getId()
-    if id < 4 or id == 8 or (this.getX() > 0 and id == 12 and (this.getY() > 1200 or this.getY() < -500))
-        return vec2(2750.0, this.getY())
-    return vec2(-3300.0, this.getY())
-
-/** Приказ идти по линии; если "attack" не принят (нет атаки, обезоружен) — обычный "move", чтобы юнит не стоял */
-function unit.orderLane()
-    let target = this.laneTarget()
-    if not this.issuePointOrder("attack", target)
-        this.issuePointOrder("move", target)
+// Точка — attackLane (GameMode.laneTarget): в PvP к чужим базам, в PvE/PvEvP — по правилам режима, монстры — к
+// своей стороне. (В оригинале здесь было условие для нейтральных крипов id 12 старого PVE со скобками не там.)
 
 @noinline
 function tree()
@@ -293,11 +337,11 @@ function tree()
             return
         // стоит без приказа — сразу в путь, не дожидаясь метки (иначе после боя до 6 с простоя)
         if u.getCurrentOrder() == 0
-            u.orderLane()
+            u.attackLane()
         else if u.getAbilityLevel('A0BO') < 1
             u.addAbility('A0BO')
         else
-            u.orderLane()
+            u.attackLane()
 
 @noinline
 function attack()
@@ -334,6 +378,9 @@ function regrowTree()
 function castAttack()
     let u = GetTriggerUnit()
     let t = u.getTypeId()
+    // неподвижным (Забытые PvE: их «Шквал» шлёт событие способности на каждый выстрел) приказ идти не нужен
+    if u.getDefaultMovespeed() <= 0.
+        return
     if u.isDummy() or t == 'H01Y' or t == 'H003' or t == 'e01R' or t == 'H08M' or t == 'e01S' or t == 'e01U' or t == 'h02T' or t == 'h090' or t == 'h08Y' or t == 'h08O' or t == 'h09D' or t == 'h08U' or t == 'h09M' or t == 'h09G' or t == 'e01X' or t == 'e01T' or t == 'e003' or t == 'H08V' or t == 'H08W' or t == 'e01Z' or t == 'H09T' or t == 'H0AJ' or t == 'H0AO'
         return
     u.attackLane()
@@ -365,6 +412,10 @@ function wisp()
     if t.isType(UNIT_TYPE_PEON)
         wispCount[t.getOwner().getId()] += 1
         t.setPathing(true)
+        // без точки сбора на дереве обученный рабочий стоит без дела — на ближайшее дерево
+        doAfter(0.) ->
+            if t.getCurrentOrder() == 0
+                t.harvestNearestTree()
 
 // ============================================================
 // Триггер: Upgreid — апгрейд здания завершён: сила += цена
@@ -480,7 +531,8 @@ function mercenaryIncome(unit u, int currentIncome) returns int
 /** Страж Короля: ко вратам своей команды и в атаку */
 function kingGuard(unit u)
     printAll(u.getOwner().coloredName() + "|cffc0c0c0 called for help from the |r|cffff8080King's Guard|r", 10.0)
-    SetUnitPosition(u, u.getOwner().isLeftTeam() ? -3500.0 : 2950.0, GetRandomReal(-300.0, 850.0))
+    // PvE: все — у ворот Бога Войны (у правых ворот стоит Злой Бог)
+    SetUnitPosition(u, u.getOwner().isLeftTeam() or isPve() ? LEFT_GATE_X : RIGHT_GATE_X, GetRandomReal(-300.0, 850.0))
     u.attackLane()
 
 @noinline
@@ -522,7 +574,7 @@ function naimMid()
 // Триггер: ZapretHero — построено здание героя: остальные герои этому игроку запрещаются
 // ============================================================
 
-function isHeroBuilding(int t) returns bool
+public function isHeroBuilding(int t) returns bool
     return t == 'h02P' or t == 'h025' or t == 'h027' or t == 'h02F' or t == 'h02H' or t == 'h01S' or t == 'h021' or t == 'h02O' or t == 'h01X' or t == 'h01Z' or t == 'h01T' or t == 'h023' or t == 'h02B' or t == 'h029' or t == 'h099' or t == 'h09J' or t == 'h09W' or t == 'h0AG'
 
 @noinline
@@ -537,6 +589,7 @@ function zapretHero()
         ..forbid('h025')..forbid('h01X')..forbid('h099')..forbid('h09J')
         ..forbid('h09W')..forbid('h0AG')
     hasHero[p.getId()] = true
+    onHeroPicked(p.getId())
 
 // ============================================================
 // Триггер: Book — исследование 'R003': +30 к лимиту еды за первый уровень, +40 за 2-4
@@ -672,9 +725,15 @@ function onUnitEnter()
 init
     onAnyDeath() ->
         deathGold()
+    onRound() r ->
+        if gameMode != GameModeKind.PVP and r >= 2
+            shareKingKills()
     CreateTrigger()
         ..registerEnterRegion(regionOf(rct_Proxod1, rct_Proxod5), null)
         ..addAction(function proxod)
+    CreateTrigger()
+        ..registerEnterRegion(pvePortals, null)
+        ..addAction(function pvePortal)
     // Build1 — на появление юнита и на начало стройки/апгрейда
     onEnter(function onUnitEnter)
     EventListener.add(EVENT_PLAYER_UNIT_CONSTRUCT_START) ->
@@ -697,7 +756,12 @@ init
     EventListener.add(EVENT_PLAYER_UNIT_SPELL_FINISH) ->
         castAttack()
     EventListener.add(EVENT_PLAYER_UNIT_SUMMON) ->
-        castAttack()
+        // призванный монстром идёт туда же, куда призвавший (иначе направление по умолчанию — вправо)
+        let summoner = GetSummoningUnit()
+        if summoner.isCreep()
+            GetSummonedUnit()..setCreepDirection(summoner.creepGoesLeft())..removeGuardPosition()..attackLane()
+        else
+            castAttack()
     EventListener.add(EVENT_PLAYER_UNIT_CONSTRUCT_FINISH) ->
         build()
         zapretHero()
