@@ -7,6 +7,7 @@ import Pve
 import ArthasJf
 import King
 import MapGlobals
+import CreepSpells
 
 @Test function laneAtPicksNearestLane()
     laneAt(-4990.).assertEquals(0)
@@ -105,3 +106,9 @@ import MapGlobals
     kingUpgradeCap().assertEquals(15)
     teamSize = 0
     round = 0
+
+@Test function creepSpellLethalHit()
+    // юнит умирает, когда здоровья остаётся меньше 0.405
+    isLethal(100., 100.).assertTrue()
+    isLethal(100., 99.7).assertTrue()
+    isLethal(100., 99.5).assertFalse()

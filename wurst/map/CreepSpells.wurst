@@ -1,0 +1,177 @@
+package CreepSpells
+import GameMode
+import Initialization
+import UnitEvents
+import UnitSearch
+import ClosureTimers
+import ClosureForGroups
+import GroupUtils
+import DamageEvent
+import Orders
+
+/*
+    Заклинания монстров-копий Just Fight, которые в Just Fight кастовали триггеры карты, а не способности юнита:
+    в UnitsPveJf у этих юнитов только пассивки (или ничего), CreepCast кастовать нечего — и они стояли с 60 маны.
+    Числа — из подсказок юнитов Just Fight (UnitsPveJf). Всё — при полной мане (60), мана тратится целиком.
+    - 'eJ07' Жрица Луны, «Звездопад»: 100 урона врагам в 200 вокруг цели атаки.
+    - 'hJ0Z' / 'hJ10' Тёмная следопытка / богиня, «Тёмная стрела»: убитый этой атакой враг встаёт на 20 с
+      тёмным прислужником монстров.
+    - 'hJ13' / 'hJ14' Маг крови / пламени, «Пламя феникса»: 1 / 3 случайных врагов в 800 горят 5 с по 60 урона.
+    - 'nJ1C' Морской великан, «Щит глубин»: атака при здоровье ниже 15% лечит на 666.
+    - 'nJ1Q' / 'nJ1U' Мечник / мастер Чёрной скалы: атака вызывает свою иллюзию на 3 с (ILLUSION).
+    - 'nJ21' Девятиглавый змей, «Вечная жизнь»: атака даёт 20 маны; смертельный удар при полной мане он
+      переживает — пожирает врага в 600 со здоровьем меньше 500 и восстанавливает всё здоровье. */
+
+constant FULL_MANA = 60.
+/** Приоритет слушателя урона: после всех изменений урона (как DAMAGE_EVENT_PRIO_FINAL в описании DamageEvent) */
+constant DAMAGE_PRIO_FINAL = 5
+/** Иллюзия Чёрной скалы на 3 с (UnitsPve) */
+constant ILLUSION = 'APB5'
+
+/** Полная мана у настоящего (не иллюзии) юнита: тратит её и возвращает true */
+function unit.spendFullMana() returns bool
+    if this.getMana() < FULL_MANA or this.isIllusion()
+        return false
+    this.setMana(0.)
+    return true
+
+/** Цель заклинаний монстра: живой враг игрока p, не здание */
+function unit.isSpellTargetFor(player p) returns bool
+    return this.isAlive() and this.isEnemyOf(p) and not this.isType(UNIT_TYPE_STRUCTURE)
+
+function unit.spellDamage(unit target, real amount)
+    this.damageTarget(target, amount, false, false, ATTACK_TYPE_NORMAL, DAMAGE_TYPE_MAGIC, WEAPON_TYPE_WHOKNOWS)
+
+/** Удар amount добьёт юнит с hp здоровья (юнит умирает ниже 0.405) */
+public function isLethal(real hp, real amount) returns bool
+    return hp - amount < 0.405
+
+// ---- eJ07: Звездопад ----
+
+@noinline
+function starfall()
+    let a = GetAttacker()
+    if not a.spendFullMana()
+        return
+    let p = a.getOwner()
+    let pos = GetTriggerUnit().getPos()
+    addEffect("Abilities\\Spells\\NightElf\\Starfall\\StarfallTarget.mdl", pos).destr()
+    forUnitsInRange(pos, 200.) u ->
+        if u.isSpellTargetFor(p)
+            a.spellDamage(u, 100.)
+
+// ---- hJ0Z / hJ10: Тёмная стрела ----
+
+/** Убитая тёмной стрелой цель встаёт прислужником minion за владельца стрелка, в ту же сторону */
+function darkArrow(unit source, unit victim, int minion)
+    if victim.isType(UNIT_TYPE_STRUCTURE) or victim.isType(UNIT_TYPE_HERO) or victim.isIllusion()
+        return
+    let owner = source.getOwner()
+    let goesLeft = source.creepGoesLeft()
+    addEffect("Abilities\\Spells\\Other\\BlackArrow\\BlackArrowMissile.mdl", victim, "chest").destr()
+    // смерть наступает после события урона: проверить и поднять на следующем такте
+    doAfter(0.) ->
+        if not victim.isAlive()
+            let pos = victim.getPos()
+            addEffect("Abilities\\Spells\\Undead\\RaiseSkeletonWarrior\\RaiseSkeleton.mdl", pos).destr()
+            createUnit(owner, minion, pos, victim.getFacingAngle())
+                ..setCreepDirection(goesLeft)
+                ..removeGuardPosition()
+                ..setTimedLife(20., 'BTLF')
+                ..attackLane()
+
+// ---- hJ13 / hJ14: Пламя феникса ----
+
+function burn(unit source, unit target)
+    let fx = addEffect("Abilities\\Spells\\Other\\BreathOfFire\\BreathOfFireDamage.mdl", target, "chest")
+    doPeriodicallyCounted(1., 5) cb ->
+        if target.isAlive()
+            source.spellDamage(target, 60.)
+        if cb.isLast()
+            fx.destr()
+
+@noinline
+function phoenixFlame(int flames)
+    let a = GetAttacker()
+    if not a.spendFullMana()
+        return
+    let p = a.getOwner()
+    let g = unitsInRange(a.getPos(), 800., (u) -> u.isSpellTargetFor(p))
+    for i = 1 to flames
+        let t = g.getRandom()
+        if t != null
+            g.remove(t)
+            burn(a, t)
+    g.release()
+
+// ---- nJ1C: Щит глубин ----
+
+@noinline
+function deepSeaShield()
+    let a = GetAttacker()
+    if a.getHP() >= a.getMaxHP() * 0.15 or not a.spendFullMana()
+        return
+    a.addHP(666.)
+    addEffect("Abilities\\Spells\\Other\\CrushingWave\\CrushingWaveDamage.mdl", a, "origin").destr()
+
+// ---- nJ1Q / nJ1U: Чёрная скала ----
+
+@noinline
+function blackRock()
+    let a = GetAttacker()
+    if a.getMana() < FULL_MANA or a.isIllusion()
+        return
+    if not a.hasAbility(ILLUSION)
+        a.addAbility(ILLUSION)
+    if a.issueTargetOrderById(OrderIds.wandOfIllusion, a)
+        a.setMana(0.)
+        // приказ на иллюзию снял атаку — вернуть монстра на линию
+        doAfter(0.5) ->
+            if a.isAlive()
+                a.attackLane()
+
+// ---- nJ21: Вечная жизнь ----
+
+@noinline
+function eternalLifeMana()
+    let a = GetAttacker()
+    if not a.isIllusion()
+        a.addMana(20.)
+
+@noinline
+function eternalLife()
+    let snake = DamageEvent.getTarget()
+    if snake.getTypeId() != 'nJ21' or not isLethal(snake.getHP(), DamageEvent.getAmount()) or snake.getMana() < FULL_MANA or snake.isIllusion()
+        return
+    let p = snake.getOwner()
+    let prey = randomUnitInRange(snake.getPos(), 600., (u) -> u.isSpellTargetFor(p) and not u.isType(UNIT_TYPE_HERO) and u.getHP() < 500.)
+    if prey == null
+        return
+    snake.setMana(0.)
+    DamageEvent.setAmount(0.)
+    addEffect("Objects\\Spawnmodels\\Human\\HumanLargeDeathExplode\\HumanLargeDeathExplode.mdl", prey.getPos()).destr()
+    prey.kill()
+    snake.setHP(snake.getMaxHP())
+    addEffect("Abilities\\Spells\\Human\\Resurrect\\ResurrectTarget.mdl", snake.getPos()).destr()
+
+init
+    onAttackBy('eJ07') ->
+        starfall()
+    onAttackBy('hJ13') ->
+        phoenixFlame(1)
+    onAttackBy('hJ14') ->
+        phoenixFlame(3)
+    onAttackBy('nJ1C') ->
+        deepSeaShield()
+    onAttackBy('nJ1Q', 'nJ1U') ->
+        blackRock()
+    onAttackBy('nJ21') ->
+        eternalLifeMana()
+    // после остальных слушателей урона: тёмной стреле и вечной жизни нужен итоговый урон
+    DamageEvent.addListener(DAMAGE_PRIO_FINAL) ->
+        let source = DamageEvent.getSource()
+        if source != null and DamageEvent.getType() == DamageType.ATTACK
+            let id = source.getTypeId()
+            if (id == 'hJ0Z' or id == 'hJ10') and source.spendFullMana() and isLethal(DamageEvent.getTarget().getHP(), DamageEvent.getAmount())
+                darkArrow(source, DamageEvent.getTarget(), id == 'hJ10' ? 'ndr2' : 'ndr1')
+        eternalLife()
