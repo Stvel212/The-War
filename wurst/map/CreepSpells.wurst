@@ -144,15 +144,20 @@ function eternalLife()
     if snake.getTypeId() != 'nJ21' or not isLethal(snake.getHP(), DamageEvent.getAmount()) or snake.getMana() < FULL_MANA or snake.isIllusion()
         return
     let p = snake.getOwner()
-    let prey = randomUnitInRange(snake.getPos(), 600., (u) -> u.isSpellTargetFor(p) and not u.isType(UNIT_TYPE_HERO) and u.getHP() < 500.)
+    let source = DamageEvent.getSource()
+    let prey = randomUnitInRange(snake.getPos(), 600., (u) -> u != source and u.isSpellTargetFor(p) and not u.isType(UNIT_TYPE_HERO) and u.getHP() < 500.)
     if prey == null
         return
     snake.setMana(0.)
     DamageEvent.setAmount(0.)
-    addEffect("Objects\\Spawnmodels\\Human\\HumanLargeDeathExplode\\HumanLargeDeathExplode.mdl", prey.getPos()).destr()
-    prey.kill()
-    snake.setHP(snake.getMaxHP())
-    addEffect("Abilities\\Spells\\Human\\Resurrect\\ResurrectTarget.mdl", snake.getPos()).destr()
+    // убивать и лечить внутри события урона нельзя — игра падает (краш при убийстве юнита в обработчике урона)
+    doAfter(0.) ->
+        if prey.isAlive()
+            addEffect("Objects\\Spawnmodels\\Human\\HumanLargeDeathExplode\\HumanLargeDeathExplode.mdl", prey.getPos()).destr()
+            prey.kill()
+        if snake.isAlive()
+            snake.setHP(snake.getMaxHP())
+            addEffect("Abilities\\Spells\\Human\\Resurrect\\ResurrectTarget.mdl", snake.getPos()).destr()
 
 init
     onAttackBy('eJ07') ->
