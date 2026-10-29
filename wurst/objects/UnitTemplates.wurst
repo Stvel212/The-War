@@ -1,0 +1,18 @@
+package UnitTemplates
+import UnitObjEditing
+
+/*
+	Заготовки объектов: общие поля задаются один раз, у объекта остаётся только то, чем он отличается.
+	Поле, заданное после заготовки, перекрывает её значение.
+*/
+
+/** Юнит линии: бесплатный, без пищи, «ward,giant», скорость 200, кнопка в углу, требует R004 (Описание) */
+public function laneUnit(int id, int base) returns UnitDefinition
+	return new UnitDefinition(id, base)
+		..setFoodCost(0)
+		..setGoldCost(0)
+		..setUnitClassification("ward,giant")
+		..setSpeedBase(200)
+		..setButtonPositionX(0)
+		..setButtonPositionY(0)
+		..setRequirements("R004")

@@ -14,7 +14,10 @@ import UnitObjEditing
 		new UnitDefinition('h004', 'hrif')
 		..setStats(stats)
 
-	Пока это только текст подсказки: на поля объекта (урон, здоровье…) Stats не влияет. Перевод подсказок
+	setStats задаёт только подсказку (так у зданий: их подсказка описывает обучаемого юнита). applyStats у юнита
+	ещё и выставляет по тем же цифрам урон (1 кость: база = min − 1, грани = max − min + 1), перезарядку,
+	здоровье и защиту — подсказка не разойдётся с юнитом. Юниту с другим числом костей атаки — setStats и
+	поля руками. Перевод подсказок
 	(locales/enUS.txt) ищет строку по готовому русскому тексту, так что формат ниже менять аккуратно.
 */
 public class Stats
@@ -27,6 +30,12 @@ public class Stats
 	private string armorText = ""
 	private string armorTypeText = ""
 	private string abilityText = null
+	// цифры для applyStats
+	int minDamage = 0
+	int maxDamage = 0
+	real cooldown = 0.
+	int hp = 0
+	int armor = 0
 
 	/** Награда: +n золота за убийство */
 	function bounty(int n) returns thistype
@@ -51,12 +60,17 @@ public class Stats
 		return this
 
 	function attack(int min, int max, real cooldown, AttackType kind) returns thistype
+		minDamage = min
+		maxDamage = max
+		this.cooldown = cooldown
 		attackText = min + "-" + max
 		speedText = fmt(cooldown)
 		attackTypeText = attackTypeName(kind)
 		return this
 
 	function defense(int hp, int armor, ArmorType kind) returns thistype
+		this.hp = hp
+		this.armor = armor
 		hpText = hp.toString()
 		armorText = armor.toString()
 		armorTypeText = armorTypeName(kind)
@@ -66,6 +80,13 @@ public class Stats
 	function skill(string line) returns thistype
 		abilityText = abilityText == null ? line : abilityText + "\r\n" + line
 		return this
+
+	/** База урона при одной кости: атака min-max = база + 1 … база + грани */
+	function damageBase() returns int
+		return minDamage - 1
+
+	function damageSides() returns int
+		return maxDamage - minDamage + 1
 
 	function text() returns string
 		var s = "|c00C0C0C0    Характеристики:|r\r\n"
@@ -84,6 +105,15 @@ public class Stats
 public function UnitOrBuildingOrHeroDefinition.setStats(Stats stats)
 	this.setTooltipExtended(stats.text())
 	destroy stats
+
+/** Подсказка из Stats и те же цифры в полях юнита: урон (1 кость), перезарядка, здоровье, защита */
+public function UnitDefinition.applyStats(Stats stats)
+	this.setAttack1DamageBase(stats.damageBase())
+	this.setAttack1DamageSidesperDie(stats.damageSides())
+	this.setAttack1CooldownTime(stats.cooldown)
+	this.setHitPointsMaximumBase(stats.hp)
+	this.setDefenseBase(stats.armor)
+	this.setStats(stats)
 
 /** 1.5 -> "1.5", 2.88 -> "2.88", 1.0 -> "1" (R2S даёт "1.500") */
 function fmt(real r) returns string

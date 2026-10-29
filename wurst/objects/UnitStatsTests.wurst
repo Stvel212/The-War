@@ -1,0 +1,15 @@
+package UnitStatsTests
+import UnitObjEditing
+import UnitStats
+
+@Test function statsDamageFromAttackRange()
+	let stats = new Stats()..attack(76, 77, 1.2, AttackType.Normal)
+	stats.damageBase().assertEquals(75)
+	stats.damageSides().assertEquals(2)
+	destroy stats
+
+@Test function statsFixedDamage()
+	let stats = new Stats()..attack(60, 60, 0.9, AttackType.Pierce)
+	stats.damageBase().assertEquals(59)
+	stats.damageSides().assertEquals(1)
+	destroy stats
