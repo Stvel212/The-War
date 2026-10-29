@@ -1,22 +1,17 @@
 package AbilitiesShared
 import AbilityObjEditing
+import AbilityTemplates
 
 @compiletime function create_w3a_A007()
-	new AbilityDefinitionIllidanChannel('A007')
-	..setHeroAbility(false)
+	channelAbility('A007')
 	..setLevels(1)
 	..setBaseOrderID(1, "heal")
-	..setArtDuration(1, 0.0)
-	..setFollowThroughTime(1, 0.0)
 	..setTargetType(1, 1)
 	..setTargetsAllowed(1, "item")
 	..setOptions(1, 1)
 	..setTooltipNormal(1, "|c00FFFF00Улyчшить|r (|cffffcc00F|r)")
 	..setCastRange(1, 0.0)
-	..setArtEffect("")
-	..setArtTarget("")
 	..setTargetAttachmentPoint("")
-	..setArtCaster("")
 	..setAnimationNames("")
 	..setCasterAttachmentPoint("")
 	..setTooltipNormalExtended(1, "|c00FF8000Bы yлyчшaeтe пpeдмeт, ecли oн мoжeт быть yлyчшeн|r\r\n|c00C0C0C0Haжмитe нa cпocoбнocть, a пoтoм нa пpeдмeт, кoтopый xoтитe yлyчшить|r")
@@ -25,7 +20,6 @@ import AbilityObjEditing
 	..setIconNormal("ReplaceableTextures\\CommandButtons\\BTNReplay-SpeedUp.blp")
 	..setName("|c00FFFF00Улyчшить|r")
 	..setHotkeyNormal("F")
-	..setDisableOtherAbilities(1, false)
 	..setOrderStringUseTurnOn("")
 	..setCooldown(1, 0.5)
 	..setRace(Race.Other)

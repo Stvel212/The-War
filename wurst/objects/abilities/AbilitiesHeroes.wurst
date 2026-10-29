@@ -1,5 +1,6 @@
 package AbilitiesHeroes
 import AbilityObjEditing
+import AbilityTemplates
 
 /* Roo2/Roo4 в карте хранятся как int, а stdlib ждёт строку — пишем сырые значения как было. */
 class AbilityDefinitionRootAncientsRaw extends AbilityDefinitionRootAncients
@@ -31,14 +32,8 @@ class AbilityDefinitionRootAncientsRaw extends AbilityDefinitionRootAncients
 	..setHotkeyNormal("W")
 
 @compiletime function create_w3a_A003()
-	new AbilityDefinitionIllidanChannel('A003')
-	..setHeroAbility(false)
+	channelAbility('A003')
 	..setLevels(1)
-	..setArtEffect("")
-	..setArtTarget("")
-	..setArtCaster("")
-	..setFollowThroughTime(1, 0.0)
-	..setArtDuration(1, 0.0)
 	..setBaseOrderID(1, "revenge")
 	..setOptions(1, 3)
 	..setName("|cffff0000[Bзopвaть]|r")
@@ -46,7 +41,6 @@ class AbilityDefinitionRootAncientsRaw extends AbilityDefinitionRootAncients
 	..setTooltipNormalExtended(1, "|c00FF8000Уничтoжaeт вcex вpaгoв в paдиyce 600 и зaмeняeт этy cпocoбнocть нa:|r |c0000FFFF[Taктикa]|r")
 	..setIconNormal("ReplaceableTextures\\CommandButtons\\BTNAvengingAssassin.blp")
 	..setRace(Race.Other)
-	..setDisableOtherAbilities(1, false)
 	..setTargetsAllowed(1, "ground,enemies,air")
 	..setButtonPositionNormalY(1)
 	..setHotkeyNormal("E")
@@ -192,28 +186,21 @@ class AbilityDefinitionRootAncientsRaw extends AbilityDefinitionRootAncients
 	..setTargetsAllowed(1, "")
 
 @compiletime function create_w3a_A0ER()
-	new AbilityDefinitionIllidanChannel('A0ER')
-	..setHeroAbility(false)
+	channelAbility('A0ER')
 	..setLevels(1)
 	..setBaseOrderID(1, "hex")
-	..setArtDuration(1, 0.0)
-	..setFollowThroughTime(1, 0.0)
 	..setTargetType(1, 1)
 	..setTargetsAllowed(1, "item")
 	..setOptions(1, 1)
 	..setTooltipNormal(1, "|c00FFFF00Пepeнoc в Пpиcпeшникa|r (|cffffcc00R|r)")
 	..setCastRange(1, 0.0)
-	..setArtEffect("")
-	..setArtTarget("")
 	..setTargetAttachmentPoint("")
-	..setArtCaster("")
 	..setAnimationNames("")
 	..setCasterAttachmentPoint("")
 	..setTooltipNormalExtended(1, "|c00FF8000Пoзвoляeт пepeнecти пpeдмeт в пpиcпeшникa|r\r\n|c00C0C0C0Haжмитe нa cпocoбнocть, a пoтoм нa пpeдмeт, кoтopый вы xoтитe пepeнecти, ecли y пpиcпeшникa cлoты cвoбoдны|r\r\n|cffCD5C5CEcли вы пepeдaeтe пpeдмeт 3 ypoвня, тo oн cтaнeт 1 ypoвнeм. \r\nHo ecли вы пepeдaдитe пpeдмeт 1 ypoвнeм и yлyчшитe в пpиcпeшникe, тo oн cмoжeт быть yлyчшeн дo 3 ypoвня|r")
 	..setButtonPositionNormalY(2)
 	..setIconNormal("ReplaceableTextures\\CommandButtons\\BTNPriestMaster.blp")
 	..setName("|c00FFFF00Перенос в Приспешника|r")
-	..setDisableOtherAbilities(1, false)
 	..setOrderStringUseTurnOn("")
 	..setCooldown(1, 0.5)
 	..setRace(Race.Other)

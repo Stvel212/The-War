@@ -1,0 +1,14 @@
+package AbilityTemplates
+import AbilityObjEditing
+
+/** Способность-кнопка на «Канале» (Illidan Channel): без эффектов, длительности и блокировки других
+	способностей. Приказ, цели, иконку и подсказку задаёт сама способность. */
+public function channelAbility(int id) returns AbilityDefinitionIllidanChannel
+	return new AbilityDefinitionIllidanChannel(id)
+		..setHeroAbility(false)
+		..setArtEffect("")
+		..setArtCaster("")
+		..setArtTarget("")
+		..setArtDuration(1, 0.0)
+		..setFollowThroughTime(1, 0.0)
+		..setDisableOtherAbilities(1, false)
