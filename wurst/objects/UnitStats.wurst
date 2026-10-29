@@ -33,9 +33,9 @@ public class Stats
 	// цифры для applyStats
 	int minDamage = 0
 	int maxDamage = 0
-	real cooldown = 0.
-	int hp = 0
-	int armor = 0
+	real attackCooldown = 0.
+	int maxHp = 0
+	int baseArmor = 0
 
 	/** Награда: +n золота за убийство */
 	function bounty(int n) returns thistype
@@ -62,15 +62,15 @@ public class Stats
 	function attack(int min, int max, real cooldown, AttackType kind) returns thistype
 		minDamage = min
 		maxDamage = max
-		this.cooldown = cooldown
+		attackCooldown = cooldown
 		attackText = min + "-" + max
 		speedText = fmt(cooldown)
 		attackTypeText = attackTypeName(kind)
 		return this
 
 	function defense(int hp, int armor, ArmorType kind) returns thistype
-		this.hp = hp
-		this.armor = armor
+		maxHp = hp
+		baseArmor = armor
 		hpText = hp.toString()
 		armorText = armor.toString()
 		armorTypeText = armorTypeName(kind)
@@ -110,9 +110,9 @@ public function UnitOrBuildingOrHeroDefinition.setStats(Stats stats)
 public function UnitDefinition.applyStats(Stats stats)
 	this.setAttack1DamageBase(stats.damageBase())
 	this.setAttack1DamageSidesperDie(stats.damageSides())
-	this.setAttack1CooldownTime(stats.cooldown)
-	this.setHitPointsMaximumBase(stats.hp)
-	this.setDefenseBase(stats.armor)
+	this.setAttack1CooldownTime(stats.attackCooldown)
+	this.setHitPointsMaximumBase(stats.maxHp)
+	this.setDefenseBase(stats.baseArmor)
 	this.setStats(stats)
 
 /** 1.5 -> "1.5", 2.88 -> "2.88", 1.0 -> "1" (R2S даёт "1.500") */
