@@ -16,3 +16,18 @@ public function laneUnit(int id, int base) returns UnitDefinition
 		..setButtonPositionX(0)
 		..setButtonPositionY(0)
 		..setRequirements("R004")
+
+/** Барак на базе игрока: «[Баррак]», без коллизии, ремонта и пищи, ставится за 1 с на неперестраиваемую клетку 4×4.
+	Подсказка (Stats) описывает обучаемого юнита. */
+public function barrack(int id, int base) returns BuildingDefinition
+	return new BuildingDefinition(id, base)
+		..setName("|c00C0C0C0[Баррак]|r")
+		..setCollisionSize(0.0)
+		..setRepairGoldCost(0)
+		..setRepairLumberCost(0)
+		..setRepairTime(0)
+		..setUpgradesUsed("")
+		..setFoodProduced(0)
+		..setLumberCost(0)
+		..setBuildTime(1)
+		..setPathingMap("PathTextures\\4x4unbuildable.tga")
