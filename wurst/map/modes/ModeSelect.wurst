@@ -25,10 +25,6 @@ player host = null
 DialogBox mainBox = null
 DialogBox pveBox = null
 
-function printAll(string msg, real duration)
-    if bj_FORCE_ALL_PLAYERS.containsPlayer(localPlayer)
-        localPlayer.print(msg, duration)
-
 function findHost() returns player
     for pid = 0 to 7
         if isInGame(players[pid])
@@ -55,7 +51,7 @@ function choosePvp()
         return
     gameMode = GameModeKind.PVP
     updateBoardTitle()
-    printAll("|cffff0000Host selected PvP (classic)|r", 10.)
+    print("|cffff0000Host selected PvP (classic)|r", 10.)
     startGame()
 
 function choosePve(int level)
@@ -107,9 +103,9 @@ init
     // диалоги нельзя показывать в инициализации карты
     doAfter(0.5) ->
         host = findHost()
-        printAll(host.getName() + " is selecting the game mode...", SELECT_TIME)
+        print(host.getName() + " is selecting the game mode...", SELECT_TIME)
         showMain()
     doAfter(SELECT_TIME) ->
         if not chosen
-            printAll("|cffff8080No mode selected in time.|r", 10.)
+            print("|cffff8080No mode selected in time.|r", 10.)
             choosePvp()

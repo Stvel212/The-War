@@ -6,6 +6,7 @@ import MapGlobals
 import ClosureTimers
 import ClosureForGroups
 import GameTimer
+import Messages
 
 /*
     PvEvP — «LTD» (по образцу Just Fight 5.6, «Battle Chess (PvEvP)»). Команды против друг друга, но армии игроков
@@ -38,10 +39,6 @@ var waveNumber = 0
 /** Таблица волн Just Fight следующей волны: 1 или 2, заново на каждую волну */
 var waveTable = 1
 
-function printAll(string msg, real duration)
-    if bj_FORCE_ALL_PLAYERS.containsPlayer(localPlayer)
-        localPlayer.print(msg, duration)
-
 public function startPvevp()
     gameMode = GameModeKind.PVEVP
     manualRounds = true
@@ -68,20 +65,20 @@ public function startPvevp()
     for pid = 0 to 7
         if players[pid].isIngame()
             addLanePortal(pid, false)
-    printAll("|cffff0000Host selected PvEvP (Battle Chess)|r", 15.)
-    printAll("|cffffcc00Every wave the same monsters attack each player's half of the lane. Your units hold your half.|r", 15.)
-    printAll("|cffffcc00The next wave comes only when both teams have cleared their monsters. Survivors are removed - buildings send a new army every wave.|r", 15.)
-    printAll("|cffffcc00Mercenaries join the monsters attacking the enemy. Monsters that break through go to the King!|r", 15.)
+    print("|cffff0000Host selected PvEvP (Battle Chess)|r", 15.)
+    print("|cffffcc00Every wave the same monsters attack each player's half of the lane. Your units hold your half.|r", 15.)
+    print("|cffffcc00The next wave comes only when both teams have cleared their monsters. Survivors are removed - buildings send a new army every wave.|r", 15.)
+    print("|cffffcc00Mercenaries join the monsters attacking the enemy. Monsters that break through go to the King!|r", 15.)
 
 function startTimer(real time, string title)
     roundTimer.start(time, null)
-    timerD = CreateTimerDialog(roundTimer)
+    timerD = roundTimer.createTimerDialog()
         ..setTitle(title)
         ..display(true)
 
 function announceNext()
     if waveExists(waveTable, waveNumber + 1)
-        printAll("Next wave: [" + (waveNumber + 1) + "]    Unit: [" + waveDescription(waveTable, waveNumber + 1, BATCHES) + "]", 15.)
+        print("Next wave: [" + (waveNumber + 1) + "]    Unit: [" + waveDescription(waveTable, waveNumber + 1, BATCHES) + "]", 15.)
 
 @noinline
 function onRoundStart(int r)
@@ -105,7 +102,7 @@ function onRoundStart(int r)
                 if isInGame(players[pid])
                     let left = pid < 4
                     spawnTableWave(t, w, players[left ? CREEP_VS_LEFT : CREEP_VS_RIGHT], pid mod 4, left)
-    printAll("|cffff00ffRound:|r |cffff0000" + w + "|r |cffff00ffstarted!|r", 10.)
+    print("|cffff00ffRound:|r |cffff0000" + w + "|r |cffff00ffstarted!|r", 10.)
 
 /** Награда за волну (Just Fight: 300 + (волна - 2)·9, с 69-й — 900) */
 function waveReward(int w) returns int
@@ -123,8 +120,8 @@ function endWave()
     for pid = 0 to 7
         if isInGame(players[pid])
             players[pid].addGold(gold)
-            DisplayTextToPlayer(players[pid], 0., 0., "Round Rewards: |cffffff00" + gold + " gold!|r")
-    printAll("|cffffcc00End of the Round!|r Next wave in " + BREAK_TIME.toInt() + " seconds.", 8.)
+            players[pid].message("Round Rewards: |cffffff00" + gold + " gold!|r")
+    print("|cffffcc00End of the Round!|r Next wave in " + BREAK_TIME.toInt() + " seconds.", 8.)
     waveTable = GetRandomInt(1, 2)
     startTimer(BREAK_TIME, "Wave: " + (waveNumber + 1))
     doAfter(3.) ->

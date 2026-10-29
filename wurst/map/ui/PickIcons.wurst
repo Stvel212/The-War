@@ -75,7 +75,7 @@ function baseOf(int a) returns rect
 
 /** Иконка здания по типу (BlzGetAbilityIcon отдаёт «Art» и для типов юнитов) */
 function iconOf(int typeId) returns string
-    let path = BlzGetAbilityIcon(typeId)
+    let path = getUnitIcon(typeId)
     return path == null or path == "" ? "ReplaceableTextures\\CommandButtons\\BTNTemp.blp" : path
 
 /** Пересоздать иконки пика игрока a у его базы; показать их только его команде */
@@ -91,7 +91,7 @@ function showPick(int a)
     for tier = 1 to TIERS
         let i = a * TIERS + tier - 1
         if pickImages[i] != null
-            DestroyImage(pickImages[i])
+            pickImages[i].remove()
             pickImages[i] = null
         let picked = repickLast[tier + 10 * a]
         pickTypes[i] = 0
@@ -103,7 +103,7 @@ function showPick(int a)
             let img = createImage(iconOf(typeId), center, ICON, ICON)
             pickTypes[i] = typeId
             pickCenters[i] = center
-            SetImageRenderAlways(img, true)
+            img.show()
             ShowImage(img, visible)
             pickImages[i] = img
 

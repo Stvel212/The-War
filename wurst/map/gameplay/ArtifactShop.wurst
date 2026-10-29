@@ -4,6 +4,7 @@ import ClosureTimers
 import MapGlobals
 import BaseShortcuts
 import GameMode
+import Messages
 
 /*
     Покупка артефактов с кнопки «Artifacts» над миникартой (слева, за краем области 4:3 — родитель
@@ -97,8 +98,8 @@ public function isStunArtifact(int id) returns bool
 function readItems()
     for i = 0 to ITEM_COUNT - 1
         let id = ITEMS[i]
-        itemIcon[i] = BlzGetAbilityIcon(id)
-        itemTip[i] = GetObjectName(id) + "|n|cffffcc00Cost: " + ITEM_COSTS[i] + " gold|r|n" + BlzGetAbilityExtendedTooltip(id, 0)
+        itemIcon[i] = getAbilityIcon(id)
+        itemTip[i] = GetObjectName(id) + "|n|cffffcc00Cost: " + ITEM_COSTS[i] + " gold|r|n" + getAbilityExtendedTooltip(id, 0)
 
 function hasFreeSlot(unit u) returns bool
     for slot = 0 to u.inventorySize() - 1
@@ -115,15 +116,15 @@ function buy(player p, int i)
     if soldOut[team * ITEM_COUNT + i] or buyer == null or not buyer.isAlive()
         return
     if p.getGold() < ITEM_COSTS[i]
-        DisplayTextToPlayer(p, 0., 0., "Not enough gold")
+        p.message("Not enough gold")
         return
     let damage = isDamageArtifact(id)
     let stun = isStunArtifact(id)
     if (damage and itemZapretD[pid] >= limitArt[pid]) or (stun and itemZapretS[pid] >= limitArt[pid])
-        DisplayTextToPlayer(p, 0., 0., "Artifact limit for " + (damage ? "damage" : "stun") + " in the amount of " + limitArt[pid] + " pcs")
+        p.message("Artifact limit for " + (damage ? "damage" : "stun") + " in the amount of " + limitArt[pid] + " pcs")
         return
     if not hasFreeSlot(buyer)
-        DisplayTextToPlayer(p, 0., 0., "Inventory is full")
+        p.message("Inventory is full")
         return
     p.setGold(p.getGold() - ITEM_COSTS[i])
     powerItem[pid] += ITEM_COSTS[i]
@@ -214,7 +215,7 @@ function buildPanel(player owner) returns framehandle
         return null
     // родитель ConsoleUIBackdrop: всё стоит за краем области 4:3 (над миникартой), а обычные фреймы
     // (родитель GAME_UI) за 4:3 не рисуются
-    let root = container(BlzGetFrameByName("ConsoleUIBackdrop", 0), OPEN_W, OPEN_H)
+    let root = container(getFrame("ConsoleUIBackdrop", 0), OPEN_W, OPEN_H)
     let open = textButton(root, "Artifacts", OPEN_W, OPEN_H)
         ..setPoint(FRAMEPOINT_TOPLEFT, root, FRAMEPOINT_TOPLEFT)
         ..cornerTooltip("Buy artifacts")
@@ -223,7 +224,7 @@ function buildPanel(player owner) returns framehandle
             windows[pid] = buildWindow(owner, root, open)
         windowOpen[pid] = not windowOpen[pid]
         windows[pid].setVisible(windowOpen[pid])
-    root.setPoint(FRAMEPOINT_BOTTOMLEFT, BlzGetOriginFrame(ORIGIN_FRAME_MINIMAP, 0), FRAMEPOINT_TOPLEFT, 0., ABOVE_MINIMAP)
+    root.setPoint(FRAMEPOINT_BOTTOMLEFT, getOriginFrame(ORIGIN_FRAME_MINIMAP, 0), FRAMEPOINT_TOPLEFT, 0., ABOVE_MINIMAP)
     return root
 
 /** Артефакт itemId продан игроком p: снова доступен его команде */

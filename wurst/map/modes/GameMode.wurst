@@ -123,7 +123,7 @@ constant GATE_PORTAL_RADIUS = 900.
 
 /** Показать или скрыть оба портала игрока pid (Just Fight: SetDoodadAnimationRectBJ("hide"/"show", 'OZsp', …)) */
 public function showPortal(int pid, bool show)
-    SetDoodadAnimation(0., 0., 100000., portalDoodads[pid], false, show ? "show" : "hide", false)
+    ZERO2.setDoodadAnimation(100000., portalDoodads[pid], false, show ? "show" : "hide", false)
     if isPve()
         hideGatePortals(pid)
 
@@ -134,7 +134,7 @@ public function hideGatePortals(int pid)
     hidePortalAt(pid, RIGHT_GATE_PORTAL_POS)
 
 function hidePortalAt(int pid, vec2 pos)
-    SetDoodadAnimation(pos.x, pos.y, GATE_PORTAL_RADIUS, portalDoodads[pid], false, "hide", false)
+    pos.setDoodadAnimation(GATE_PORTAL_RADIUS, portalDoodads[pid], false, "hide", false)
 
 /** Игрок, против которого идёт монстр (по половине линии и высоте) */
 public function unit.creepTargetPlayer() returns int
@@ -240,7 +240,7 @@ public function unit.becomeSend()
     let goesLeft = not buyerLeft
     this.setOwner(players[goesLeft ? CREEP_VS_LEFT : CREEP_VS_RIGHT], false)
     this.setCreepDirection(goesLeft)
-    SetUnitPosition(this, spawnX(goesLeft), laneY(lane))
+    this.setPos(spawnX(goesLeft), laneY(lane))
     let target = this.laneTarget(this.getY())
     if not this.issuePointOrder("attack", target)
         this.issuePointOrder("move", target)
@@ -264,9 +264,9 @@ public function unit.recallFighter()
 public function creepBreakthrough(unit u)
     if isPve()
         u.setCreepDirection(true)
-        SetUnitPosition(u, RIGHT_GATE_X, GetRandomReal(-300., 850.))
+        u.setPos(RIGHT_GATE_X, GetRandomReal(-300., 850.))
     else
-        SetUnitPosition(u, u.creepGoesLeft() ? -1600. : 1100., GetRandomReal(-300., 850.))
+        u.setPos(u.creepGoesLeft() ? -1600. : 1100., GetRandomReal(-300., 850.))
     let goesLeft = u.creepGoesLeft()
     let target = vec2(goesLeft ? LEFT_END_X : RIGHT_END_X, u.getY())
     if not u.issuePointOrder("attack", target)
@@ -302,5 +302,5 @@ public function setEnemies(player p, player q)
 /** Название таблицы по режиму (таблица может быть ещё не создана — тогда её заголовок возьмёт modeString) */
 public function updateBoardTitle()
     modeString = modeTitle()
-    if udg_Board != null
-        udg_Board.setTitle("The War Reborn " + modeString)
+    if board != null
+        board.setTitle("The War Reborn " + modeString)

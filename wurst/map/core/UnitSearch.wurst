@@ -76,3 +76,13 @@ public function unitsInRange(vec2 pos, real radius, UnitFilter f) returns group
             g.add(u)
     destroy f
     return g
+
+/** Новая группа из count случайных юнитов этой группы (всех, если их меньше; как GetRandomSubGroup) —
+    выбранные из этой группы убираются. Вернуть через release() */
+public function group.takeRandom(int count) returns group
+    let picked = getGroup()
+    while picked.size() < count and not this.isEmpty()
+        let u = this.getRandom()
+        this.remove(u)
+        picked.add(u)
+    return picked

@@ -90,7 +90,7 @@ function buildWindow(player owner, framehandle parent) returns framehandle
     let skinTop = famTop - famRows * (FAM_ICON + GAP) - 0.01
     for f = 0 to familyCount - 1
         let family = f
-        let fam = iconButton(window, BlzGetAbilityIcon(familyIcon[f]), FAM_ICON)
+        let fam = iconButton(window, getUnitIcon(familyIcon[f]), FAM_ICON)
             ..setPoint(FRAMEPOINT_TOPLEFT, window, FRAMEPOINT_TOPLEFT, PAD + (f mod FAM_COLS) * (FAM_ICON + GAP), famTop - (f div FAM_COLS) * (FAM_ICON + GAP))
             ..cornerTooltip(familyName[f])
         familyMark[pid * MAX_FAMILIES + f] = selectionHighlight(fam)
@@ -99,7 +99,7 @@ function buildWindow(player owner, framehandle parent) returns framehandle
         let pg = container(window, SKIN_COLS * (SKIN_ICON + GAP), 2. * (SKIN_ICON + GAP))
             ..setPoint(FRAMEPOINT_TOPLEFT, window, FRAMEPOINT_TOPLEFT, PAD, skinTop)
         page[pid * MAX_FAMILIES + f] = pg
-        let def = iconButton(pg, BlzGetAbilityIcon(familyIcon[f]), SKIN_ICON)
+        let def = iconButton(pg, getUnitIcon(familyIcon[f]), SKIN_ICON)
             ..setPoint(FRAMEPOINT_TOPLEFT, pg, FRAMEPOINT_TOPLEFT)
             ..cornerTooltip("|cffffcc00Default|r (" + familyName[f] + ")", TOOLTIP_WIDTH)
         defaultMark[pid * MAX_FAMILIES + f] = selectionHighlight(def)
@@ -108,7 +108,7 @@ function buildWindow(player owner, framehandle parent) returns framehandle
         for s = 0 to skinCount - 1
             if skinFamily[s] == f
                 let index = s
-                let b = iconButton(pg, BlzGetAbilityIcon(skinSource[s]), SKIN_ICON)
+                let b = iconButton(pg, getUnitIcon(skinSource[s]), SKIN_ICON)
                     ..setPoint(FRAMEPOINT_TOPLEFT, pg, FRAMEPOINT_TOPLEFT, (slot mod SKIN_COLS) * (SKIN_ICON + GAP), -(slot div SKIN_COLS) * (SKIN_ICON + GAP))
                     ..cornerTooltip(skinName[s], TOOLTIP_WIDTH)
                 skinMark[pid * MAX_SKINS + s] = selectionHighlight(b)

@@ -19,7 +19,7 @@ function unit.dummyCaster(real delay) returns DummyCaster
 
 /** Тень юнита: копия типа под 'Aloc' и затемнением, идёт в атаку и исчезает через life секунд */
 function shadowOf(unit source, player owner, real life)
-    let u = CreateUnit(owner, source.getTypeId(), source.getX(), source.getY(), 0.0)
+    let u = createUnit(owner, source.getTypeId(), source.getPos())
         ..addAbility('Aloc')
         ..setVertexColor(55, 55, 55, 150)
     u.attackLane()
@@ -92,7 +92,7 @@ function samuroRed(int abil, int chanceDie)
     let a = GetAttacker()
     if a.getAbilityLevel(abil) != 1 or GetRandomInt(1, chanceDie) != 1
         return
-    let u = CreateUnit(a.getOwner(), a.getTypeId(), a.getX(), a.getY(), GetUnitFacing(a))
+    let u = createUnit(a.getOwner(), a.getTypeId(), a.getPos(), a.getFacingAngle())
         ..setTimedLife(60.0, 'BHwe')
         ..removeAbility(abil)
         ..addAbility('Aloc')
@@ -172,12 +172,12 @@ function jaina2(unit c, int abil)
         c.damageTarget(t, dmg, true, false, ATTACK_TYPE_NORMAL, DAMAGE_TYPE_FIRE, WEAPON_TYPE_WHOKNOWS)
     if c.getAbilityLevel('A09R') == 1
         if abil == 'A090' and c.getTypeId() == 'h01B'
-            CreateUnit(c.getOwner(), 'h01N', c.getX(), c.getY(), 0.0).attackLane()
+            createUnit(c.getOwner(), 'h01N', c.getPos()).attackLane()
         else if abil == 'A091' and c.getTypeId() == 'h01A'
-            CreateUnit(c.getOwner(), 'h01O', c.getX(), c.getY(), 0.0).attackLane()
+            createUnit(c.getOwner(), 'h01O', c.getPos()).attackLane()
         c.setAbilityLevel('A09R', 3)
     else
-        DecUnitAbilityLevel(c, 'A09R')
+        c.decAbilityLevel('A09R')
 
 // ============================================================
 // Триггер: Jaina — элементаль 'h01O'/'h01N', убитый гигантом/тауреном, напоследок оглушает убийцу
@@ -208,7 +208,7 @@ function cenariusAOE()
         return
     let p = a.getOwner()
     let strong = id == 'h01D'
-    CreateUnit(p, strong ? 'h01P' : 'h01Q', a.getX(), a.getY(), 0.0)
+    createUnit(p, strong ? 'h01P' : 'h01Q', a.getPos())
         ..setTimedLife(60.0, 'BHwe')
         ..attackLane()
     InstantDummyCaster.castImmediate(p, strong ? 'A0AV' : 'A0CL', 1, OrderIds.creepthunderclap, GetTriggerUnit().getPos())
@@ -256,13 +256,13 @@ function senjiiTotem()
     else if kind == 4
         selfAbil = 'S00W'
         targetAbil = 'S00X'
-    CreateUnit(u.getOwner(), 'e01V', u.getX(), u.getY(), 0.0)
+    createUnit(u.getOwner(), 'e01V', u.getPos())
         ..setTimedLife(10.0, 'BHwe')
         ..addAbility(selfAbil)
         ..setAbilityLevel(selfAbil, lvl)
     // тотем у цели: 3-й и 5-й вид бьют топотом и живут 3 с, остальные — аура на 10 с
     let stomps = kind == 3 or kind == 5
-    let totem = CreateUnit(u.getOwner(), 'e01W', t.getX(), t.getY(), 0.0)
+    let totem = createUnit(u.getOwner(), 'e01W', t.getPos())
         ..addAbility(targetAbil)
         ..setAbilityLevel(targetAbil, lvl)
     if stomps
@@ -346,7 +346,7 @@ function elementalLordCast(unit u, int ab)
             if t.isEnemyOf(p) and t.isAlive() and t.isType(UNIT_TYPE_GIANT) and t.getAbilityLevel('Bprg') == 0
                 InstantDummyCaster.castTarget(p, 'A0G3', 1, OrderIds.purge, t, t.getPos())
     else if ab == 'A0G8'
-        CreateUnit(p, 'e00V', pos.x, pos.y, 0.0).setTimedLife(10.0, 'BHwe')
+        createUnit(p, 'e00V', pos).setTimedLife(10.0, 'BHwe')
     else if ab == 'A0GB'
         for i = 0 to 8
             u.dummyCaster(3.0).castPoint('A0G6', 1, OrderIds.impale, pos.polarOffset((45 + i * 45).toReal().asAngleDegrees(), 100.0))

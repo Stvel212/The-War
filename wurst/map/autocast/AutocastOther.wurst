@@ -143,7 +143,7 @@ function deathNormal()
         d.damageTarget(k, min(600.0, k.getHP() * 0.50), true, false, ATTACK_TYPE_NORMAL, DAMAGE_TYPE_FIRE, WEAPON_TYPE_WHOKNOWS)
         addEffect("Objects\\Spawnmodels\\Demon\\DemonLargeDeathExplode\\DemonLargeDeathExplode.mdl", k.getPos()).destr()
     for i = 1 to 2
-        CreateUnit(d.getOwner(), 'n016', d.getX(), d.getY(), 0.0)
+        createUnit(d.getOwner(), 'n016', d.getPos())
             ..setTimedLife(60.0, 'BHwe')
             ..attackLane()
     addEffect("Units\\Undead\\Abomination\\AbominationExplosion.mdl", d.getPos()).destr()
@@ -250,10 +250,10 @@ function castAntiAir()
         return
     let g = a.airTargets()
     if not g.isEmpty()
-        let picked = GetRandomSubGroup(id == 'e00D' ? 2 : 1, g)
+        let picked = g.takeRandom(id == 'e00D' ? 2 : 1)
         picked.forEachFrom() t ->
             a.dummyCaster(5.0).castTarget(id == 'e00D' ? 'A05S' : 'A05R', 1, OrderIds.thunderbolt, t)
-        picked.destr()
+        picked.release()
         a.setMana(0.0)
     g.release()
 
@@ -350,7 +350,7 @@ function frostArmor(int abil)
 function crab()
     let d = GetDyingUnit()
     for i = 1 to 2
-        CreateUnit(d.getOwner(), 'n047', d.getX(), d.getY(), 0.0).attackLane()
+        createUnit(d.getOwner(), 'n047', d.getPos()).attackLane()
 
 // ============================================================
 // Триггер: HealCrab — на месте 'n048' на 10 секунд остаётся аура 'A06R'
@@ -432,8 +432,8 @@ function volkHeal()
 @noinline
 function volkSpeed()
     let d = GetDyingUnit()
-    let holder = CreateUnit(d.getOwner(), 'e00Y', d.getX(), d.getY(), 0.0)
-    holder.addItemHandle(CreateItem('I028', holder.getX(), holder.getY()))
+    let holder = createUnit(d.getOwner(), 'e00Y', d.getPos())
+    holder.addItemHandle(createItem('I028', holder.getPos()))
     holder.setTimedLife(2.0, 'BHwe')
 
 // ============================================================
@@ -477,11 +477,11 @@ function airAs(unit c)
     let strong = c.getTypeId() == 'n04B'
     let lust = strong ? 'A0G1' : 'A0G2'
     let g = unitsInRange(c.getPos(), 400.0, (u) -> u.isAllyOf(p) and u.isAlive() and u.getAbilityLevel('B03T') == 0)
-    let picked = GetRandomSubGroup(strong ? 2 : 4, g)
+    let picked = g.takeRandom(strong ? 2 : 4)
     picked.forEachFrom() u ->
         u.getOwner().instantCast(lust, OrderIds.bloodlust, u, u.getPos())
     p.instantCast(lust, OrderIds.bloodlust, c, c.getPos())
-    picked.destr()
+    picked.release()
     g.release()
 
 // ============================================================

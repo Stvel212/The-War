@@ -10,6 +10,8 @@ import Dummies
 import HashMap
 import GameMode
 import PickIcons
+import Messages
+import TerrainUtils
 
 /** Регион из прямоугольников */
 function regionOf(rect r1, rect r2) returns region
@@ -21,22 +23,9 @@ function regionOf(rect r1, rect r2, rect r3, rect r4, rect r5, rect r6) returns 
 function regionOf(rect r1, rect r2, rect r3, rect r4, rect r5, rect r6, rect r7, rect r8) returns region
     return regionOf(r1, r2, r3, r4, r5, r6)..addRect(r7)..addRect(r8)
 
-/** Сообщение всем */
-function printAll(string msg)
-    if bj_FORCE_ALL_PLAYERS.containsPlayer(localPlayer)
-        DisplayTextToPlayer(localPlayer, 0.0, 0.0, msg)
-
-/** Сообщение всем на duration секунд */
-function printAll(string msg, real duration)
-    if bj_FORCE_ALL_PLAYERS.containsPlayer(localPlayer)
-        localPlayer.print(msg, duration)
-
 /** Запрет постройки типа t игроку */
 function player.forbid(int t)
-    SetPlayerTechMaxAllowed(this, t, 0)
-
-function player.coloredName() returns string
-    return "|c00" + colorCode[this.getId()] + this.getName() + "|r"
+    this.limit(0, t)
 
 /** Боевой юнит: не герой, не рабочий, не здание, не древний, не 'o00P' */
 function unit.isFighter() returns bool
@@ -63,7 +52,7 @@ function shareKingKills()
             for pid = 0 to 7
                 if isInGame(players[pid]) and (isPve() or (pid < 4) == (team == 1))
                     players[pid].addGold(share)
-                    DisplayTextToPlayer(players[pid], 0.0, 0.0, "War God Kills: |cffffff00" + share + " gold!|r")
+                    players[pid].message("War God Kills: |cffffff00" + share + " gold!|r")
 
 @noinline
 function deathGold()
@@ -103,11 +92,11 @@ function passLane(unit u, player a, int food, bool leftPassed)
         firstBlood = true
         for i = (leftPassed ? 0 : 4) to (leftPassed ? 3 : 7)
             players[i].setGold(players[i].getGold() + 28)
-        PingMinimapEx(x.toReal(), y.toReal(), 10.0, 100, 0, 0, false)
-        StartSound(LOL)
+        vec2(x.toReal(), y.toReal()).pingMinimapEx(10.0, 100, 0, 0, false)
+        LOL.play()
         let side = leftPassed ? "left" : "right"
-        printAll("|cff80ff80A player of the " + side + " team named |r" + a.coloredName() + " |cff80ff80has passed through the opponent's portal!|r", 10.0)
-        printAll("|cff80ff80so the " + side + " team receives an extra 28 gold!|r", 10.0)
+        print("|cff80ff80A player of the " + side + " team named |r" + a.coloredName() + " |cff80ff80has passed through the opponent's portal!|r", 10.0)
+        print("|cff80ff80so the " + side + " team receives an extra 28 gold!|r", 10.0)
     // хозяин линии у противника: по высоте прохода
     var lane = 0
     if y > 4800
@@ -119,9 +108,9 @@ function passLane(unit u, player a, int food, bool leftPassed)
     let defender = players[leftPassed ? 4 + lane : lane]
     if rock[defender.getId()]
         defender.setGold(defender.getGold() + food * 2)
-        DisplayTextToPlayer(defender, 0.0, 0.0, "|cffff0000You received:|r |cffffff00+" + (food * 2) + " gold!|r")
+        defender.message("|cffff0000You received:|r |cffffff00+" + (food * 2) + " gold!|r")
     // юнит возвращается к своим воротам; при «камне» (или у короля) — с 10 HP и 'A0GU'
-    SetUnitPosition(u, leftPassed ? -3500.0 : 2950.0, GetRandomReal(-300.0, 850.0))
+    u.setPos(leftPassed ? -3500.0 : 2950.0, GetRandomReal(-300.0, 850.0))
     if rock[a.getId()] or a == players[leftPassed ? 8 : 9]
         u.setHP(10.0)
         u.addAbility('A0GU')
@@ -135,7 +124,7 @@ function passLane(unit u, player a, int food, bool leftPassed)
 /** Награда за проход игроку a: food·2 золота и бонусы исследований 'R001'/'R002' юниту */
 function passReward(unit u, player a, int food)
     a.setGold(a.getGold() + food * 2)
-    DisplayTextToPlayer(a, 0.0, 0.0, "|cffff0000You received:|r |cffffff00+" + (food * 2) + " gold!|r")
+    a.message("|cffff0000You received:|r |cffffff00+" + (food * 2) + " gold!|r")
     let r1 = GetPlayerTechCount(a, 'R001', true)
     if r1 > 0
         u.addAbility('A09T')
@@ -149,7 +138,7 @@ function passReward(unit u, player a, int food)
     на среднюю линию за Богом Войны (между воротами и левым королём, обе команды), оттуда на Злого Бога */
 function passLanePve(unit u, player a, int food)
     let x = PVE_TELEPORT_X
-    SetUnitPosition(u, x + GetRandomReal(-100.0, 100.0), GetRandomReal(-300.0, 850.0))
+    u.setPos(x + GetRandomReal(-100.0, 100.0), GetRandomReal(-300.0, 850.0))
     addEffect("Abilities\\Spells\\Human\\MassTeleport\\MassTeleportCaster.mdl", u.getPos()).destr()
     u.attackLane()
     passReward(u, a, food)
@@ -159,7 +148,7 @@ function passLanePve(unit u, player a, int food)
 function pvePortal()
     let u = GetTriggerUnit()
     if isPve() and u.isLaneFighter()
-        let food = GetFoodUsed(UnitId(GetAbilityEffectById(u.getTypeId(), EFFECT_TYPE_TARGET, 0)))
+        let food = GetFoodUsed(u.baseType())
         passLanePve(u, u.getOwner(), food)
 
 @noinline
@@ -184,7 +173,7 @@ function proxod()
         if u.isFighter()
             u.attackLane()
     else if u.getTypeId() != 'e01Q'
-        let food = GetFoodUsed(UnitId(GetAbilityEffectById(u.getTypeId(), EFFECT_TYPE_TARGET, 0)))
+        let food = GetFoodUsed(u.baseType())
         // PvE: прошедший дальний портал (левые — правый, правые — левый) — к воротам Бога Войны
         if isPve() and id < 8
             if (a.isLeftTeam() and x > 0) or (not a.isLeftTeam() and x < 0)
@@ -261,9 +250,9 @@ function build1(unit u)
     let t = u.getTypeId()
     if not (u.isType(UNIT_TYPE_STRUCTURE) or u.isType(UNIT_TYPE_MECHANICAL)) or t == 'h08N' or t == 'h08X'
         return
-    UnitSetConstructionProgress(u, 99)
-    UnitSetUpgradeProgress(u, 99)
-    SetUnitTimeScale(u, 0.0)
+    u.setConstructionProgress(99)
+    u.setUpgradeProgress(99)
+    u.setTimeScale(0.0)
     doAfter(0.5) ->
         u.tintByValue()
         if t == 'h07X' or t == 'h07Y' or t == 'h07Z'
@@ -368,7 +357,7 @@ function watchTrees()
 function regrowTree()
     let d = GetTriggerDestructable()
     doAfter(3.0) ->
-        DestructableRestoreLife(d, 200.0, true)
+        d.restoreLife(200.0, true)
 
 // ============================================================
 // Триггер: CastAttack — после каста/призыва юнит (кроме особых) снова идёт в атаку
@@ -398,7 +387,7 @@ function build()
     if t == 'h02Q'
         rock[id] = true
         printAll("|cffff00ff" + p.coloredName() + " |cffff00ff has placed a defensive stone and switches to defensive mode!|r")
-        SetPlayerTechMaxAllowed(players[id < 4 ? id + 4 : id - 4], 'h02Q', 0)
+        players[id < 4 ? id + 4 : id - 4].limit(0, 'h02Q')
     power[id] += GetUnitGoldCost(t)
     buildUnits.add(u)
 
@@ -445,7 +434,7 @@ function zapretBaza()
     else if y > -3600
         yb = -2430
     let xb = x < 0 ? -3100 : 2600
-    SetUnitPosition(u, x - (x - xb) * 0.03, y - (y - yb) * 0.03)
+    u.setPos(x - (x - xb) * 0.03, y - (y - yb) * 0.03)
 
 // ============================================================
 // Триггер: ZapretWater — боец, зашедший в полосу между линиями, возвращается на середину своей базы
@@ -468,7 +457,7 @@ function zapretWater()
     // В оригинале здесь был RemoveRect(r) — он уничтожал глобальный регион базы (rct_BazaN), и следующий юнит,
     // вошедший в полосу Stop, получал centerY = 0 и телепортировался в центр карты. В классике это «работало»
     // (память удалённого rect'а ещё хранила координаты), в Reforged — нет.
-    SetUnitPosition(u, u.getX(), baseRect(base).getCenterY())
+    u.setPos(u.getX(), baseRect(base).getCenterY())
 
 /** Прямоугольник базы 1..8 (rct_Baza1..8) */
 function baseRect(int n) returns rect
@@ -495,7 +484,7 @@ function baseRect(int n) returns rect
 @noinline
 function zapretSummons()
     if GetTriggerUnit().getAbilityLevel('A0F6') == 1
-        SetUnitPosition(GetTriggerUnit(), 0.0, 0.0)
+        GetTriggerUnit().setPos(0.0, 0.0)
 
 // ============================================================
 // Триггер: Naim — наёмник куплен: инком по типу, юнит ставится на линию (по заряду артефакта продавца) и в группу naimGroup
@@ -530,9 +519,9 @@ function mercenaryIncome(unit u, int currentIncome) returns int
 
 /** Страж Короля: ко вратам своей команды и в атаку */
 function kingGuard(unit u)
-    printAll(u.getOwner().coloredName() + "|cffc0c0c0 called for help from the |r|cffff8080King's Guard|r", 10.0)
+    print(u.getOwner().coloredName() + "|cffc0c0c0 called for help from the |r|cffff8080King's Guard|r", 10.0)
     // PvE: все — у ворот Бога Войны (у правых ворот стоит Злой Бог)
-    SetUnitPosition(u, u.getOwner().isLeftTeam() or isPve() ? LEFT_GATE_X : RIGHT_GATE_X, GetRandomReal(-300.0, 850.0))
+    u.setPos(u.getOwner().isLeftTeam() or isPve() ? LEFT_GATE_X : RIGHT_GATE_X, GetRandomReal(-300.0, 850.0))
     u.attackLane()
 
 @noinline
@@ -558,7 +547,7 @@ function naim()
     else if art == 4
         y = GetRandomInt(4800, 5100)
     income[id] += mercenaryIncome(u, income[id])
-    SetUnitPosition(u, u.getX() + GetRandomInt(-50, 50), y.toReal())
+    u.setPos(u.getX() + GetRandomInt(-50, 50), y.toReal())
     naimGroup.add(u)
 
 // ============================================================
@@ -651,10 +640,10 @@ function kamenMana(unit u)
         return
     if power[u.getOwner().getId()] >= need
         u.incAbilityLevel('A02S')
-        addManaToUnits(u, lvl == 1 ? 1.0 : 2.0)
+        u.addMana(lvl == 1 ? 1.0 : 2.0)
         e.destr()
     else
-        DisplayTextToPlayer(u.getOwner(), 0.0, 0.0, "|c00FF0000Not enough power!|r")
+        u.getOwner().message("|c00FF0000Not enough power!|r")
 
 // ============================================================
 // Триггер: KamenSpell — улучшения камня: каждая способность-кнопка поднимает свою пассивку до 3-го уровня
@@ -664,7 +653,7 @@ function kamenMana(unit u)
 function unit.upgradeStone(int abil) returns int
     if this.getAbilityLevel(abil) >= 3
         this.getOwner().print("|c00FF8080[This stone upgrade is already at maximum level!]|r", 30.0)
-        addManaToUnits(this, 1.0)
+        this.addMana(1.0)
         return 0
     if this.getAbilityLevel(abil) == 0
         this.addAbility(abil)
@@ -706,14 +695,14 @@ function kamenSpell(unit u, int ab)
 
 @noinline
 function kamenStavit(unit u)
-    if u.getTypeId() != 'h02Q' or GetTerrainType(u.getX(), u.getY()) == 'Ywmb'
+    if u.getTypeId() != 'h02Q' or u.getPos().getTerrainType() == 'Ywmb'
         return
     let p = u.getOwner()
     u.remove()
     rock[p.getId()] = false
-    SetPlayerTechMaxAllowed(p, 'h02Q', 1)
+    p.limit(1, 'h02Q')
     builders[p.getId()].issueImmediateOrder("stop")
-    DisplayTextToPlayer(p, 0.0, 0.0, "Can only be placed on white marble!!!")
+    p.message("Can only be placed on white marble!!!")
 
 @noinline
 function onUnitEnter()

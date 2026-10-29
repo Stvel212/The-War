@@ -71,7 +71,7 @@ function deathRemove()
 
 /** Поднятый скелет: живёт 25 + 3·nearby секунд, +30·nearby HP; при синергии DE5 с шансом 30% усилен */
 function raiseSkeleton(player owner, int skeletonId, vec2 pos, int nearby)
-    let u = CreateUnit(owner, skeletonId, pos.x, pos.y, 0.0)
+    let u = createUnit(owner, skeletonId, pos)
     u.setTimedLife((25 + 3 * nearby).toReal(), 'BHwe')
     if nearby > 0
         wDammiHP(u, 30 * nearby)
@@ -130,7 +130,7 @@ function deathSpider()
     let p = d.getOwner()
     let enemies = countUnitsInRange(d.getPos(), 700.0, (u) -> u.isEnemyOf(p) and u.isAlive())
     for i = 1 to 2
-        CreateUnit(p, 'u00N', d.getX(), d.getY(), 0.0)
+        createUnit(p, 'u00N', d.getPos())
             ..setTimedLife(2 + enemies.toReal() * 2, 'BHwe')
             ..attackLane()
 

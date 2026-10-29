@@ -9,6 +9,9 @@ import StandardTextTags
 import ArrayList
 import HashMap
 import PveWaveTables
+import Quest
+import Messages
+import TerrainUtils
 
 // ============================================================
 // Общие помощники (используются всеми пакетами карты)
@@ -39,12 +42,20 @@ public function unit.attackLane(real y)
 public function unit.attackLane()
     this.attackLane(this.getY())
 
+/** Имя игрока в его цвете */
+public function player.coloredName() returns string
+    return "|c00" + colorCode[this.getId()] + this.getName() + "|r"
+
 /** Лимит построек типа t */
 public function player.limit(int n, int t)
     SetPlayerTechMaxAllowed(this, t, n)
 
-public function addManaToUnits(unit u, real amount)
-    u.setMana(u.getMana() + amount)
+/** Базовый тип юнита (или юнит барака): записан в поле объекта «Art - Target» как "custom_<id>"; 0, если нет */
+public function int.baseType() returns int
+    return UnitId(getAbilityEffect(this, EFFECT_TYPE_TARGET, 0))
+
+public function unit.baseType() returns int
+    return this.getTypeId().baseType()
 
 /** Всплывающий текст над юнитом c: size — размер, time — время жизни; z: 128 — уходит вправо-вверх, 127 — влево-вверх, иначе высота */
 public function text(unit c, string s, real size, real time, real z)
@@ -60,7 +71,7 @@ public function text(unit c, string s, real size, real time, real z)
     SetTextTagPosUnit(tt, c, height)
     tt..setText(s, size)   // размер в пунктах: stdlib сам умножает на 0.0023
         ..setColor(100, 100, 100, 255)
-        ..setVelocity(0.0666 * Cos((90.00 + tilt) * 0.01745), 0.0666 * Sin((90.00 + tilt) * 0.01745))
+        ..setVelocity(ZERO2.polarOffset((90. + tilt).fromDeg(), 0.0666))
         ..setPermanent(false)
         ..setLifespan(time)
         ..setFadepoint(time * 0.66)
@@ -79,7 +90,7 @@ constant jfBounties = new HashMap<int, int>()
 /** Цена юнита в «еде» ×2 (по базовому типу из EFFECT_TYPE_TARGET), а если нет — из таблицы getUnitFood по типу t;
     скопированные юниты Just Fight — по их таблице (jfBounty) */
 public function unitGold(unit u, int t) returns int
-    let food = 2 * GetFoodUsed(UnitId(GetAbilityEffectById(u.getTypeId(), EFFECT_TYPE_TARGET, 0)))
+    let food = 2 * GetFoodUsed(u.baseType())
     if food == 0 and jfBounties.has(t)
         return jfBounties.get(t)
     return food == 0 ? getUnitFood(t) : food
@@ -171,13 +182,13 @@ function pickTier(player p, int tier, int limit)
     if r == last
         r = r == size ? size - 1 : r + 1
     repickLast[tier + 10 * p.getId()] = r
-    SetPlayerTechMaxAllowed(p, tierType(tier, r), limit)
+    p.limit(limit, tierType(tier, r))
 
 /** Замена набора зданий игрока: всё запретить, потом по одному случайному из каждого тира (герои 8-9 — если героя ещё нет) */
 public function random(player p)
-    DisplayTextToPlayer(p, 0.0, 0.0, "|c0000FF80Replacement complete!|r")
+    p.message("|c0000FF80Replacement complete!|r")
     for i = 1 to 95
-        SetPlayerTechMaxAllowed(p, allTiers[i], 0)
+        p.limit(0, allTiers[i])
     for tier = 1 to 7
         pickTier(p, tier, 999)
     if not hasHero[p.getId()]
@@ -189,9 +200,18 @@ public function random(player p)
 // Триггер: Zadania — задания (список в F9)
 // ============================================================
 
+/** Обязательное открытое задание в списке F9 */
+function addQuest(string title, string description, string icon)
+    CreateQuest()
+        ..setTitle(title)
+        ..setDescription(description)
+        ..setIcon(icon)
+        ..setRequired(true)
+        ..discovered(true)
+
 public function zadania()
-    CreateQuestBJ(bj_QUESTTYPE_REQ_DISCOVERED, "Рассеивающиеся баффы", "|c00FF0000Cyщecтвa, y кoтopыx cyщecтвyeт cпocoбнocть, cвязaннaя c бaффoм или дeбaффoм, кoтopый мoжнo pacceять:|r\n|c006969FFЖpeц, Xpaмoвник (дyxoвнoe плaмя)\nCлyжитeль пpeдкoв, Пингвин (дyxoвнoe плaмя)\nШaмaн, Opaкyл (cкopocть aтaки)\nБeзyмный Aлxимик, Cмoлянoй Cтpaж, Углepoдиcтый Упыpь, Бeopн Шaмaн (киcлoтнaя бoмбa)\nБaнши, Пpизpaк (yвeчьe)\nГapпия, Гapпия Beдьмa (пpoклятьe)\nCyккyбa, Гocпoжa Бoли, Дeмoнecca (кpит/ypoн)\nДpaкoнчик пycтoты (cкopocть aтaки)\nБeзликий Ужac, Дpyид Meдвeдь (кpик)\nBoжaк Гнoллoв (бoeвoй кpик)\nBoлчий Гoнeц (cкopocть пepeмeщeния)\nKopoль Бaгypгл (пapaзит)\nCлyжaнкa, Haгa Гopгoнa, Лeдянoй Tpoлль (лeдянoй щит)\nKoшмapнaя Oшибкa, Beкcaлиyc (бoeвoй кpик, oчищeниe)\nПapoвoй Cтpaж, Bиxpeткaч (cкopocть aтaки)\nKeл-Tyзeд (лeдянoй щит)\nЗaгpoбник, Пылaющий Maгмoeд (блoкиpoвкa ypoнa)|r\n\n|c007EBFF1Пpeдмeты:\nKaвaлepия\nTpeниpoвкa (зaщитa)\nBинныe пapы|r", "icons\\PASBTNLibertyYellow.blp")
-    CreateQuestBJ(bj_QUESTTYPE_REQ_DISCOVERED, "Aвтopы", "Aвтopы кapты: |c00FFFF00Stvel|r, |c0000FF00regint|r, |c00FFA500LordofKodoes|r\nCпoнcopы кapты: |c0000FFFFThe War|r, |c00FFA07AHELL|r, |c004682B4IIoBaPeHoK |r, |c0000FF00Pentium4|r, |c0000FF00Delovet|r, |c00800080BuriTos|r, |c00FF0000Djanbo1djan-_-|r, |c0000FFFF-sandro-|r\nOтдeльнaя блaгoдapнocть: |c00FF00FFaleks_sanya|r, |c00FF0000AgaraSatan|r, |c00800080Dobriy_Undead|r, |c00FFA500XxRiKxX123|r\n|c00FFA500Диcкopд cepвep|r: https://discord.gg/YQPMtKj8hk", "icons\\PASHeroShadoPan.blp")
+    addQuest("Рассеивающиеся баффы", "|c00FF0000Cyщecтвa, y кoтopыx cyщecтвyeт cпocoбнocть, cвязaннaя c бaффoм или дeбaффoм, кoтopый мoжнo pacceять:|r\n|c006969FFЖpeц, Xpaмoвник (дyxoвнoe плaмя)\nCлyжитeль пpeдкoв, Пингвин (дyxoвнoe плaмя)\nШaмaн, Opaкyл (cкopocть aтaки)\nБeзyмный Aлxимик, Cмoлянoй Cтpaж, Углepoдиcтый Упыpь, Бeopн Шaмaн (киcлoтнaя бoмбa)\nБaнши, Пpизpaк (yвeчьe)\nГapпия, Гapпия Beдьмa (пpoклятьe)\nCyккyбa, Гocпoжa Бoли, Дeмoнecca (кpит/ypoн)\nДpaкoнчик пycтoты (cкopocть aтaки)\nБeзликий Ужac, Дpyид Meдвeдь (кpик)\nBoжaк Гнoллoв (бoeвoй кpик)\nBoлчий Гoнeц (cкopocть пepeмeщeния)\nKopoль Бaгypгл (пapaзит)\nCлyжaнкa, Haгa Гopгoнa, Лeдянoй Tpoлль (лeдянoй щит)\nKoшмapнaя Oшибкa, Beкcaлиyc (бoeвoй кpик, oчищeниe)\nПapoвoй Cтpaж, Bиxpeткaч (cкopocть aтaки)\nKeл-Tyзeд (лeдянoй щит)\nЗaгpoбник, Пылaющий Maгмoeд (блoкиpoвкa ypoнa)|r\n\n|c007EBFF1Пpeдмeты:\nKaвaлepия\nTpeниpoвкa (зaщитa)\nBинныe пapы|r", "icons\\PASBTNLibertyYellow.blp")
+    addQuest("Aвтopы", "Aвтopы кapты: |c00FFFF00Stvel|r, |c0000FF00regint|r, |c00FFA500LordofKodoes|r\nCпoнcopы кapты: |c0000FFFFThe War|r, |c00FFA07AHELL|r, |c004682B4IIoBaPeHoK |r, |c0000FF00Pentium4|r, |c0000FF00Delovet|r, |c00800080BuriTos|r, |c00FF0000Djanbo1djan-_-|r, |c0000FFFF-sandro-|r\nOтдeльнaя блaгoдapнocть: |c00FF00FFaleks_sanya|r, |c00FF0000AgaraSatan|r, |c00800080Dobriy_Undead|r, |c00FFA500XxRiKxX123|r\n|c00FFA500Диcкopд cepвep|r: https://discord.gg/YQPMtKj8hk", "icons\\PASHeroShadoPan.blp")
 
 // ============================================================
 // Триггер: Int — глобалы, звуки, короли, строители, магазины, таблицы тиров
@@ -386,7 +406,6 @@ function fillTiers()
     allTiers[95] = 'h0AG'
 
 public function initGame()
-    hash = InitHashtable()
     for i = 1 to 5
         forceG[i] = CreateForce()
     LOL = CreateSound("sounds\\LOLfb.mp3", false, false, false, 10, 10, "")
@@ -395,7 +414,7 @@ public function initGame()
         ..setVolume(127)
         ..setPitch(1.0)
     knightNoGold = CreateSound("Sound\\Interface\\Warning\\Human\\KnightNoGold1.wav", false, false, false, 10, 10, "")
-    SetSoundParamsFromLabel(knightNoGold, "NoGoldHuman")
+    knightNoGold.setSoundParamsFromLabel("NoGoldHuman")
     knightNoGold.setDuration(1486)
     colorCode[0] = "FF0000"
     colorCode[1] = "0000FF"
@@ -407,8 +426,8 @@ public function initGame()
     colorCode[7] = "FF00FF"
     for a = 0 to 7
         limitArt[a] = 2
-    kings[1] = CreateUnit(players[8], 'H003', -3070.0, 250.0, 0.0)
-    kings[2] = CreateUnit(players[9], 'H003', 2550.0, 250.0, 180.0)
+    kings[1] = createUnit(players[8], 'H003', vec2(-3070.0, 250.0))
+    kings[2] = createUnit(players[9], 'H003', vec2(2550.0, 250.0), 180.0 .fromDeg())
     for a = 1 to 2
         kings[a]..issuePointOrder("root", kings[a].getPos())
             ..removeAbility('A0BQ')
@@ -419,14 +438,14 @@ public function initGame()
         let y = lane == 0 ? -4990.0 : (lane == 1 ? -2400.0 : (lane == 2 ? 3050.0 : 5620.0))
         let x = left ? -3070.0 : 2550.0
         let facing = left ? 180.0 : 270.0
-        arthas[a] = CreateUnit(players[a], 'h02T', x, y, facing)
-        builders[a] = CreateUnit(players[a], 'H01Y', x, y, facing)
-        baza[a] = CreateUnit(players[a], 'h000', left ? -3672.0 : 3138.0, y, 270.0)
+        arthas[a] = createUnit(players[a], 'h02T', vec2(x, y), facing.fromDeg())
+        builders[a] = createUnit(players[a], 'H01Y', vec2(x, y), facing.fromDeg())
+        baza[a] = createUnit(players[a], 'h000', vec2(left ? -3672.0 : 3138.0, y), 270.0 .fromDeg())
         forceG[left ? 1 : 2].addPlayer(players[a])
-        SetCameraFieldForPlayer(players[a], CAMERA_FIELD_TARGET_DISTANCE, 2400.0, 0.0)
+        players[a].setCameraField(CAMERA_FIELD_TARGET_DISTANCE, 2400.0, 0.0)
         // обзор своей половины сразу, а не с первым раундом: иначе пока хост выбирает режим, карта под туманом
         let vision = left ? rct_Vision1 : rct_Vision2
-        CreateFogModifierRect(players[a], FOG_OF_WAR_VISIBLE, vision, true, false).start()
+        createFogModifier(players[a], FOG_OF_WAR_VISIBLE, vision, true, false).start()
         SetFogStateRect(players[a], FOG_OF_WAR_VISIBLE, vision, true)
     // первый раунд запускает выбор режима (ModeSelect), когда хост выберет режим
     fillTiers()
@@ -438,15 +457,15 @@ public function initGame()
 /** Заменить строителя/базу/Артаса игрока a на особые типы и выдать рабочего wispId; вернуть рабочего */
 function applySkin(int a, int wispId, int builderId, int bazaId, int arthasId) returns unit
     let p = players[a]
-    let wisp = CreateUnit(p, wispId, builders[a].getX(), builders[a].getY(), 0.0)
+    let wisp = createUnit(p, wispId, builders[a].getPos())
     wisp.setPathing(true)
-    let builder = CreateUnit(p, builderId, builders[a].getX(), builders[a].getY(), 0.0)
+    let builder = createUnit(p, builderId, builders[a].getPos())
     builders[a].remove()
     builders[a] = builder
     let bazaPos = baza[a].getPos()
     baza[a].remove()
-    baza[a] = CreateUnit(p, bazaId, bazaPos.x, bazaPos.y, 270.0)
-    let u = CreateUnit(p, arthasId, arthas[a].getX(), arthas[a].getY(), 0.0)
+    baza[a] = createUnit(p, bazaId, bazaPos, 270.0 .fromDeg())
+    let u = createUnit(p, arthasId, arthas[a].getPos())
     arthas[a].remove()
     arthas[a] = u
     return wisp
@@ -466,8 +485,8 @@ function decorateBase(int a, int treeId, int terrainId)
         for c = 0 to 9
             let x = base.x + (80 + c * 133) * d
             let y = base.y - 400 + b * 133
-            if GetTerrainType(x, y) == 'Yhdg'
-                SetTerrainType(x, y, terrainId, -1, 1, 1)
+            if vec2(x, y).getTerrainType() == 'Yhdg'
+                vec2(x, y).setTerrainType(terrainId, -1, 1, 1)
 
 /** Особый скин игрока a + украшение базы (treeId == 0 — без украшения); вернуть рабочего */
 function skin(int a, int wispId, int builderId, int bazaId, int arthasId, int treeId, int terrainId) returns unit
@@ -504,7 +523,7 @@ function createWorker(int a) returns unit
         return skin(a, 'e01E', 'H0AO', 'h0AN', 'h0AM', 'WTst', 'Idki')
     else if name == "raknakrabe" or name == "Fear"
         return skin(a, 'e01Z', 'H09T', 'h09U', 'h09Q', 'FTtw', 'Fgrd')
-    let w = CreateUnit(players[a], 'e003', builders[a].getX(), builders[a].getY(), 0.0)
+    let w = createUnit(players[a], 'e003', builders[a].getPos())
     w.setPathing(true)
     return w
 
@@ -749,7 +768,7 @@ public function spawnFrom(unit u)
         p.setGold(p.getGold() - 8)
         text(u, "|cffFFFF00-8|r", 8.0, 3.50, 50.0)
     for i = 1 to count
-        let s = CreateUnit(p, UnitId(GetAbilityEffectById(t, EFFECT_TYPE_TARGET, 0)), u.getX(), u.getY(), 90.0)
+        let s = createUnit(p, t.baseType(), u.getPos(), 90.0 .fromDeg())
         s.setPathing(true)
         let sid = s.getTypeId()
         if sid == 'h03R'
@@ -775,7 +794,7 @@ function naimAttack(unit u)
     if isPvevp()
         u.becomeSend()
         return
-    SetUnitPosition(u, u.getX() + (u.getX() < 0 ? 900 : -900), u.getY() + 700)
+    u.setPos(u.getX() + (u.getX() < 0 ? 900 : -900), u.getY() + 700)
     u.attackLane()
     if u.getTypeId() == 'n03T'
         forUnitsInRange(u.getPos(), 1100.0) s ->
@@ -789,7 +808,7 @@ function kingGuards(int a)
     let dmg = (king.getAgi(false) - 60) div 10 + (king.getStr(false) - 60) div 20
     let hp = ((king.getInt(false) - 60) * 3.5 + (king.getStr(false) - 60) * 1.5).toInt()
     for i = 0 to 9
-        let u = CreateUnit(players[a == 1 ? 8 : 9], 'h01L', a == 1 ? -3400.0 : 2800.0, (-250 + 100 * i).toReal(), a == 1 ? 180.0 : 270.0)
+        let u = createUnit(players[a == 1 ? 8 : 9], 'h01L', vec2(a == 1 ? -3400.0 : 2800.0, (-250 + 100 * i).toReal()), (a == 1 ? 180.0 : 270.0).fromDeg())
         wDammiAtt(u, dmg)
         wDammiHP(u, hp)
         u.attackLane()
@@ -818,13 +837,13 @@ function firstRound()
             ..limit(1, 'h05X')..limit(1, 'h06L')..limit(1, 'h08E')..limit(1, 'h09Z')
         random(p)
         for i = 1 to 6
-            builders[a].addItemHandle(CreateItem('I000', builders[a].getX(), builders[a].getY()))
+            builders[a].addItemHandle(createItem('I000', builders[a].getPos()))
         for i = 1 to 4
-            arthas[a].addItemHandle(CreateItem('I000', arthas[a].getX(), arthas[a].getY()))
+            arthas[a].addItemHandle(createItem('I000', arthas[a].getPos()))
 
 @noinline
 function wave()
-    DestroyTimerDialog(timerD)
+    timerD.destr()
     round++
     if round >= 105
         zamedlo = 12
@@ -841,7 +860,7 @@ function wave()
     if not manualRounds
         // PvP: раунд удлиняется с 30-го; PvE — всегда ROUND_TIME
         roundTimer.start(gameMode == GameModeKind.PVP ? (ROUND_TIME + zamedlo).toReal() : ROUND_TIME.toReal(), null)
-        timerD = CreateTimerDialog(roundTimer)
+        timerD = roundTimer.createTimerDialog()
             ..setTitle("Round " + round)
             ..display(true)
     if round == 1
@@ -858,7 +877,7 @@ function wave()
         let reward = isPvevp() ? 0 : 100 + incomeR[a]
         players[a].setGold(players[a].getGold() + income[a] + reward)
         wDammiAtt(arthas[a], 1)
-        DisplayTextToPlayer(players[a], 0.0, 0.0, "|cffFFD700Round " + round + "|r\nRound reward: |cffffff00" + reward + " gold!|r \nYour income: |cffffff00" + income[a] + " gold!|r")
+        players[a].message("|cffFFD700Round " + round + "|r\nRound reward: |cffffff00" + reward + " gold!|r \nYour income: |cffffff00" + income[a] + " gold!|r")
     buildUnits.forEachIn() u ->
         spawnFrom(u)
     // наёмники — через 1 с (PvEvP: через 2.5 с после начала волны, как в Just Fight)
@@ -877,7 +896,7 @@ function win()
     // в PvE оба короля — свои: поражение всем объявляет Pve
     if (d != kings[1] and d != kings[2]) or isPve()
         return
-    SetCameraPosition(d.getX(), d.getY())
+    setCameraPosition(d.getPos())
     let losers = d == kings[1] ? 0 : 4
     let winners = d == kings[1] ? 4 : 0
     doAfter(3.0) ->

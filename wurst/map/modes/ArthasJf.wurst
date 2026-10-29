@@ -12,6 +12,7 @@ import ClosureTimers
 import StandardTextTags
 import OnUnitEnterLeave
 import Dummies
+import Messages
 
 /*
     Артас = «Mini War God Assistant» Just Fight 5.6 (h0B1). Перенесено:
@@ -126,7 +127,7 @@ function blessingText(int level) returns string
 
 function prayText(int talent) returns string
     var s = "|cffffff00Gives Arthas a random talent out of " + TALENTS + " (2 rare, 1 epic) in place of the current one; it is saved in your profile.|r"
-    s += "|n|n|cff00ffffCurrent talent: |r" + (talent > 0 ? GetAbilityName(talentAbils[talent]) : "none")
+    s += "|n|n|cff00ffffCurrent talent: |r" + (talent > 0 ? GetObjectName(talentAbils[talent]) : "none")
     s += "|n|cffffcc00Cost: " + (talent > 0 ? PRAY_COST : PRAY_FIRST_COST) + " energy|r"
     if talent == TALENT_EPIC
         s += "|n|cffff9900The epic talent is locked: type -unlock to be able to replace it.|r"
@@ -135,8 +136,8 @@ function prayText(int talent) returns string
 /** Подсказки кнопок у самого игрока (у каждого свои уровень и талант) */
 function updateTooltip(player p)
     if localPlayer == p
-        BlzSetAbilityExtendedTooltip(BLESSING, blessingText(p.profile().blessing), 0)
-        BlzSetAbilityExtendedTooltip(PRAY, prayText(p.profile().talent), 0)
+        setAbilityExtendedTooltip(BLESSING, blessingText(p.profile().blessing), 0)
+        setAbilityExtendedTooltip(PRAY, prayText(p.profile().talent), 0)
 
 /** Талант игрока, если он есть (профиль хранит 0..21) */
 function player.talent() returns int
@@ -168,7 +169,7 @@ function talentIncome()
 
 function onUnlock()
     epicUnlocked[GetTriggerPlayer().getId()] = true
-    DisplayTextToPlayer(GetTriggerPlayer(), 0., 0., "|cff00ff00The epic talent can now be replaced by a prayer.|r")
+    GetTriggerPlayer().message("|cff00ff00The epic talent can now be replaced by a prayer.|r")
 
 /** «Молитва»: случайный талант вместо прежнего (первая — дороже), эпический закреплён до «-unlock» */
 function onPray(unit caster)
@@ -178,11 +179,11 @@ function onPray(unit caster)
         return
     let old = p.talent()
     if old == TALENT_EPIC and not epicUnlocked[pid]
-        DisplayTextToPlayer(p, 0., 0., "|cff00ff00The epic talent is locked. Type |cffffcc00-unlock|r|cff00ff00 to be able to replace it.|r")
+        p.message("|cff00ff00The epic talent is locked. Type |cffffcc00-unlock|r|cff00ff00 to be able to replace it.|r")
         return
     let cost = old > 0 ? PRAY_COST : PRAY_FIRST_COST
     if not p.spendEnergy(cost)
-        DisplayTextToPlayer(p, 0., 0., "|cffff8080Not enough energy:|r the prayer costs |cff00ffff" + cost + " energy|r.")
+        p.message("|cffff8080Not enough energy:|r the prayer costs |cff00ffff" + cost + " energy|r.")
         return
     let t = GetRandomInt(1, TALENTS)
     if old > 0
@@ -192,7 +193,7 @@ function onPray(unit caster)
     p.saveProfile()
     updateTooltip(p)
     addEffect("Abilities\\Spells\\Human\\ReviveHuman\\ReviveHuman.mdl", caster.getPos()).destr()
-    DisplayTextToPlayer(p, 0., 0., "Prayer answered, current talent: " + GetAbilityName(talentAbils[t]))
+    p.message("Prayer answered, current talent: " + GetObjectName(talentAbils[t]))
 
 /** Скорость атаки Артаса: исходная перезарядка / (1 + форма + Благословение) */
 function applySpeed(int pid)
@@ -213,8 +214,8 @@ function applyForm(int pid)
     let u = arthas[pid]
     switch form[pid]
         case FORM_STORM
-            BlzSetUnitWeaponRealField(u, UNIT_WEAPON_RF_ATTACK_RANGE, 0, 300.)
-            u.setAcquireRange(max(GetUnitAcquireRange(u), 300.))
+            u.setFieldWeapon(UNIT_WEAPON_RF_ATTACK_RANGE, 0, 300.)
+            u.setAcquireRange(max(u.getUnitAcquireRange(), 300.))
         case FORM_EARTH
             u.setMoveSpeed(u.getMoveSpeed() + 60.)
         case FORM_FIRE
@@ -254,11 +255,11 @@ function onBlessing(unit caster)
         return
     let level = p.profile().blessing
     if level >= BLESSING_MAX
-        DisplayTextToPlayer(p, 0., 0., "|cff00ff00God's Blessing is already at the maximum level.|r")
+        p.message("|cff00ff00God's Blessing is already at the maximum level.|r")
         return
     let cost = blessingCost(level)
     if not p.spendEnergy(cost)
-        DisplayTextToPlayer(p, 0., 0., "|cffff8080Not enough energy:|r God's Blessing costs |cff00ffff" + cost + " energy|r.")
+        p.message("|cffff8080Not enough energy:|r God's Blessing costs |cff00ffff" + cost + " energy|r.")
         return
     p.profile().blessing = level + 1
     p.saveProfile()
@@ -266,16 +267,16 @@ function onBlessing(unit caster)
         applyBlessing(pid)
     updateTooltip(p)
     addEffect("Abilities\\Spells\\Human\\Resurrect\\ResurrectTarget.mdl", caster, "origin").destr()
-    DisplayTextToPlayer(p, 0., 0., "|cff00ffffGod's Blessing|r is now level |cffffcc00" + (level + 1) + "|r!")
+    p.message("|cff00ffffGod's Blessing|r is now level |cffffcc00" + (level + 1) + "|r!")
 
 /** Помощь: свой барак (не героя) сразу выпускает бойцов */
 function onAssist(unit caster)
     let p = caster.getOwner()
     let target = GetSpellTargetUnit()
     if target == null or target.getOwner() != p or not buildUnits.has(target) or isHeroBuilding(target.getTypeId())
-        DisplayTextToPlayer(p, 0., 0., "|cffff8080Choose one of your own barracks (not a hero building).|r")
+        p.message("|cffff8080Choose one of your own barracks (not a hero building).|r")
         doAfter(0.) ->
-            BlzEndUnitAbilityCooldown(caster, ASSIST)
+            caster.endAbilityCooldown(ASSIST)
         return
     addEffect("Abilities\\Spells\\Human\\ManaFlare\\ManaFlareBoltImpact.mdl", target.getPos()).destr()
     spawnFrom(target)

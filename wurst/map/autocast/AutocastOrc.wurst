@@ -10,6 +10,7 @@ import InstantDummyCaster
 import Orders
 import UnitSearch
 import GroupUtils
+import Messages
 
 // ============================================================
 // Триггер: Res — 'o005' (не призванный) после смерти встаёт полупрозрачным на 7 секунд
@@ -20,7 +21,7 @@ function res()
     let d = GetDyingUnit()
     if d.isType(UNIT_TYPE_SUMMONED)
         return
-    CreateUnit(d.getOwner(), 'o005', d.getX(), d.getY(), 0.0)
+    createUnit(d.getOwner(), 'o005', d.getPos())
         ..setVertexColor(255, 255, 255, 155)
         ..setTimedLife(7.0, 'BHwe')
         ..attackLane()
@@ -80,7 +81,7 @@ function totemDamage()
     let a = GetAttacker()
     if a.getMana() != 60
         return
-    CreateUnit(a.getOwner(), 'o00J', GetTriggerUnit().getX(), GetTriggerUnit().getY(), 0.0)
+    createUnit(a.getOwner(), 'o00J', GetTriggerUnit().getPos())
         ..setTimedLife(10.0, 'BHwe')
         ..addAbility('A02C')
     a.setMana(0.0)
@@ -137,7 +138,7 @@ function goldUkral()
     p.setGold(p.getGold() + gold)
     victim.setGold(victim.getGold() - gold)
     rob[p.getId()] += gold
-    DisplayTextToPlayer(p, 0.0, 0.0, "|cff80ff00Marauder: |r|cffffff00Boss, I swiped " + gold + " gold from the enemy!|r")
+    p.message("|cff80ff00Marauder: |r|cffffff00Boss, I swiped " + gold + " gold from the enemy!|r")
 
 // ============================================================
 // Триггер: RedOrk — 'o004': уровень 'A03G' = потерянные HP в десятках процентов + 1; ниже 38% — берсерк
@@ -293,7 +294,7 @@ function attack2()
     let p = a.getOwner()
     let c = GetTriggerUnit()
     let t = firstUnitInRange(c.getPos(), 500.0, (u) -> u.isEnemyOf(p) and u.isAlive() and u.isType(UNIT_TYPE_GIANT) and u != c)
-    CreateUnit(p, id == 'n00H' ? 'n00A' : 'n010', c.getX(), c.getY(), 0.0)
+    createUnit(p, id == 'n00H' ? 'n00A' : 'n010', c.getPos())
         ..setTimedLife(1.0, 'BHwe')
         ..issueTargetOrder("attackonce", t)
 

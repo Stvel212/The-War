@@ -7,6 +7,7 @@ import UnitEvents
 import LinkedList
 import GameTimer
 import GameMode
+import Messages
 
 /*
     Профиль игрока между играми (по образцу Direct Strike: Progression/Profiles): опыт и уровень, монеты,
@@ -136,7 +137,7 @@ public function player.addXp(int amount)
         return
     profiles[pid].xp += amount
     if updateLevel(pid)
-        DisplayTextToPlayer(this, 0., 0., "|cff00ff00Level up!|r Profile level |cffffcc00" + levelOf[pid] + "|r")
+        this.message("|cff00ff00Level up!|r Profile level |cffffcc00" + levelOf[pid] + "|r")
     this.profileChanged()
 
 public function player.addCoins(int amount)
@@ -219,11 +220,11 @@ public function profileRewards() returns bool
 /** Награда в конце игры (в одиночной — нет) */
 function player.endReward(int coins, int energy)
     if not profileRewards()
-        DisplayTextToPlayer(this, 0., 0., "|cffc0c0c0Single player: no coins, energy or XP for the profile|r")
+        this.message("|cffc0c0c0Single player: no coins, energy or XP for the profile|r")
         return
     this.addCoins(coins)
     this.addEnergy(energy)
-    DisplayTextToPlayer(this, 0., 0., "|cffffcc00+" + coins + " coins|r, |cff00ffff+" + energy + " energy|r (profile)")
+    this.message("|cffffcc00+" + coins + " coins|r, |cff00ffff+" + energy + " energy|r (profile)")
 
 function autosave()
     if round > 0 and round mod AUTOSAVE_ROUNDS == 0

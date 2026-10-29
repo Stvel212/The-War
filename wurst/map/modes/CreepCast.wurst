@@ -57,12 +57,12 @@ function onAttack()
         return
     let target = GetTriggerUnit()
     var k = 0
-    var abil = BlzGetUnitAbilityByIndex(u, k)
+    var abil = u.getAbilityByIndex(k)
     while abil != null
         let id = BlzGetAbilityId(abil)
         if castIndex.has(id)
             let level = u.getAbilityLevel(id)
-            if BlzGetUnitAbilityCooldownRemaining(u, id) <= 0. and u.getMana() >= BlzGetUnitAbilityManaCost(u, id, level - 1)
+            if u.getAbilityCooldownRemaining(id) <= 0. and u.getMana() >= u.getAbilityManaCost(id, level - 1)
                 and cast(u, castIndex.get(id), target)
                 let key = u.getHandleId()
                 casting.put(key, true)
@@ -72,7 +72,7 @@ function onAttack()
                         u.attackLane()
                 return
         k++
-        abil = BlzGetUnitAbilityByIndex(u, k)
+        abil = u.getAbilityByIndex(k)
 
 init
     for i = 0 to JF_CASTS - 1

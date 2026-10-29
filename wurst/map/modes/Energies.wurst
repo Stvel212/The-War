@@ -10,6 +10,7 @@ import StringUtils
 import MapGlobals
 import AbilitiesEnergy
 import ClosureEvents
+import Messages
 
 /*
     Энергии PvE — система очков из Just Fight 5.6 («Energy»: Золото, Дерево, Вода, Огонь, Земля, Ветер, Гром,
@@ -132,11 +133,11 @@ public function player.activateEnergy()
         return
     let active = this.activeEnergies()
     if active >= ENERGY_KINDS
-        DisplayTextToPlayer(this, 0., 0., "|cffff8080All energies are already active|r")
+        this.message("|cffff8080All energies are already active|r")
         return
     let cost = this.energyActivateCost()
     if not this.spendEnergy(cost)
-        DisplayTextToPlayer(this, 0., 0., "|cffff4040Not enough energy|r (" + cost + " needed)")
+        this.message("|cffff4040Not enough energy|r (" + cost + " needed)")
         return
     if GetRandomInt(1, 100) <= energyActivateChance(active)
         // случайная из закрытых
@@ -146,9 +147,9 @@ public function player.activateEnergy()
                 pick--
                 if pick == 0
                     levels[pid * ENERGY_KINDS + k] = 1
-                    DisplayTextToPlayer(this, 0., 0., "|cff00ffffEnergy activated:|r |cffffcc00" + energyName(k) + "|r")
+                    this.message("|cff00ffffEnergy activated:|r |cffffcc00" + energyName(k) + "|r")
     else
-        DisplayTextToPlayer(this, 0., 0., "|cffc0c0c0The energy did not respond... (" + energyActivateChance(active) + "% chance)|r")
+        this.message("|cffc0c0c0The energy did not respond... (" + energyActivateChance(active) + "% chance)|r")
     saveLevels(this)
 
 public function player.levelUpEnergy(int kind)
@@ -157,17 +158,17 @@ public function player.levelUpEnergy(int kind)
         return
     let level = this.energyLevel(kind)
     if level == 0
-        DisplayTextToPlayer(this, 0., 0., "|cffff8080This energy is not active yet - use Activate|r")
+        this.message("|cffff8080This energy is not active yet - use Activate|r")
         return
     if level >= ENERGY_MAX_LEVEL
-        DisplayTextToPlayer(this, 0., 0., "|cffff8080This energy is already at maximum level|r")
+        this.message("|cffff8080This energy is already at maximum level|r")
         return
     let cost = energyLevelCost(level)
     if not this.spendEnergy(cost)
-        DisplayTextToPlayer(this, 0., 0., "|cffff4040Not enough energy|r (" + cost + " needed)")
+        this.message("|cffff4040Not enough energy|r (" + cost + " needed)")
         return
     levels[pid * ENERGY_KINDS + kind] = level + 1
-    DisplayTextToPlayer(this, 0., 0., "|cff00ffff" + energyName(kind) + "|r energy: level |cffffcc00" + (level + 1) + "|r")
+    this.message("|cff00ffff" + energyName(kind) + "|r energy: level |cffffcc00" + (level + 1) + "|r")
     saveLevels(this)
 
 // ---- слоты особых зданий (супер-юнитов) ----
@@ -186,15 +187,15 @@ public function player.buySuperSlot()
         return
     let have = this.superSlots()
     if have >= SUPER_SLOTS_MAX
-        DisplayTextToPlayer(this, 0., 0., "|cffff8080All super unit slots are already unlocked|r")
+        this.message("|cffff8080All super unit slots are already unlocked|r")
         return
     if not this.spendEnergy(SUPER_SLOT_COST)
-        DisplayTextToPlayer(this, 0., 0., "|cffff4040Not enough energy|r (" + SUPER_SLOT_COST + " needed)")
+        this.message("|cffff4040Not enough energy|r (" + SUPER_SLOT_COST + " needed)")
         return
     this.profile().superSlots = have + 1
     this.profileChanged()
     this.saveProfile()
-    DisplayTextToPlayer(this, 0., 0., "|cff00ffffSuper unit slot unlocked:|r |cffffcc00" + (have + 1) + "/" + SUPER_SLOTS_MAX
+    this.message("|cff00ffffSuper unit slot unlocked:|r |cffffcc00" + (have + 1) + "/" + SUPER_SLOTS_MAX
         + "|r (PvE, from the next game)")
 
 // ---- действие в PvE ----
@@ -211,7 +212,7 @@ function startBonus()
         if p.isIngame() and (gold > 0 or lumber > 0)
             p.addGold(gold)
             p.addLumber(lumber)
-            DisplayTextToPlayer(p, 0., 0., "|cff00ffffEnergies:|r +" + gold + " gold, +" + lumber + " lumber")
+            p.message("|cff00ffffEnergies:|r +" + gold + " gold, +" + lumber + " lumber")
 
 /** Новый боец игрока: броня, скорость атаки, регенерация */
 @noinline
@@ -268,7 +269,7 @@ function waterCheck()
             forUnitsInRange(gen.getPos(), WATER_RADIUS) u ->
                 if u.isAlive() and u.isCreep()
                     gen.damageTarget(u, amount, false, false, ATTACK_TYPE_MAGIC, DAMAGE_TYPE_MAGIC, WEAPON_TYPE_WHOKNOWS)
-            DisplayTextToPlayer(players[pid], 0., 0., "|cff00ffffWater energy|r saved your Energy Generator!")
+            players[pid].message("|cff00ffffWater energy|r saved your Energy Generator!")
 
 
 // ---- кнопки энергий на генераторе (PvE, как в Just Fight) ----
@@ -278,14 +279,14 @@ function initGeneratorTooltips()
     for kind = 0 to ENERGY_KINDS - 1
         let id = energyAbility(kind)
         for level = 1 to ENERGY_MAX_LEVEL
-            BlzSetAbilityTooltip(id, "|cff00ffffEnergy - " + energyName(kind) + " [Level " + level + "]|r", level - 1)
+            setAbilityTooltip(id, "|cff00ffffEnergy - " + energyName(kind) + " [Level " + level + "]|r", level - 1)
             var s = "|cffffff00Current:|n" + energyEffect(kind, level) + "|r"
             if level < ENERGY_MAX_LEVEL
                 s += "|n|n|cffc0c0c0Next level:|n" + energyEffect(kind, level + 1) + "|nClick to level up: |cff00ffff"
                     + energyLevelCost(level) + "|r energy|r"
-            BlzSetAbilityExtendedTooltip(id, s + "|n|cffc0c0c0Works only in PvE mode. Max level: " + ENERGY_MAX_LEVEL + "|r", level - 1)
-    BlzSetAbilityTooltip(ENERGY_ACTIVATE, "|cff00ffffActivate Energy|r", 0)
-    BlzSetAbilityExtendedTooltip(ENERGY_ACTIVATE, "Randomly activates one of the energies you do not have yet: Gold, Lumber, Water, "
+            setAbilityExtendedTooltip(id, s + "|n|cffc0c0c0Works only in PvE mode. Max level: " + ENERGY_MAX_LEVEL + "|r", level - 1)
+    setAbilityTooltip(ENERGY_ACTIVATE, "|cff00ffffActivate Energy|r", 0)
+    setAbilityExtendedTooltip(ENERGY_ACTIVATE, "Randomly activates one of the energies you do not have yet: Gold, Lumber, Water, "
         + "Fire, Earth, Wind, Thunder or Electricity.|n|cffc0c0c0Costs " + activateCosts[0] + " energy (" + activateCosts[1] + " after 1 beaten PvE level, "
         + activateCosts[2] + " after 2). The chance drops with every active energy; energy is spent even if none responds.|r", 0)
 

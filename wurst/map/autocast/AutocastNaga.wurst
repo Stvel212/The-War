@@ -100,7 +100,7 @@ function attackNaga()
         a.setAbilityLevel('A06I', 6)
         a.damageTarget(GetTriggerUnit(), 100.0, true, false, ATTACK_TYPE_MAGIC, DAMAGE_TYPE_NORMAL, WEAPON_TYPE_WHOKNOWS)
         addEffect("Abilities\\Spells\\Other\\Monsoon\\MonsoonBoltTarget.mdl", GetTriggerUnit().getPos()).destr()
-    DecUnitAbilityLevel(a, 'A06I')
+    a.decAbilityLevel('A06I')
 
 // ============================================================
 // Триггер: Murlock — из 'n02C' выходят два 'n02A', из 'n02A' — 'n02M' (не призванные)
@@ -115,7 +115,7 @@ function murlock()
     let count = id == 'n02C' ? 2 : 1
     let spawnId = id == 'n02C' ? 'n02A' : 'n02M'
     for i = 1 to count
-        let u = CreateUnit(d.getOwner(), spawnId, d.getX(), d.getY(), 0.0)
+        let u = createUnit(d.getOwner(), spawnId, d.getPos())
         addEffect("Objects\\Spawnmodels\\Naga\\NagaDeath\\NagaDeath.mdl", u.getPos()).destr()
         u.attackLane(GetKillingUnit().getY())
 
@@ -231,7 +231,7 @@ function healAlhemic()
     let p = a.getOwner()
     let u = randomUnitInRange(a.getPos(), 500.0, (f) -> f.isAllyOf(p) and f.getTypeId() != 'n02J' and (f.getHP() / f.getMaxHP()) <= 0.84)
     if u != null
-        CreateUnit(p, 'e002', a.getX(), a.getY(), 0.0)
+        createUnit(p, 'e002', a.getPos())
             ..issueTargetOrder("attack", u)
             ..setTimedLife(1.0, 'BHwe')
         u.setHP(u.getHP() + u.getMaxHP() * 0.16)

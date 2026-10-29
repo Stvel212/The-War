@@ -15,7 +15,7 @@ function prizivPehov()
     a.removeAbility('A00X')
     let summonId = a.getTypeId() == 'h00R' ? 'h007' : 'h00L'
     for i = 1 to 3
-        let u = CreateUnit(a.getOwner(), summonId, a.getX(), a.getY(), 0.0)
+        let u = createUnit(a.getOwner(), summonId, a.getPos())
         u.attackLane()
         u.setTimedLife(360.0, 'BHwe')
         addEffect("Abilities\\Spells\\Human\\MassTeleport\\MassTeleportCaster.mdl", u.getPos()).destr()

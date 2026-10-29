@@ -92,9 +92,9 @@ function pick(player p, int k)
     lastPress[i] = now
     if localPlayer == p
         ClearSelection()
-        SelectUnit(b, true)
+        b.selectUnit(true)
         if twice
-            PanCameraToTimed(b.getX(), b.getY(), 0.)
+            panCameraToTimed(b.getPos(), 0.)
 
 /** Где показывать подсказку: правый нижний угол над командной карточкой, как подсказки самой игры */
 public constant TOOLTIP_CORNER = vec2(0.79, 0.172)
@@ -119,7 +119,7 @@ function buildColumn(player owner) returns framehandle
         return null
     // родитель ConsoleUIBackdrop: столбец стоит за краем области 4:3 (под кнопкой героя), а обычные фреймы
     // (родитель GAME_UI) за 4:3 не рисуются — так велит WC3_FRAMEHANDLE_GUIDE библиотеки wurst-table-layout
-    let root = container(BlzGetFrameByName("ConsoleUIBackdrop", 0), ICON, SHORTCUTS * ICON + (SHORTCUTS - 1) * GAP)
+    let root = container(getFrame("ConsoleUIBackdrop", 0), ICON, SHORTCUTS * ICON + (SHORTCUTS - 1) * GAP)
     for k = 0 to SHORTCUTS - 1
         let index = k
         iconButton(root, iconOf(k), ICON)
@@ -128,7 +128,7 @@ function buildColumn(player owner) returns framehandle
             ..onClick(() -> pick(owner, index))
     // прямо под кнопкой первого героя (строителя): она за краем области 4:3, поэтому привязка к самой кнопке,
     // а не к координатам — так столбец стоит под ней при любом соотношении сторон экрана
-    root.setPoint(FRAMEPOINT_TOPLEFT, BlzGetOriginFrame(ORIGIN_FRAME_HERO_BUTTON, 0), FRAMEPOINT_BOTTOMLEFT, 0., -BELOW_HERO)
+    root.setPoint(FRAMEPOINT_TOPLEFT, getOriginFrame(ORIGIN_FRAME_HERO_BUTTON, 0), FRAMEPOINT_BOTTOMLEFT, 0., -BELOW_HERO)
     return root
 
 /** Свой герой у игрока один — строитель (кнопка 0). Кнопки 1+ появляются только у взявшего под контроль короля
@@ -136,10 +136,10 @@ function buildColumn(player owner) returns framehandle
     прятать нельзя — игра падала, добавляя героя на спрятанную панель (особый строитель по нику в 1-м раунде) */
 public function hideExtraHeroButtons()
     for i = 1 to 6
-        BlzFrameSetVisible(BlzGetOriginFrame(ORIGIN_FRAME_HERO_BUTTON, i), false)
-        BlzFrameSetVisible(BlzGetOriginFrame(ORIGIN_FRAME_HERO_HP_BAR, i), false)
-        BlzFrameSetVisible(BlzGetOriginFrame(ORIGIN_FRAME_HERO_MANA_BAR, i), false)
-        BlzFrameSetVisible(BlzGetOriginFrame(ORIGIN_FRAME_HERO_BUTTON_INDICATOR, i), false)
+        getOriginFrame(ORIGIN_FRAME_HERO_BUTTON, i).setVisible(false)
+        getOriginFrame(ORIGIN_FRAME_HERO_HP_BAR, i).setVisible(false)
+        getOriginFrame(ORIGIN_FRAME_HERO_MANA_BAR, i).setVisible(false)
+        getOriginFrame(ORIGIN_FRAME_HERO_BUTTON_INDICATOR, i).setVisible(false)
 
 init
     for a = 0 to 7

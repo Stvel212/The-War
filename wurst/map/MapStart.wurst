@@ -39,7 +39,7 @@ import public ArthasJf
 // Бывшие триггеры с событием «Map initialization» (Zadania, Int) — запускаются после инициализации всех пакетов.
 init
     // всегда день: полдень, смена суток остановлена (синхронно у всех)
-    SetFloatGameState(GAME_STATE_TIME_OF_DAY, 12.0)
+    GAME_STATE_TIME_OF_DAY.setFloatGameState(12.0)
     SuspendTimeOfDay(true)
     zadania()
     initGame()

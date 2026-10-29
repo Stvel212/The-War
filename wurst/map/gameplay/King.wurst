@@ -6,12 +6,14 @@ import UnitEvents
 import ClosureTimers
 import GameMode
 import BaseShortcuts
+import Messages
+import HashMap
 
 /** Сообщение всей команде a (1 — левая, 2 — правая) */
 function teamText(int a, string msg)
     // PvE: король один на всех
     if forceG[a].containsPlayer(localPlayer) or isPve()
-        DisplayTextToPlayer(localPlayer, 0.0, 0.0, msg)
+        localPlayer.message(msg)
 
 // ============================================================
 // Триггер: KingCast — особые умения короля: на 10 секунд меняют набор способностей
@@ -52,11 +54,11 @@ function unit.getStat(int stat) returns int
 
 function unit.addStat(int stat, int amount)
     if stat == STAT_AGI
-        SetHeroAgi(this, this.getAgi(false) + amount, true)
+        this.addAgi(amount)
     else if stat == STAT_INT
-        SetHeroInt(this, this.getInt(false) + amount, true)
+        this.addInt(amount)
     else
-        SetHeroStr(this, this.getStr(false) + amount, true)
+        this.addStr(amount)
 
 function statName(int stat) returns string
     if stat == STAT_AGI
@@ -97,15 +99,15 @@ function upgradeKing(int a, player p, int stat, int inc)
         p.setLumber(p.getLumber() - cost)
         teamText(a, "|cff80ff80|c00" + colorCode[p.getId()] + p.getName() + "|r |c00C0C0C0upgraded the King's " + statName(stat) + " to level: |r" + ((king.getStat(stat) - 60) div 10))
     else
-        StartSound(knightNoGold)
-        DisplayTextToPlayer(p, 0.0, 0.0, inc == 10 ? "|c00FF8080No lumber or already at maximum!|r" : "|c00FF8080No lumber, already at maximum, or fewer than 5 upgrades required!|r")
+        knightNoGold.play()
+        p.message(inc == 10 ? "|c00FF8080No lumber or already at maximum!|r" : "|c00FF8080No lumber, already at maximum, or fewer than 5 upgrades required!|r")
 
 /** Особое умение короля (одно из трёх на команду): 10 вкладов по 300 дерева после 60-го раунда, потом abil + 'A0E3'.
     В PvP — только в режиме 4x4 */
 function upgradeKingSpecial(int a, player p, int which, int abil, string name)
     if kingUpgradesByTeamSize() and teamSize < 4
-        StartSound(knightNoGold)
-        DisplayTextToPlayer(p, 0.0, 0.0, "|c00FF8080The King's special abilities are only available in 4v4!|r")
+        knightNoGold.play()
+        p.message("|c00FF8080The King's special abilities are only available in 4v4!|r")
         return
     let free = (which == 1 or not prezens1[a]) and (which == 2 or not prezens2[a]) and (which == 3 or not prezens3[a]) and not prezens4[a]
     if presens[a] < 10 and free and round > 60 and p.getLumber() >= 300
@@ -123,8 +125,8 @@ function upgradeKingSpecial(int a, player p, int which, int abil, string name)
             kings[a]..addAbility(abil)..addAbility('A0E3')
             teamText(a, "Your King has received a Special Ability - |c0000FFFF" + name + "!|r")
     else
-        StartSound(knightNoGold)
-        DisplayTextToPlayer(p, 0.0, 0.0, "|c00FF8080No lumber or already at maximum!|r")
+        knightNoGold.play()
+        p.message("|c00FF8080No lumber or already at maximum!|r")
 
 @noinline
 function kingUpgreid(unit caster, int ab)
@@ -195,18 +197,20 @@ function kingControl()
 // Триггер: KingMesage — при атаке на короля: сообщения о HP команде и автолечение из запаса heals
 // ============================================================
 
+/** Последнее объявленное команде HP короля (по юниту: в PvE правого короля сменяет Злой Бог) */
+constant announcedHp = new HashMap<unit, int>()
+
 @noinline
 function kingMesage()
     let king = GetTriggerUnit()
     let hp = king.getHP().toInt()
     let mhp = king.getMaxHP().toInt()
     let a = king == kings[1] ? 1 : 2
-    // последнее «объявленное» HP (раньше лежало в custom value; читалось оттуда же и после переезда в hash — теперь из hash)
-    let last = hash.loadInt(king.getHandleId(), KEY_KINGHP)
+    let last = announcedHp.get(king)
     if hp > last + 50
-        hash.saveInt(king.getHandleId(), KEY_KINGHP, hp)
+        announcedHp.put(king, hp)
     if hp < 0.4 * mhp and last - 200 > hp
-        hash.saveInt(king.getHandleId(), KEY_KINGHP, hp)
+        announcedHp.put(king, hp)
         let percent = (hp * 100) div mhp
         let fraction = (hp * 10000) div mhp - 100 * percent
         teamText(a, "King's health remaining" + percent + "," + fraction + "%")

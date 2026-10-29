@@ -6,10 +6,11 @@ import ClosureForGroups
 import StringUtils
 import MapGlobals
 import Profile
+import Messages
 
 /*
     Скины за монеты профиля (по образцу Direct Strike: Progression/Profiles/Skins): строитель, главное здание,
-    Артас базы и герои из бараков (обычным юнитам — нет). Скин — только внешний вид: BlzSetUnitSkin(u, источник)
+    Артас базы и герои из бараков (обычным юнитам — нет). Скин — только внешний вид: u.setSkin(источник)
     берёт модель (и звуки) у другого типа юнита, сам тип и характеристики не меняются. Источники — стандартные
     герои и здания игры, поэтому импорт не нужен.
     Группа (family) — к чему скин относится: 0 строитель (builders[a]), 1 главное здание (baza[a]), 2 Артас
@@ -116,7 +117,7 @@ constant naturalScale = new HashMap<int, real>()
 real array familyScale
 
 function restoreScale(unit u, real scale)
-    BlzSetUnitRealField(u, UNIT_RF_SCALING_VALUE, scale)
+    u.setField(UNIT_RF_SCALING_VALUE, scale)
     u.setScale(scale)
 
 /** Вид юнита u группы f игрока pid: надетый скин или свой тип */
@@ -128,7 +129,7 @@ function applyTo(unit u, int pid, int f)
     // типа, а свой тип может быть сильно увеличен (личный строитель-Пикачу — 3.0)
     let key = u.getHandleId()
     if not naturalScale.has(key)
-        naturalScale.put(key, BlzGetUnitRealField(u, UNIT_RF_SCALING_VALUE))
+        naturalScale.put(key, u.getField(UNIT_RF_SCALING_VALUE))
     let natural = naturalScale.get(key)
     // скин — масштаб группы (строитель — как обычный герой, база и Артас — как их типы), у героев — свой
     let scale = s >= 0 and familyScale[f] > 0. ? familyScale[f] : natural
@@ -172,10 +173,10 @@ public function player.buySkin(int s) returns bool
     if pid >= 8 or not profileReady[pid] or owned[pid * MAX_SKINS + s]
         return false
     if not this.spendCoins(skinCost[s])
-        DisplayTextToPlayer(this, 0., 0., "|cffff4040Not enough coins|r (" + skinCost[s] + " needed)")
+        this.message("|cffff4040Not enough coins|r (" + skinCost[s] + " needed)")
         return false
     owned[pid * MAX_SKINS + s] = true
-    DisplayTextToPlayer(this, 0., 0., "Skin unlocked: |cffffcc00" + skinName[s] + "|r")
+    this.message("Skin unlocked: |cffffcc00" + skinName[s] + "|r")
     this.equipSkin(s)
     return true
 

@@ -5,6 +5,8 @@ import ClosureTimers
 import OnUnitEnterLeave
 import MapGlobals
 import LinkedList
+import Messages
+import TerrainUtils
 
 /*
     Перемещение зданий по клетке. Кнопка «Переместить» — способность-«постройка маленькой фермы» ('AIbf'),
@@ -76,12 +78,12 @@ function rebuildAt(unit u, vec2 target)
     let p = u.getOwner()
     let base = baseAt(u.getPos())
     if base == null or not base.contains(target)
-        DisplayTextToPlayer(p, 0.0, 0.0, "|cffff0000Must be within bounds of your base!|r")
+        p.message("|cffff0000Must be within bounds of your base!|r")
         return
     let typeId = u.getTypeId()
     // камень ставится только на белый мрамор (kamenStavit удалит его на другой земле)
-    if typeId == 'h02Q' and GetTerrainType(target.x, target.y) != 'Ywmb'
-        DisplayTextToPlayer(p, 0.0, 0.0, "|cffff0000Can only be placed on white marble!|r")
+    if typeId == 'h02Q' and target.getTerrainType() != 'Ywmb'
+        p.message("|cffff0000Can only be placed on white marble!|r")
         return
     let oldPos = u.getPos()
     let facing = u.getFacingAngle()
@@ -101,7 +103,7 @@ function rebuildAt(unit u, vec2 target)
     addEffect("Abilities\\Spells\\Human\\Polymorph\\PolyMorphDoneGround.mdl", oldPos).destr()
     if localPlayer == p
         ClearSelection()
-        SelectUnit(nu, true)
+        nu.selectUnit(true)
 
 /** Кнопки здания: «Переместить» и без точки сбора ('ARal', игра сама даёт её зданиям, которые обучают юнитов;
     бараки ничего не обучают — юниты волны создаются кодом) */

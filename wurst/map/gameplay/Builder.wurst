@@ -5,6 +5,7 @@ import ArtifactShop
 import ClosureEvents
 import ClosureTimers
 import ClosureForGroups
+import Messages
 
 // ============================================================
 // Триггер: ControlAdd — выделил чужого юнита при общем контроле → полный контроль и заклинания; показать таблицу
@@ -18,7 +19,7 @@ function controlAdd()
         return
     owner.setPlayerAlliance(p, ALLIANCE_SHARED_ADVANCED_CONTROL, true)
     owner.setPlayerAlliance(p, ALLIANCE_SHARED_SPELLS, true)
-    udg_Board.display(true)
+    board.display(true)
 
 // ============================================================
 // Триггер: Repick — 'A00I': замена расы за 100·(уровень-1) дерева, уровень растёт до 6
@@ -31,7 +32,7 @@ function repick()
     let lvl = u.getAbilityLevel('A00I')
     let cost = 100 * (lvl - 1)
     if p.getLumber() < cost
-        DisplayTextToPlayer(p, 0.0, 0.0, "|c00FF8080Not enough resources for the replacement!|r")
+        p.message("|c00FF8080Not enough resources for the replacement!|r")
         return
     addEffect("Abilities\\Spells\\Human\\MarkOfChaos\\MarkOfChaosTarget.mdl", u.getPos()).destr()
     random(p)
@@ -50,18 +51,18 @@ function placeFlag(unit builder, int abil, int gold, int lumber, string joke)
     if p.getLumber() >= lumber and p.getGold() >= gold
         p.setGold(p.getGold() - gold)
         p.setLumber(p.getLumber() - lumber)
-        CreateUnit(p, 'e004', GetSpellTargetX(), GetSpellTargetY(), 0.0)
+        createUnit(p, 'e004', EventData.getSpellTargetPos())
             ..addAbility(abil)
             ..setTimedLife(10.0, 'BHwe')
         return
     builder.issueImmediateOrder("stop")
     let roll = GetRandomInt(0, 5)
     if roll < 3
-        DisplayTextToPlayer(p, 0.0, 0.0, "|c00FF8080Not enough resources to place a flag!|r")
+        p.message("|c00FF8080Not enough resources to place a flag!|r")
     else if roll < 5
-        DisplayTextToPlayer(p, 0.0, 0.0, "|c00FF8080You have no resources, you wreck!|r")
+        p.message("|c00FF8080You have no resources, you wreck!|r")
     else
-        DisplayTextToPlayer(p, 0.0, 0.0, "|c00FF8080" + joke + "|r")
+        p.message("|c00FF8080" + joke + "|r")
 
 @noinline
 function flag()
@@ -84,7 +85,7 @@ function flag()
 
 /** Продать юнита u игроку p за gold золота (из «силы» power вычитается полный максимум HP) */
 function sellUnit(unit u, player p, int gold)
-    DisplayTextToPlayer(p, 0.0, 0.0, "|cffffff00You sold a unit for: " + gold + " gold|r")
+    p.message("|cffffff00You sold a unit for: " + gold + " gold|r")
     p.setGold(p.getGold() + gold)
     power[p.getId()] -= u.getMaxHP().toInt()
     buildUnits.remove(u)
@@ -103,7 +104,7 @@ function sellArtifact(item s, player p)
     let charges = max(1, s.getCharges())
     let gold = (charges * s.getLife()).toInt() + s.getUserData()
     p.setGold(p.getGold() + gold)
-    DisplayTextToPlayer(p, 0.0, 0.0, "|cffffff00You sold an artifact for: " + gold + " gold|r")
+    p.message("|cffffff00You sold an artifact for: " + gold + " gold|r")
     powerItem[id] -= gold
     s.remove()
 
@@ -120,7 +121,7 @@ function sellCheck()
     let u = GetSpellAbilityUnit()
     if not canSell(ab, GetSpellTargetUnit(), GetSpellTargetItem())
         u.issueImmediateOrder("stop")
-        DisplayTextToPlayer(u.getOwner(), 0.0, 0.0, "Impossible!")
+        u.getOwner().message("Impossible!")
 
 /** Эффект заклинания (перезарядка уже пошла — раньше продажа шла на начале каста через 0.4 с, цель исчезала до
     эффекта, каст срывался и перезарядки не было) */
@@ -152,7 +153,7 @@ function sell()
 function zaminaVzryva()
     let c = GetTriggerUnit()
     let p = c.getOwner()
-    let target = vec2(GetSpellTargetX(), GetSpellTargetY())
+    let target = EventData.getSpellTargetPos()
     addEffect("Units\\NightElf\\Wisp\\WispExplode.mdl", target).destr()
     forUnitsInRange(target, 300.0) u ->
         if u.isEnemyOf(p) and u.getAbilityLevel('Avul') != 1 and not u.isType(UNIT_TYPE_HERO)
@@ -161,8 +162,7 @@ function zaminaVzryva()
     boom[p.getId()] = false
     c.removeAbility('A003')
     c.addAbility('A004')
-    if bj_FORCE_ALL_PLAYERS.containsPlayer(localPlayer)
-        DisplayTextToPlayer(localPlayer, 0.0, 0.0, "|c00" + colorCode[p.getId()] + p.getName() + "|r|cffff80ff used \"Blast\"!|r")
+    printAll(p.coloredName() + "|cffff80ff used \"Blast\"!|r")
 
 // ============================================================
 // Триггер: SpeedBuild — 'A002': на 2 секунды носитель предмета 'I01Q' (ускорение стройки)
@@ -171,8 +171,8 @@ function zaminaVzryva()
 @noinline
 function speedBuild()
     let c = GetTriggerUnit()
-    let holder = CreateUnit(c.getOwner(), 'e00Y', c.getX(), c.getY(), 0.0)
-    holder.addItemHandle(CreateItem('I01Q', holder.getX(), holder.getY()))
+    let holder = createUnit(c.getOwner(), 'e00Y', c.getPos())
+    holder.addItemHandle(createItem('I01Q', holder.getPos()))
     holder.setTimedLife(2.0, 'BHwe')
 
 // ============================================================

@@ -67,7 +67,7 @@ function drawGrid(rect r, int a)
                 y += CELL
                 continue
             let img = createImage("textures\\GridCell.blp", vec2(x, y), CELL, CELL)
-            SetImageRenderAlways(img, true)
+            img.show()
             ShowImage(img, false)
             gridCells[gridCount] = img
             gridCount++
@@ -144,7 +144,7 @@ function buildButtons(player owner) returns framehandle
         camIndex[id] = (camIndex[id] + 1) mod 4
         cam.setText(camText(camIndex[id]))
         if localPlayer == owner
-            SetCameraField(CAMERA_FIELD_TARGET_DISTANCE, camDistances[camIndex[id]], 0.5)
+            CAMERA_FIELD_TARGET_DISTANCE.set(camDistances[camIndex[id]], 0.5)
     tips.onClick() ->
         cycleHoverMode(owner)
         tips.setText(hoverModeText(owner))

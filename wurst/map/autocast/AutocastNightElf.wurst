@@ -16,7 +16,7 @@ function kill()
         return
     addEffect("Abilities\\Spells\\Undead\\AnimateDead\\AnimateDeadTarget.mdl", d, "origin").destr()
     for i = 1 to 2
-        let u = CreateUnit(k.getOwner(), d.getTypeId(), d.getX(), d.getY(), 0.0)
+        let u = createUnit(k.getOwner(), d.getTypeId(), d.getPos())
             ..addAbility('Aloc')
             ..setVertexColor(55, 55, 55, 150)
         u.attackLane()

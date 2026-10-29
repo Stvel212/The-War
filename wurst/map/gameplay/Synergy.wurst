@@ -1,6 +1,7 @@
 package Synergy
 import MapGlobals
 import ClosureEvents
+import Messages
 
 /*
     Синергии: счётчики sinergia*[игрок] растут, когда достроено (апгрейд завершён) здание нужного типа,
@@ -139,7 +140,7 @@ function zapretElem()
     let id = p.getId()
     if elemLeft[elemLimit(slot, id)] == 0
         u.remove()
-        DisplayTextToPlayer(p, 0.0, 0.0, "Limit - 2")
+        p.message("Limit - 2")
         p.setGold(p.getGold() + GetUnitGoldCost(typeId))
     else
         elemLeft[elemLimit(slot, id)] -= 1

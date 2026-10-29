@@ -10,11 +10,10 @@ public int array power
 public group naimGroup = null
 public int round = 0
 public timer roundTimer = null
-public hashtable hash = null
 public int array multiboardId
 public int array multiboardIdR
 public bool array boom
-public multiboard udg_Board = null
+public multiboard board = null
 public int array powerItem
 public bool array playerL
 public string array colorCode
@@ -107,9 +106,6 @@ public function elemLimit(int slot, int playerId) returns int
     return slot * 16 + playerId
 public string modeString = null
 public int array sinergia12
-
-// ключ в hash для данных, которые раньше хранились в custom value юнита (custom value занят UnitIndexer из stdlib)
-public constant KEY_KINGHP = 'KHP_'
 
 // регионы из редактора (дубли WE-объектов из war3map.j, чтобы были видны из Wurst)
 public rect rct_Baza1 = Rect(-3744.0, -5632.0, -2176.0, -4320.0)

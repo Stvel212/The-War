@@ -1,0 +1,13 @@
+package Messages
+
+/*
+    Текстовые сообщения игрокам. Время показа выбирает игра (по длине текста), как у DisplayTextToPlayer;
+    сообщение на заданное время — print(msg, duration) / p.print(msg, duration) из stdlib. */
+
+/** Сообщение игроку */
+public function player.message(string msg)
+    DisplayTextToPlayer(this, 0., 0., msg)
+
+/** Сообщение всем игрокам */
+public function printAll(string msg)
+    localPlayer.message(msg)

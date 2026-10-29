@@ -37,7 +37,7 @@ string iconText = ""
 
 /** Название и описание типа юнита/здания для окна; "" — если описания нет */
 public function describeType(int typeId) returns string
-    let description = BlzGetAbilityExtendedTooltip(typeId, 0)
+    let description = getAbilityExtendedTooltip(typeId, 0)
     if description == null or description == "" or description == "Tool tip missing!"
         return ""
     return "|cffffcc00" + GetObjectName(typeId) + "|r|n" + description

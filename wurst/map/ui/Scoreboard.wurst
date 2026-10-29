@@ -23,7 +23,7 @@ function leaveGame()
             p.setPlayerAlliance(players[a], ALLIANCE_SHARED_CONTROL, true)
             p.setPlayerAlliance(players[a], ALLIANCE_SHARED_ADVANCED_CONTROL, true)
             p.setPlayerAlliance(players[a], ALLIANCE_SHARED_SPELLS, true)
-    udg_Board.display(true)
+    board.display(true)
     forceG[5].removePlayer(p)
     countPlayer[left ? 1 : 2] -= 1
     team.removePlayer(p)
@@ -46,12 +46,12 @@ function unit.freeSlot(int slot)
         this.itemInSlot(slot).remove()
 
 function multiboardItem(int row, int col, string value)
-    udg_Board.getItem(row, col)
+    board.getItem(row, col)
         ..setValue(value)
         ..release()
 
 function multiboardIcon(int row, int col, string icon)
-    udg_Board.getItem(row, col)
+    board.getItem(row, col)
         ..setIcon(icon)
         ..release()
 
@@ -102,7 +102,7 @@ function onForceChanged(int a, int value)
     for tier = 0 to MARKER_TIERS - 1
         let i = tier * 16 + a
         if value >= markerForce[tier] and forceMarker[i] == null
-            forceMarker[i] = CreateUnit(p, markerType[tier], 0.0, 0.0, 0.0)
+            forceMarker[i] = createUnit(p, markerType[tier], vec2(0.0, 0.0))
         else if value < markerForce[tier] and forceMarker[i] != null
             forceMarker[i].remove()
             forceMarker[i] = null
@@ -188,7 +188,7 @@ function multiboardUpdate()
             let avatar = players[a].avatarIcon()
             if avatar != lastAvatar[a]
                 lastAvatar[a] = avatar
-                udg_Board.getItem(row, 0)
+                board.getItem(row, 0)
                     ..setStyle(true, true)
                     ..setIcon(avatar)
                     ..release()
@@ -230,21 +230,21 @@ function multiboardUpdate()
 // ============================================================
 
 function headerCell(int col, string value, real width)
-    udg_Board.getItem(0, col)
+    board.getItem(0, col)
         ..setValue(value)
         ..setStyle(true, false)
         ..setWidth(width)
         ..release()
 
 function textCell(int row, int col, string value, real width)
-    udg_Board.getItem(row, col)
+    board.getItem(row, col)
         ..setStyle(true, false)
         ..setValue(value)
         ..setWidth(width)
         ..release()
 
 function iconCell(int row, int col, string icon, real width)
-    udg_Board.getItem(row, col)
+    board.getItem(row, col)
         ..setStyle(false, true)
         ..setIcon(icon)
         ..setWidth(width)
@@ -274,11 +274,11 @@ function layoutRows() returns int
 
 /** Построить таблицу заново (при старте и в PvE после выбора режима) */
 function buildBoard()
-    if udg_Board != null
-        udg_Board.display(false)
-        DestroyMultiboard(udg_Board)
+    if board != null
+        board.display(false)
+        board.destr()
     let rows = layoutRows()
-    udg_Board = CreateMultiboard()
+    board = CreateMultiboard()
         ..setRowCount(rows)
         ..setColumnCount(7)
         ..setTitle("The War Reborn " + modeString)
@@ -325,10 +325,10 @@ function buildBoard()
             textCell(kingS[a + 2], 4, "0", 0.03)
             iconCell(kingS[a + 2], 5, "ReplaceableTextures\\CommandButtons\\BTNHealOff.blp", 0.02)
             textCell(kingS[a + 2], 6, "0", 0.03)
-    udg_Board.display(false)
-    udg_Board.display(true)
-    MultiboardMinimize(udg_Board, true)
-    MultiboardMinimize(udg_Board, false)
+    board.display(false)
+    board.display(true)
+    board.minimize()
+    board.maximize()
     // кеш «последних показанных значений» сбрасывается, чтобы первое обновление записало всё
     for a = 0 to 7
         lastForce[a] = -1
@@ -364,7 +364,6 @@ function multiboardCreate()
             heals[team] += 1
             countPlayer[team] += 1
     teamSize = max(countPlayer[1], countPlayer[2])
-    bj_lastCreatedMultiboard = CreateMultiboard()
     buildBoard()
     doPeriodically(0.5) cb ->
         multiboardUpdate()
@@ -397,7 +396,7 @@ init
         leaveGame()
     onRound() r ->
         // PvE — одна команда: таблица строится заново (при старте режим ещё не выбран)
-        if r == 1 and isPve() and udg_Board != null
+        if r == 1 and isPve() and board != null
             buildBoard()
     doAfter(1.0) ->
         multiboardCreate()

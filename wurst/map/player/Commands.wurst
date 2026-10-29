@@ -4,20 +4,13 @@ import MapGlobals
 import ClosureTimers
 import Profile
 import GameMode
+import Messages
 
 /** Админы карты: им доступны -control и -kick */
 function player.isAdmin() returns bool
     let n = this.getName()
     return n == "Stvel#2381" or n == "LordofKodoes#2670"
-/** Сообщение всем */
-function printAll(string msg)
-    if bj_FORCE_ALL_PLAYERS.containsPlayer(localPlayer)
-        DisplayTextToPlayer(localPlayer, 0.0, 0.0, msg)
-
 /** Имя игрока в его цвете */
-function player.coloredName() returns string
-    return "|c00" + colorCode[this.getId()] + this.getName() + "|r"
-
 // ============================================================
 // Команда: -up N — отдалить камеру на N (0..600, т.е. до 3000: дальше видны плашки ярлыков BaseHeroes)
 // ============================================================
@@ -25,7 +18,7 @@ function player.coloredName() returns string
 function cmdCamera(player p, string msg)
     let dist = msg.substring(3, 7).toInt()
     if dist >= 0 and dist <= 600 and localPlayer == p
-        SetCameraField(CAMERA_FIELD_TARGET_DISTANCE, 2400 + dist.toReal(), 2.0)
+        CAMERA_FIELD_TARGET_DISTANCE.set(2400 + dist.toReal(), 2.0)
 
 // ============================================================
 // Команда: -give — дерево выбывших из команды делится поровну между оставшимися
@@ -43,7 +36,7 @@ function cmdGiveLumber(player p)
     for q in team
         q.setLumber(q.getLumber() + share)
     if team.containsPlayer(localPlayer)
-        DisplayTextToPlayer(localPlayer, 0.0, 0.0, "|cff80ff00You received |r|cff008000" + share + "|r|cff80ff00 lumber|r")
+        localPlayer.message("|cff80ff00You received |r|cff008000" + share + "|r|cff80ff00 lumber|r")
 
 // ============================================================
 // Команда: -roll — случайное число 1..1000 всем
@@ -63,14 +56,14 @@ function cmdGiveControl(player p, string msg)
     target.setPlayerAlliance(p, ALLIANCE_SHARED_ADVANCED_CONTROL, true)
     target.setPlayerAlliance(p, ALLIANCE_SHARED_SPELLS, true)
     target.setPlayerAlliance(p, ALLIANCE_SHARED_CONTROL, true)
-    udg_Board.display(true)
+    board.display(true)
 
 // ============================================================
 // Команда: -rob — сколько золота украли мародёры
 // ============================================================
 
 function cmdRob(player p)
-    DisplayTextToPlayer(p, 0.0, 0.0, "|cff80ffffStolen: |r|cffffff00" + rob[p.getId()] + " gold!|r")
+    p.message("|cff80ffffStolen: |r|cffffff00" + rob[p.getId()] + " gold!|r")
 
 // ============================================================
 // Команда: -tunR N — на 3 секунды показать кольцо радиуса N вокруг строителя (25 маркеров)
@@ -81,7 +74,7 @@ function cmdTunRadius(player p, string msg)
     let center = builders[p.getId()].getPos()
     for i = 0 to 24
         let pos = center.polarOffset((67.5 + i * 22.5).asAngleDegrees(), radius)
-        CreateUnit(players[bj_PLAYER_NEUTRAL_EXTRA], 'e01Q', pos.x, pos.y, 0.0).setTimedLife(3.0, 'BHwe')
+        createUnit(players[bj_PLAYER_NEUTRAL_EXTRA], 'e01Q', pos).setTimedLife(3.0, 'BHwe')
 
 // ============================================================
 // Триггер: KickAfk — раз в 10 с: если строитель не двигался 290 с, а золота >= 1200, команде предлагают -kickafk
@@ -106,8 +99,7 @@ function kickAfkCheck()
 /** Кик игрока id: поражение, перевод в выбывшие, контроль над его юнитами — команде */
 function kickPlayer(int id)
     let victim = players[id]
-    if bj_FORCE_ALL_PLAYERS.containsPlayer(localPlayer)
-        localPlayer.print("Player " + victim.coloredName() + " has been kicked!", 15.0)
+    print("Player " + victim.coloredName() + " has been kicked!", 15.0)
     playerL[id] = true
     CustomDefeatBJ(victim, "Defeat")
     let left = id < 4
@@ -116,7 +108,7 @@ function kickPlayer(int id)
     for a = (left ? 0 : 4) to (left ? 4 : 8)
         victim.setPlayerAlliance(players[a], ALLIANCE_SHARED_CONTROL, true)
         victim.setPlayerAlliance(players[a], ALLIANCE_SHARED_ADVANCED_CONTROL, true)
-    udg_Board.display(true)
+    board.display(true)
 
 // ============================================================
 // Команда: -kickafkN — кикнуть афк-игрока N (если он и правда 290 с не двигался)
@@ -141,7 +133,7 @@ function cmdMyKick(player p, string msg)
 
 function cmdProfileTest(player p, string msg)
     if not bj_isSinglePlayer
-        DisplayTextToPlayer(p, 0., 0., "Test commands work only in single player")
+        p.message("Test commands work only in single player")
         return
     let space = msg.indexOf(" ")
     let amount = space > 0 ? msg.substring(space + 1).toInt() : 0
@@ -157,7 +149,7 @@ function cmdProfileTest(player p, string msg)
     else
         p.addCoins(amount)
     p.saveProfile()
-    DisplayTextToPlayer(p, 0., 0., "Profile: +" + amount + what + ", level " + p.profileLevel() + ", saved")
+    p.message("Profile: +" + amount + what + ", level " + p.profileLevel() + ", saved")
 
 // ============================================================
 // Тест режимов: -pvelevel N — пройдено уровней PvE (открывает уровни при выборе режима), -round N — следующий раунд
@@ -166,7 +158,7 @@ function cmdProfileTest(player p, string msg)
 
 function cmdModeTest(player p, string msg)
     if not bj_isSinglePlayer
-        DisplayTextToPlayer(p, 0., 0., "Test commands work only in single player")
+        p.message("Test commands work only in single player")
         return
     let space = msg.indexOf(" ")
     let n = space > 0 ? msg.substring(space + 1).toInt() : -1
@@ -180,10 +172,10 @@ function cmdModeTest(player p, string msg)
         p.profile().pveBeaten = min(n, PVE_LEVELS)
         p.profileChanged()
         p.saveProfile()
-        DisplayTextToPlayer(p, 0., 0., "PvE levels beaten: " + p.profile().pveBeaten + ", saved")
+        p.message("PvE levels beaten: " + p.profile().pveBeaten + ", saved")
     else if n >= 2
         round = n - 1
-        DisplayTextToPlayer(p, 0., 0., "Next round: " + n)
+        p.message("Next round: " + n)
 
 @noinline
 function onChat()
