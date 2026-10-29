@@ -1,7 +1,9 @@
 #!/bin/bash
 # regenerate wurst/map from the organised JASS + apply manual post-edits, then typecheck
+# ВНИМАНИЕ: одноразовый скрипт перевода JASS -> Wurst. Удаляет wurst/map и пишет его заново из старого JASS —
+# все правки, сделанные после перевода, пропадут. Не запускать на рабочем проекте.
 S="$(cd "$(dirname "$0")" && pwd)"
-R="$S/.."
+R="$S/../.."
 set -e
 cd "$S" && "/c/Program Files/Java/jdk-20/bin/javac" -encoding UTF-8 JassToWurst.java Wurstify.java Closurify.java
 rm -rf "$S/wout" && mkdir "$S/wout"

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Таблицы волн PvE/PvEvP из карты Just Fight 5.6.2 -> wurst/map/PveWaveTables.wurst.
+# Таблицы волн PvE/PvEvP из карты Just Fight 5.6.2 -> wurst/map/modes/PveWaveTables.wurst.
 #   bash tools/jf/gen_pve_waves.sh "путь/к/3082_Just_Fight!_[5.6.2_A1].w3x"
 # Шаги: скрипт карты (scripts\war3map.j, его нет в listfile) читается по имени (ReadMpq), строки CR -> LF;
 # объекты — grill exportobjects; из функций-таблиц (ILL1III, ILL1I1I, ILL1LII, ILL1L1I) берутся волны;
@@ -60,7 +60,7 @@ cd "$ROOT"
 info() { local f blk; f=$(grep -ln "BuildingDefinition('$1'" wurst/objects/units/*.wurst | head -1); [ -z "$f" ] && return 0
     blk=$(awk -v id="'$1'" 'index($0,"Definition(" id){f=1;next} f&&/^@compiletime/{exit} f' "$f")
     echo "$1 $(echo "$blk" | grep -o 'custom_[A-Za-z0-9]*' | sed 's/custom_//' | head -1) $(echo "$blk" | grep -o 'setUpgradesTo("[^"]*")' | sed 's/setUpgradesTo("//;s/")//' | tr ',' ' ')"; }
-queue=$(for t in 1 2 3 4 5 6 7 10; do grep -o "tier$t\[[0-9]*\] = '[^']*'" wurst/map/Initialization.wurst | sed "s/.*= '//;s/'//"; done)
+queue=$(for t in 1 2 3 4 5 6 7 10; do grep -o "tier$t\[[0-9]*\] = '[^']*'" wurst/map/core/Initialization.wurst | sed "s/.*= '//;s/'//"; done)
 : > "$TMP/war_cand.txt"; seen=" "
 while [ -n "$queue" ]; do
     next=""
@@ -108,13 +108,13 @@ for m in $(tr ',' '\n' < assets.txt | grep -i -E '^[A-Za-z0-9_]+\.md[lx]$' | sed
     done
 done
 
-awk -f "$JF/gen.awk" jf_prof.tsv matches.tsv t1.parsed t2.parsed t3.parsed t4.parsed > "$ROOT/wurst/map/PveWaveTables.wurst"
+awk -f "$JF/gen.awk" jf_prof.tsv matches.tsv t1.parsed t2.parsed t3.parsed t4.parsed > "$ROOT/wurst/map/modes/PveWaveTables.wurst"
 # золото за убийство скопированных юнитов (у юнитов The War — по их бараку, Initialization.unitGold)
 awk -f "$JF/bounty.awk" "$TMP/jf.j" "$TMP/objectEditingOutput/WurstExportedObjects_w3u.wurst" copy_map.tsv > bounty.tsv
 awk -F'\t' '{ t = t (NR > 1 ? ", " : "") "\x27" $1 "\x27"; g = g (NR > 1 ? ", " : "") $2 }
     END { print ""; print "// Золото за убийство скопированных юнитов Just Fight (I1IlILI: 2 × еда барака с номером = point value юнита)"
           print "public constant JF_BOUNTIES = " NR; print "public constant jfBountyType = [" t "]"; print "public constant jfBounty = [" g "]" }' \
-    bounty.tsv >> "$ROOT/wurst/map/PveWaveTables.wurst"
+    bounty.tsv >> "$ROOT/wurst/map/modes/PveWaveTables.wurst"
 # автокаст монстров: активные способности копий -> приказ и цель (классы — tools/jf/orders.tsv)
-awk -F'\t' -f "$JF/casts.awk" "$JF/orders.tsv" "$ROOT/wurst/objects/units/UnitsPveJf.wurst" >> "$ROOT/wurst/map/PveWaveTables.wurst"
-echo "wurst/map/PveWaveTables.wurst: $(awk -F'\t' '{print $6}' matches.tsv | sort | uniq -c | tr '\n' ' ')"
+awk -F'\t' -f "$JF/casts.awk" "$JF/orders.tsv" "$ROOT/wurst/objects/units/UnitsPveJf.wurst" >> "$ROOT/wurst/map/modes/PveWaveTables.wurst"
+echo "wurst/map/modes/PveWaveTables.wurst: $(awk -F'\t' '{print $6}' matches.tsv | sort | uniq -c | tr '\n' ' ')"

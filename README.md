@@ -57,58 +57,71 @@ build.cmd
 Весь скрипт карты (241 триггер, ~12k строк) переведён с JASS на Wurst:
 
 ```
-map/MapGlobals.wurst      глобальные переменные (бывшие udg_*, без префикса, в lowerCamel: Force → power, Hash → hash, King → kings…), регионы; бывший InitGlobals
-map/lib/SendResult, CjLib   библиотеки оригинала (статистика для ботов и т.п.), переведены как есть; MMD — wurst/MMD.wurst (готовая Wurst-версия)
-map/Initialization        Zadania, Int, Int2, Wave, Win
-map/DamageSystem          модификаторы урона (бывший DamageOne) — слушатель stdlib DamageEvent
-map/Scoreboard            мультиборды, LeaveGame
-map/Main                  постройка, бараки, запреты, камни, книга
-map/Commands, Synergy, King, Builder, HeroSpells   по папкам триггеров редактора
-map/Artifacts             класс Artifact: таблица улучшений предметов (53 записи вместо 680 строк if/else),
-                          Artifact.onCast(abil) для эффектов, charges()/dummy() вместо повторяющихся циклов
-map/autocast/Autocast<Раса>   способности юнитов, разбиты по расе юнитов/способностей, которые они используют
-map/UnitSearch            поиск юнитов в радиусе поверх ClosureForGroups: firstUnitInRange / randomUnitInRange /
-                          countUnitsInRange / unitsInRange / firstUnitsInRange (условие — замыкание)
-map/Dummies               auraDummy() — даммик-носитель пассивки (аура, Phoenix Fire) из DummyRecycler; unit.isDummy()
-map/UnitEvents            диспетчер событий по типу юнита: onAttackBy / onAttacked / onDeathOf / onKillBy (+ onAnyAttack/onAnyDeath)
-map/MapStart              триггеры «Map initialization» (Zadania, Int) — стартуют после инициализации всех пакетов
-map/MoveBuilding          кнопка «Переместить» ('A0IS', на базе 'AIbf') у построенных зданий: курсор постройки
-                          фиктивного здания 'h0MV' (сетка, занятые клетки не даёт) → здание переносится в клетку своей базы
-map/PlayerOptions         кнопки игрока над нижней панелью (wurst-table-layout, perPlayerFrames): Grid — сетка 128×128 на своей
-                          базе (картинки imports/textures/GridCell.blp, центры клеток на кратных 128, видны только
-                          нажавшему), Speed — строитель 522 ×2 (доп. сдвиг кодом) / обычная, Cam — 2400..3000,
-                          Tips — подсказки при наведении: Icons (иконки пика) / All (и юниты) / Off
-map/BaseShortcuts         быстрый выбор зданий базы (алтари, дома, флаг), как в Legion TD: столбец иконок слева под
-                          панелью героев и клавиши F2..F4, F6..F8 (F1 — строитель, F5 — быстрое сохранение игры); повторное нажатие наводит камеру.
-                          Кнопку короля, взятого под контроль, на панели героев прячет (вся панель — нельзя, игра падает).
-                          Не герои-ярлыки: плашку уровня/здоровья героя спрятать нельзя
-map/PickIcons             пик игрока (по бараку на тир из random(p)) иконками на воде между стеной и его стройплощадкой
-                          (сетка 4×3 как меню строителя), видит только своя команда; и у пустых слотов; обновляется
-                          в 1-м раунде и после смены расы ('A00I'); наведение мыши — описание барака в окне UnitHoverTooltip
-map/ArtifactShop          магазин артефактов — панель над миникартой (таверн в миду больше нет): категории, клик покупает
-                          строителю (золото, лимит урон/стан, место); 1 шт. на команду, проданный (returnArtifact) снова доступен
-map/Profile               профиль между играми (как Direct Strike): опыт/уровень за убийства, монеты (на скины: минуты + победа) и энергия (прокачка),
-                          статистика, аватарка; файл CustomMapDataTheWarRebornprofile.pld (SaveLoadData + StructuredSerialization)
-map/ProfileUi             кнопка «Profile» над миникартой: окно с уровнем, опытом, монетами, энергией, статистикой и выбором аватарки
-map/Skins                 скины за монеты профиля (BlzSetUnitSkin, стандартные модели): строитель, главное здание, Артас, герои бараков
-map/SkinsUi               окно скинов (кнопка «Skins» в профиле): группы, покупка, надевание
-map/UnitHoverTooltip      окно описания при наведении (угол над командной карточкой), только у навёдшего; режим — кнопка Tips
-map/EscMenu               сохранения выключены: в меню Esc нет сохранения/загрузки и выхода из WC3; загруженная игра сразу кончается
-map/PreplacedBuildings    здания баз (алтари, дома, флаг) — раньше стояли на карте в редакторе; World Editor 3.0 выкидывает
-                          юнитов кастомных типов при сохранении, поэтому они создаются кодом
-map/GameMode              режим игры (PvP / PvE / PvEvP) и правила нижнего уровня: куда идут юниты по линии (laneTarget →
-                          attackLane), владельцы монстров (слоты 12-14), прорыв монстра к королю, наёмник → монстр, хуки раунда
-map/ModeSelect            выбор режима хостом в начале (диалог, 25 с, по умолчанию PvP); первый раунд — после выбора
-map/CreepWaves            волны монстров по таблицам Just Fight (map/PveWaveTables — сгенерированы tools/jf), Терминаторы, появление
-map/CreepCast             автокаст скопированных монстров Just Fight: при атаке — активная способность (маны хватает, не на перезарядке)
-                          без цели / во врага / в точку / в раненого союзника (таблица jfCast* — tools/jf/orders.tsv)
-map/Pve                   PvE (копия Just Fight 5.6): Злой Бог с Забытыми на месте правого короля, генераторы, волны, награды
-map/Pvevp                 PvEvP / «LTD» (Just Fight 5.6 «Battle Chess»): каждый держит свою половину, волна — до зачистки
-map/ChaoticVoid           бесконечный PvE (Just Fight «Хаотическая Пустота»): пульт игрока, свойства монстров, вожаки, технологии
-map/Energies, EnergyUi    энергии PvE (система очков Just Fight, здесь за энергию): 8 видов до 40 ур., окно — кнопка «Energies» в профиле;
-                          в PvE они же — кнопки на Генераторе энергии (как в Just Fight: «Activate» и энергии с их уровнем, клик качает)
-map/ArthasJf              Артас = «Mini War God Assistant» Just Fight: Благословение Бога (36 ур. за энергию), 8 форм-скинов с прибавками,
-                          таланты «Молитвы» (21, в профиле), «Генератор энергии - помощь» в PvE (объекты — objects/units/UnitsArthasJf)
+map/              точка входа
+  MapStart                  триггеры «Map initialization» (Zadania, Int) — стартуют после инициализации всех пакетов
+
+map/core/         общее: глобальные, утилиты, события юнитов, урон (MMD — статистика для ботов — wurst/MMD.wurst)
+  MapGlobals                глобальные переменные (бывшие udg_*, без префикса, в lowerCamel: Force → power, Hash → hash, King → kings…), регионы; бывший InitGlobals
+  Initialization            Zadania, Int, Int2, Wave, Win
+  DamageSystem              модификаторы урона (бывший DamageOne) — слушатель stdlib DamageEvent
+  UnitSearch                поиск юнитов в радиусе поверх ClosureForGroups: firstUnitInRange / randomUnitInRange /
+                            countUnitsInRange / unitsInRange / firstUnitsInRange (условие — замыкание)
+  Dummies                   auraDummy() — даммик-носитель пассивки (аура, Phoenix Fire) из DummyRecycler; unit.isDummy()
+  UnitEvents                диспетчер событий по типу юнита: onAttackBy / onAttacked / onDeathOf / onKillBy (+ onAnyAttack/onAnyDeath)
+
+map/modes/        режимы игры (PvP / PvE / PvEvP / Хаотическая Пустота), волны и заклинания монстров
+  GameMode                  режим игры (PvP / PvE / PvEvP) и правила нижнего уровня: куда идут юниты по линии (laneTarget →
+                            attackLane), владельцы монстров (слоты 12-14), прорыв монстра к королю, наёмник → монстр, хуки раунда
+  ModeSelect                выбор режима хостом в начале (диалог, 25 с, по умолчанию PvP); первый раунд — после выбора
+  CreepWaves                волны монстров по таблицам Just Fight (PveWaveTables — сгенерированы tools/jf), Терминаторы, появление
+  CreepCast                 автокаст скопированных монстров Just Fight: при атаке — активная способность (маны хватает, не на перезарядке)
+                            без цели / во врага / в точку / в раненого союзника (таблица jfCast* — tools/jf/orders.tsv)
+  Pve                       PvE (копия Just Fight 5.6): Злой Бог с Забытыми на месте правого короля, генераторы, волны, награды
+  Pvevp                     PvEvP / «LTD» (Just Fight 5.6 «Battle Chess»): каждый держит свою половину, волна — до зачистки
+  ChaoticVoid               бесконечный PvE (Just Fight «Хаотическая Пустота»): пульт игрока, свойства монстров, вожаки, технологии
+  Energies, EnergyUi        энергии PvE (система очков Just Fight, здесь за энергию): 8 видов до 40 ур., окно — кнопка «Energies» в профиле;
+                            в PvE они же — кнопки на Генераторе энергии (как в Just Fight: «Activate» и энергии с их уровнем, клик качает)
+  ArthasJf                  Артас = «Mini War God Assistant» Just Fight: Благословение Бога (36 ур. за энергию), 8 форм-скинов с прибавками,
+                            таланты «Молитвы» (21, в профиле), «Генератор энергии - помощь» в PvE (объекты — objects/units/UnitsArthasJf)
+
+map/gameplay/     игровые системы: постройка, бараки, король, артефакты, герои
+  Main                      постройка, бараки, запреты, камни, книга
+  Synergy, King, Builder, HeroSpells   по папкам триггеров редактора
+  Artifacts                 класс Artifact: таблица улучшений предметов (53 записи вместо 680 строк if/else),
+                            Artifact.onCast(abil) для эффектов, charges()/dummy() вместо повторяющихся циклов
+  MoveBuilding              кнопка «Переместить» ('A0IS', на базе 'AIbf') у построенных зданий: курсор постройки
+                            фиктивного здания 'h0MV' (сетка, занятые клетки не даёт) → здание переносится в клетку своей базы
+  ArtifactShop              магазин артефактов — панель над миникартой (таверн в миду больше нет): категории, клик покупает
+                            строителю (золото, лимит урон/стан, место); 1 шт. на команду, проданный (returnArtifact) снова доступен
+  PreplacedBuildings        здания баз (алтари, дома, флаг) — раньше стояли на карте в редакторе; World Editor 3.0 выкидывает
+                            юнитов кастомных типов при сохранении, поэтому они создаются кодом
+
+map/player/       игрок: профиль, скины, команды, опции, горячие клавиши
+  Commands                  чат-команды игроков
+  PlayerOptions             кнопки игрока над нижней панелью (wurst-table-layout, perPlayerFrames): Grid — сетка 128×128 на своей
+                            базе (картинки imports/textures/GridCell.blp, центры клеток на кратных 128, видны только
+                            нажавшему), Speed — строитель 522 ×2 (доп. сдвиг кодом) / обычная, Cam — 2400..3000,
+                            Tips — подсказки при наведении: Icons (иконки пика) / All (и юниты) / Off
+  BaseShortcuts             быстрый выбор зданий базы (алтари, дома, флаг), как в Legion TD: столбец иконок слева под
+                            панелью героев и клавиши F2..F4, F6..F8 (F1 — строитель, F5 — быстрое сохранение игры); повторное нажатие наводит камеру.
+                            Кнопку короля, взятого под контроль, на панели героев прячет (вся панель — нельзя, игра падает).
+                            Не герои-ярлыки: плашку уровня/здоровья героя спрятать нельзя
+  Profile                   профиль между играми (как Direct Strike): опыт/уровень за убийства, монеты (на скины: минуты + победа) и энергия (прокачка),
+                            статистика, аватарка; файл CustomMapDataTheWarRebornprofile.pld (SaveLoadData + StructuredSerialization)
+  Skins                     скины за монеты профиля (BlzSetUnitSkin, стандартные модели): строитель, главное здание, Артас, герои бараков
+
+map/ui/           окна и панели интерфейса
+  Scoreboard                мультиборды, LeaveGame
+  PickIcons                 пик игрока (по бараку на тир из random(p)) иконками на воде между стеной и его стройплощадкой
+                            (сетка 4×3 как меню строителя), видит только своя команда; и у пустых слотов; обновляется
+                            в 1-м раунде и после смены расы ('A00I'); наведение мыши — описание барака в окне UnitHoverTooltip
+  ProfileUi                 кнопка «Profile» над миникартой: окно с уровнем, опытом, монетами, энергией, статистикой и выбором аватарки
+  SkinsUi                   окно скинов (кнопка «Skins» в профиле): группы, покупка, надевание
+  UnitHoverTooltip          окно описания при наведении (угол над командной карточкой), только у навёдшего; режим — кнопка Tips
+  EscMenu                   сохранения выключены: в меню Esc нет сохранения/загрузки и выхода из WC3; загруженная игра сразу кончается
+
+map/autocast/     способности юнитов, по расе юнитов/способностей, которые они используют
+  Autocast<Раса>
 ```
 
 ### Режимы PvE и PvEvP (перенос из Just Fight 5.6)
@@ -176,7 +189,7 @@ map/ArthasJf              Артас = «Mini War God Assistant» Just Fight: Б
 
 Внутри пакета структура повторяет триггеры: `// Триггер: X — что делает`, одна функция на триггер, а `init` пакета
 подписывает её на событие **по типу юнита**: `onAttackBy('h00P') -> setka()` (атакует юнит этого типа),
-`onAttacked('n02B')`, `onDeathOf('u009')`, `onKillBy('h00Q')` (map/UnitEvents: один слушатель на событие и HashMap
+`onAttacked('n02B')`, `onDeathOf('u009')`, `onKillBy('h00Q')` (map/core/UnitEvents: один слушатель на событие и HashMap
 «тип → обработчики», O(1) вместо ~90 проверок `GetAttacker().getTypeId() == …` на каждую атаку); триггеры по способности —
 `EventListener.onCast('A01S') (caster) -> …` (ClosureEvents, тоже HashMap); обработчики по баффам/уровням, не по типу —
 `onAnyAttack()`/`onAnyDeath()` (их ~15). Периодика — `doPeriodically`, задержки — `doAfter`; свои `trigger` остались
@@ -196,12 +209,12 @@ map/ArthasJf              Артас = «Mini War God Assistant» Just Fight: Б
   thunderclap, rejuvination, illusion) — `InstantDummyCaster.castX(owner, abil, lvl, OrderIds.x, target, pos)`;
   снаряды, каналы и отложенный урон (thunderbolt, chainlightning, shockwave, impale, magicleash, healingwave,
   fingerofdeath, drain, starfall, tranquility, monsoon, tornado, inferno) — `new DummyCaster()..owner()..origin()..delay()..castX()`
-  с тем же временем жизни, что было у 'e00W'. Даммики-носители аур/Phoenix Fire — `auraDummy()` (map/Dummies).
+  с тем же временем жизни, что было у 'e00W'. Даммики-носители аур/Phoenix Fire — `auraDummy()` (map/core/Dummies).
   Два триггера различали даммиков по самому юниту (`Multikast` — флаг мультикаста огра, `Sycyb2` — тип даммика 'e01O');
   теперь даммик общий, а эффект каста срабатывает синхронно внутри приказа, поэтому они читают глобалы
   `ogreMulticast` / `sycybCaster`, выставленные на время каста.
 - **`Group.enumUnitsInRange(...) + forGroup/FirstOfGroup/getRandom` → `ClosureForGroups`**: `forUnitsInRange(pos, r) u -> …`
-  (условие — прямо в замыкании) и обёртки из map/UnitSearch, где нужен первый/случайный/подсчёт/группа.
+  (условие — прямо в замыкании) и обёртки из map/core/UnitSearch, где нужен первый/случайный/подсчёт/группа.
   Глобальные группы `Group`/`Group2` и счётчик `udg_CountUnit` не нужны и убраны. Там, где колбэк удаляет или
   переносит юнитов, сначала собирается группа (`unitsInRange`), а потом `forEachFrom` — не во время перебора.
 - Код в стиле Wurst: extension-методы stdlib вместо нативов (`u.addAbility('A000')`, `p.getGold()`), `players[i]`,
@@ -229,7 +242,7 @@ map/ArthasJf              Артас = «Mini War God Assistant» Just Fight: Б
 - Сборка с `-inline -opt -localOptimizations` (build.cmd).
 
 Исходники JASS на всякий случай в `backup/triggers/` (`war3map.orig.j` — как было, `war3map.organized.j` — отсортированный,
-из него генерировался Wurst; `tools/JassToWurst.java` + `tools/regen_wurst_from_jass.sh` — сам транслятор).
+из него генерировался Wurst; `tools/migration/JassToWurst.java` + `tools/migration/regen_wurst_from_jass.sh` — сам транслятор).
 
 Ландшафт можно править в World Editor (открыть `TheWar.w3x`, сохранить): триггеров в карте нет, а свой `war3map.j`
 редактор перегенерирует сам, компилятор извлекает его при каждой сборке. Нюанс: расставленные на карте юниты кастомных
