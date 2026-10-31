@@ -12,6 +12,7 @@ import GameMode
 import PickIcons
 import Messages
 import TerrainUtils
+import DebugLog
 
 /** Регион из прямоугольников */
 function regionOf(rect r1, rect r2) returns region
@@ -152,6 +153,7 @@ function passLanePve(unit u, player a, int food)
 @noinline
 function pvePortal()
     let u = GetTriggerUnit()
+    logRegionEnter("pvePortal", u)
     if (isPve() or isPvevp()) and u.isLaneFighter()
         let food = GetFoodUsed(u.baseType())
         passLanePve(u, u.getOwner(), food)
@@ -159,6 +161,7 @@ function pvePortal()
 @noinline
 function proxod()
     let u = GetTriggerUnit()
+    logRegionEnter("proxod", u)
     let a = u.getOwner()
     let id = a.getId()
     let x = u.getX().toInt()
@@ -434,6 +437,7 @@ function upgreid()
 @noinline
 function zapretBaza()
     let u = GetTriggerUnit()
+    logRegionEnter("leave base", u)
     if not (u.isType(UNIT_TYPE_PEON) or u.isType(UNIT_TYPE_HERO) or u.isType(UNIT_TYPE_ANCIENT) or u.getTypeId() == 'e01Q')
         return
     let x = u.getX().toInt()
@@ -455,6 +459,7 @@ function zapretBaza()
 @noinline
 function zapretWater()
     let u = GetTriggerUnit()
+    logRegionEnter("water", u)
     if u.isType(UNIT_TYPE_PEON) or u.isType(UNIT_TYPE_HERO) or u.isType(UNIT_TYPE_ANCIENT) or u.getTypeId() == 'e01Q'
         return
     let y = u.getY().toInt()
@@ -495,6 +500,7 @@ function baseRect(int n) returns rect
 
 @noinline
 function zapretSummons()
+    logRegionEnter("summon zone", GetTriggerUnit())
     if GetTriggerUnit().getAbilityLevel('A0F6') == 1
         GetTriggerUnit().setPos(0.0, 0.0)
 

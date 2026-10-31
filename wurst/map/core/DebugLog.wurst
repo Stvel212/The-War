@@ -21,9 +21,17 @@ import UnitEvents
     - units: всего, мёртвых, но не убранных, спрятанных, на паузе; по владельцам; самые многочисленные типы;
     - by type за последнюю секунду: кто больше всех приказывал, кастовал, наносил урон, получал урон (и сколько);
     - обработчики урона Just Fight (UnitEvents): сколько раз выполнялись и сколько событий отбросил предел вложенности;
-    - last ...: последние события каждого вида с типами юнитов (#номер владельца). */
+    - last ...: последние события каждого вида с типами юнитов (#номер владельца).
+
+    Раз в секунду журнал не успевает за зависанием: цепочка событий, которая сама себя запускает, идёт внутри одного
+    кадра, и последняя запись — секунда до неё. Поэтому, если за один кадр пришло RUNAWAY_EVENTS событий, журнал
+    сразу пишется в RUNAWAY_FILE (один раз за игру): в его last ... — события самой цепочки.
+    Входы в области (портал, проход) отдельно от входа на карту — через logRegionEnter. */
 
 constant FILE = "TheWarLog\\log.txt"
+constant RUNAWAY_FILE = "TheWarLog\\runaway.txt"
+/** Событий без единого кадра игры (счётчик сбрасывает таймер) — уже не игра, а зацикливание */
+constant RUNAWAY_EVENTS = 1000
 constant LAST = 10
 constant HISTORY = 10
 constant TOP = 12
@@ -36,7 +44,8 @@ constant EFFECT = 4
 constant ORDER = 5
 constant SUMMON = 6
 constant ENTER = 7
-constant KINDS = 8
+constant REGION = 8
+constant KINDS = 9
 
 /** Счётчик по типам юнитов: сколько раз и сколько всего (урон) */
 class TypeCounter
@@ -111,6 +120,8 @@ function kindName(int k) returns string
             return "order"
         case SUMMON
             return "summon"
+        case REGION
+            return "region"
         default
             return "enter"
 
@@ -118,6 +129,22 @@ function nameOf(unit u) returns string
     if u == null
         return "-"
     return GetObjectName(u.getTypeId()) + "#" + u.getOwner().getId()
+
+var frameEvents = 0
+var runawayWritten = false
+
+/** Событие вида kind: в счётчик секунды и кадра; слишком много за кадр — сразу записать журнал зацикливания */
+function tick(int kind)
+    counts[kind]++
+    frameEvents++
+    if frameEvents >= RUNAWAY_EVENTS and not runawayWritten
+        runawayWritten = true
+        flush(RUNAWAY_FILE, "RUNAWAY: " + frameEvents + " events in one game frame, now: " + kindName(kind))
+
+/** Юнит u вошёл в область name (проход, портал PvE…) — вход в отдельную область вход на карту не ловит */
+public function logRegionEnter(string name, unit u)
+    tick(REGION)
+    remember(REGION, name + ": " + nameOf(u))
 
 function remember(int kind, string text)
     let i = lastIndex[kind]
@@ -137,8 +164,7 @@ function kingText(int a) returns string
         return "king" + a + "=-"
     return "king" + a + "=" + nameOf(k) + " hp=" + k.getHP().toInt()
 
-function flush()
-    seconds++
+function flush(string file, string note)
     // всё о юнитах на карте
     let g = CreateGroup()
     let world = GetWorldBounds()
@@ -171,6 +197,8 @@ function flush()
 
     PreloadGenClear()
     PreloadGenStart()
+    if note != ""
+        Preload(note)
     Preload("t=" + seconds + " game=" + getElapsedGameTime().toInt() + " round=" + round + " mode=" + modeTitle()
         + " " + kingText(1) + " " + kingText(2))
     Preload("history:")
@@ -204,36 +232,37 @@ function flush()
     writeLast(ENTER)
     writeLast(DAMAGE)
     writeLast(ATTACK)
-    PreloadGenEnd(FILE)
+    writeLast(REGION)
+    PreloadGenEnd(file)
 
 function onOrder(string kind, unit target)
     let u = GetTriggerUnit()
-    counts[ORDER]++
+    tick(ORDER)
     ordersBy.add(u.getTypeId(), 0)
     remember(ORDER, kind + OrderId2String(GetIssuedOrderId()) + " by " + nameOf(u) + (target != null ? " -> " + nameOf(target) : ""))
 
 init
     EventListener.add(EVENT_PLAYER_UNIT_ATTACKED) ->
-        counts[ATTACK]++
+        tick(ATTACK)
         remember(ATTACK, nameOf(GetAttacker()) + " -> " + nameOf(GetTriggerUnit()))
     EventListener.add(EVENT_PLAYER_UNIT_DEATH) ->
-        counts[DEATH]++
+        tick(DEATH)
         remember(DEATH, nameOf(GetDyingUnit()) + " by " + nameOf(GetKillingUnit()))
     EventListener.add(EVENT_PLAYER_UNIT_DAMAGED) ->
         let source = GetEventDamageSource()
         let target = GetTriggerUnit()
         let amount = GetEventDamage().toInt()
-        counts[DAMAGE]++
+        tick(DAMAGE)
         if source != null
             damageBy.add(source.getTypeId(), amount)
         damagedType.add(target.getTypeId(), amount)
         remember(DAMAGE, nameOf(source) + " -> " + nameOf(target) + " " + amount)
     EventListener.add(EVENT_PLAYER_UNIT_SPELL_CAST) ->
-        counts[CAST]++
+        tick(CAST)
         castsBy.add(GetTriggerUnit().getTypeId(), 0)
         remember(CAST, GetObjectName(GetSpellAbilityId()) + " by " + nameOf(GetTriggerUnit()) + " -> " + nameOf(GetSpellTargetUnit()))
     EventListener.add(EVENT_PLAYER_UNIT_SPELL_EFFECT) ->
-        counts[EFFECT]++
+        tick(EFFECT)
     EventListener.add(EVENT_PLAYER_UNIT_ISSUED_ORDER) ->
         onOrder("", null)
     EventListener.add(EVENT_PLAYER_UNIT_ISSUED_POINT_ORDER) ->
@@ -241,10 +270,14 @@ init
     EventListener.add(EVENT_PLAYER_UNIT_ISSUED_TARGET_ORDER) ->
         onOrder("target ", GetOrderTargetUnit())
     EventListener.add(EVENT_PLAYER_UNIT_SUMMON) ->
-        counts[SUMMON]++
+        tick(SUMMON)
         remember(SUMMON, nameOf(GetSummonedUnit()) + " by " + nameOf(GetSummoningUnit()))
     onEnter() ->
-        counts[ENTER]++
+        tick(ENTER)
         remember(ENTER, nameOf(getEnterLeaveUnit()))
     doPeriodically(1.) _cb ->
-        flush()
+        seconds++
+        flush(FILE, "")
+    // кадр прошёл — цепочки нет
+    doPeriodically(0.03) _cb ->
+        frameEvents = 0
