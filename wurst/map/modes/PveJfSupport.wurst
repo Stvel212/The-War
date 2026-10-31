@@ -1,0 +1,132 @@
+package PveJfSupport
+import GameMode
+import Initialization
+import OnUnitEnterLeave
+import ClosureTimers
+import MapBounds
+import HashMap
+import LinkedList
+import DummyRecycler
+
+/*
+    Связка перенесённых триггеров Just Fight (PveJfTriggers, генерируется) с картой: то, что в Just Fight завязано на
+    его области и линии, здесь — через линии The War. */
+
+/** Юнит снова идёт в атаку по своей линии (Just Fight: триггер LLILlI с юнитом в IIL1 — по областям Just Fight) */
+public function jfAttackLane(unit u)
+    if u != null and u.isAlive()
+        u.attackLane()
+
+/** Уровень PvE Just Fight (LIlLI): 1..5, 6 — Хаотическая Пустота; вне PvE — 0 */
+public function jfPveLevel() returns int
+    return isPve() ? pveLevel : 0
+
+/** Эффект исчезнет через delay с (в Just Fight — своя очередь таймеров) */
+public function jfDestroyEffectLater(real delay, effect fx)
+    doAfter(delay) ->
+        fx.destr()
+
+/** Случайные count юнитов группы (новая группа; как «Random N units from group» редактора триггеров) */
+public function jfRandomSubGroup(int count, group source) returns group
+    let result = CreateGroup()
+    var want = count
+    var total = source.size()
+    for u in source
+        if want > 0 and (want >= total or GetRandomInt(1, total) <= want)
+            result.add(u)
+            want--
+        total--
+    return result
+
+/** Тип для копии чужого юнита (Тёмный заклинатель поднимает убитого, Гнолл-ходок копирует убийцу): некромантов
+    The War и их скелетов не копировать — 0, юнит не создаётся */
+public function jfCopyType(unit u) returns int
+    return zapret_Necr(u) ? 0 : u.getTypeId()
+
+/** Несколько юнитов в точке (Just Fight создаёт отряды «по N»); возвращает последний */
+public function jfCreateUnits(int count, int unitId, player owner, vec2 pos, real facing) returns unit
+    unit last = null
+    for i = 1 to count
+        last = createUnit(owner, unitId, pos, facing.fromDeg())
+    return last
+
+/** Всплывающий текст над юнитом / в точке (размер, цвет и прозрачность в процентах — как в редакторе триггеров) */
+public function jfTextTag(string text, unit u, real zOffset, real size, real red, real green, real blue, real transparency) returns texttag
+    let tag = CreateTextTag()..setText(text, size)
+    SetTextTagPosUnit(tag, u, zOffset)
+    tag.setColor(percent255(red), percent255(green), percent255(blue), percent255(100. - transparency))
+    return tag
+
+public function jfTextTag(string text, vec2 pos, real zOffset, real size, real red, real green, real blue, real transparency) returns texttag
+    let tag = CreateTextTag()..setText(text, size)..setPos(pos.withZ(zOffset))
+    tag.setColor(percent255(red), percent255(green), percent255(blue), percent255(100. - transparency))
+    return tag
+
+function percent255(real percent) returns int
+    return (percent * 2.55).toInt()
+
+/** Скорость (как в редакторе триггеров) и направление в градусах */
+public function texttag.jfSetVelocity(real speed, real angleDeg)
+    let vel = speed * 0.071 / 128.
+    this.setVelocity(vel * Cos(angleDeg * DEGTORAD), vel * Sin(angleDeg * DEGTORAD))
+
+/** Виден только игрокам группы */
+public function texttag.jfShowForce(bool show, force players)
+    if players.containsPlayer(localPlayer)
+        this.setVisibility(show)
+
+/** Копия юнита Just Fight ('?J??') */
+function isJfCopy(int typeId) returns bool
+    return (typeId div 65536) mod 256 == 'J'
+
+/** Юниты, которых создают триггеры Just Fight (двойники, скелеты, инферналы…), идут по своей половине линии, как
+    монстры волны там же; на средней линии PvE — к Богу Войны. Монстры волн и призванные получают направление сами
+    (CreepWaves.setupCreep, Main — событие призыва) уже после этого */
+function onEnterCopy()
+    let u = getEnterLeaveUnit()
+    if not u.isCreep() or u.getAbilityLevel('Aloc') > 0 or not isJfCopy(u.getTypeId())
+        return
+    u.setCreepDirection((isPve() and isMidLane(u.getY())) or u.getX() < LANE_CENTER_X)
+    u.removeGuardPosition()
+
+
+constant enterTrigger = CreateTrigger()..registerEnterRegion(playableMapRegion, null)
+
+/** Юнит появился на карте — как триггеры Just Fight (событие области): GetTriggerUnit есть и в фильтрах групп */
+public function onUnitEnter(code c)
+    enterTrigger.addAction(c)
+
+init
+    onEnter(function onEnterCopy)
+
+// ============================================================
+// Даммики коротких эффектов Just Fight (до 5 с): из пула The War (DummyRecycler), а не новый 'eJ6O' на каждый каст
+// ============================================================
+
+/** Способности, выданные даммику (снимаются перед возвратом в пул) */
+constant jfDummyAbilities = new HashMap<unit, LinkedList<int>>()
+
+/** Даммик из пула The War у pos во владении owner (вместо createUnit(owner, 'eJ6O', pos, …)) */
+public function jfDummy(player owner, vec2 pos) returns unit
+    let u = DummyRecycler.get(pos, angle(0))
+    // часть способностей стоит 60 маны (у 'eJ6O' она была), у даммика пула маны нет
+    u..setOwner(owner, false)..setMaxMana(1000)..setMana(1000.)
+    jfDummyAbilities.put(u, new LinkedList<int>())
+    return u
+
+/** Способность даммику — запоминается, чтобы снять при возврате в пул */
+public function unit.jfDummyAbility(int abil)
+    this.addAbility(abil)
+    jfDummyAbilities.get(this)?.add(abil)
+
+/** Через t секунд (вместо setTimedLife) способности снимаются, даммик возвращается в пул */
+public function unit.jfDummyLife(real t)
+    let u = this
+    doAfter(t) ->
+        let abilities = jfDummyAbilities.get(u)
+        if abilities != null
+            for abil in abilities
+                u.removeAbility(abil)
+            destroy abilities
+            jfDummyAbilities.remove(u)
+        DummyRecycler.recycle(u)

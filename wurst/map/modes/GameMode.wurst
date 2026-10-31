@@ -102,9 +102,13 @@ public constant LEFT_END_X = -3300.
 public constant RIGHT_END_X = 2750.
 /** Середина линий (центр rct_PVE) */
 public constant LANE_CENTER_X = -256.
-/** PvEvP: где держат линию бойцы левой и правой команды */
-public constant HOLD_LEFT_X = -1500.
-public constant HOLD_RIGHT_X = 1000.
+/** PvEvP: на средней линии прорвавшиеся монстры выходят здесь (левой и правой стороны) и идут к королю */
+public constant MID_HOLD_LEFT_X = -1600.
+public constant MID_HOLD_RIGHT_X = 1100.
+/** PvEvP: где стоят перед своим королём (левый — x = -3070, правый — 2550) бойцы, прошедшие портал: сюда их переносит
+    портал, отсюда они не уходят (Just Fight: «Soldiers who break through will protect the War God») */
+public constant DEFEND_LEFT_X = -2650.
+public constant DEFEND_RIGHT_X = 2130.
 /** Средняя линия (к королям): по высоте */
 public constant MID_LOW_Y = -500.
 public constant MID_HIGH_Y = 1200.
@@ -181,6 +185,13 @@ public function laneY(int lane) returns real
 public function isMidLane(real y) returns bool
     return y >= MID_LOW_Y and y <= MID_HIGH_Y
 
+/** Куда идёт монстр, появившийся в pos без «родителя» с направлением: на средней линии PvE — к Богу Войны (влево),
+    иначе — к той стороне, на чьей половине он стоит (как монстры волны) */
+public function creepDirectionAt(vec2 pos) returns bool
+    if isPve() and isMidLane(pos.y)
+        return true
+    return pos.x < LANE_CENTER_X
+
 /** Куда идёт юнит по линии на высоте y (attack-move) */
 public function unit.laneTarget(real y) returns vec2
     let owner = this.getOwner()
@@ -193,16 +204,16 @@ public function unit.laneTarget(real y) returns vec2
                 return vec2(this.creepGoesLeft() ? GENERATOR_LEFT_X : GENERATOR_RIGHT_X, y)
         return vec2(this.creepGoesLeft() ? LEFT_END_X : RIGHT_END_X, y)
     let left = id < 4 or id == 8
-    // PvE: на линиях — к порталу в конце своей половины (оттуда на мид); на средней линии все бойцы игроков и стража
-    // Бога Войны идут на Злого Бога (он стоит на месте правого короля)
-    if isPve() and id < 9
-        if isMidLane(y)
-            return vec2(RIGHT_END_X, y)
-        if id < 8
-            return vec2(left ? PVE_SPAWN_LEFT_X : PVE_SPAWN_RIGHT_X, y)
-    // PvEvP: бойцы держат свою половину линии; на средней линии Стража Короля идёт к чужому королю, как в PvP
-    if id < 8 and isPvevp() and not isMidLane(y)
-        return vec2(left ? HOLD_LEFT_X : HOLD_RIGHT_X, y)
+    // PvE и PvEvP: на линиях — к порталу в конце своей половины (оттуда на мид)
+    if (isPve() or isPvevp()) and id < 8 and not isMidLane(y)
+        return vec2(spawnX(left), y)
+    // PvE: на средней линии все бойцы игроков и стража Бога Войны идут на Злого Бога (он стоит на месте правого короля)
+    if isPve() and id < 9 and isMidLane(y)
+        return vec2(RIGHT_END_X, y)
+    // PvEvP: на средней линии бойцы, прошедшие портал, стоят перед своим королём; остальные (Алтарь Вызова) идут
+    // к чужому королю, как в PvP
+    if isPvevp() and isMidLane(y) and this.isPortalDefender()
+        return vec2(left ? DEFEND_LEFT_X : DEFEND_RIGHT_X, y)
     return vec2(left ? RIGHT_END_X : LEFT_END_X, y)
 
 /** Где появляются монстры волны, идущие влево (goesLeft) или вправо: «порталы» Just Fight (ILIlI, ±768 от центра,
@@ -248,13 +259,33 @@ public function unit.becomeSend()
 /** Боец игрока на линии (не на средней) — те же, кого водит Tree (Main.isFighter, не сапёр), кроме наёмников,
     ждущих волны. Артас — ancient, строитель — герой, рабочие — peon: они не бойцы */
 public function unit.isLaneFighter() returns bool
-    let id = this.getOwner().getId()
-    return id < 8 and this.isAlive() and not this.isType(UNIT_TYPE_HERO) and not this.isType(UNIT_TYPE_STRUCTURE)
+    return this.getOwner().getId() < 8 and this.isFighterUnit() and not isMidLane(this.getY())
+
+/** PvEvP: защитник короля на средней линии — боец игрока, прошедший портал */
+public function unit.isMidDefender() returns bool
+    return this.isPortalDefender() and this.isFighterUnit() and isMidLane(this.getY())
+
+/** PvEvP: бойцы игроков, перенесённые порталом к своему королю (Main.passLanePve) */
+constant portalDefenders = CreateGroup()
+
+public function unit.makePortalDefender()
+    portalDefenders.add(this)
+
+function unit.isPortalDefender() returns bool
+    return portalDefenders.has(this)
+
+/** Торнадо элементалей ('A0FL'/'A0FO' призывают 'n04Q'/'n04P'): живут на месте призыва, в портал не уходят */
+public function isTornado(int t) returns bool
+    return t == 'n04P' or t == 'n04Q'
+
+function unit.isFighterUnit() returns bool
+    return this.isAlive() and not this.isType(UNIT_TYPE_HERO) and not this.isType(UNIT_TYPE_STRUCTURE)
         and not this.isType(UNIT_TYPE_PEON) and not this.isType(UNIT_TYPE_ANCIENT) and not this.isType(UNIT_TYPE_SAPPER)
-        and this.getTypeId() != 'o00P' and not this.isDummy() and not naimGroup.has(this) and not isMidLane(this.getY())
+        and this.getTypeId() != 'o00P' and not isTornado(this.getTypeId()) and not this.isDummy() and not naimGroup.has(this)
 
 /** Боец уходит с поля (волна кончилась): эффект телепорта и удаление (не смерть — без награды за убийство) */
 public function unit.recallFighter()
+    portalDefenders.remove(this)
     addEffect("Abilities\\Spells\\Human\\MassTeleport\\MassTeleportCaster.mdl", this.getPos()).destr()
     this.remove()
 
@@ -266,7 +297,7 @@ public function creepBreakthrough(unit u)
         u.setCreepDirection(true)
         u.setPos(RIGHT_GATE_X, GetRandomReal(-300., 850.))
     else
-        u.setPos(u.creepGoesLeft() ? -1600. : 1100., GetRandomReal(-300., 850.))
+        u.setPos(u.creepGoesLeft() ? MID_HOLD_LEFT_X : MID_HOLD_RIGHT_X, GetRandomReal(-300., 850.))
     let goesLeft = u.creepGoesLeft()
     let target = vec2(goesLeft ? LEFT_END_X : RIGHT_END_X, u.getY())
     if not u.issuePointOrder("attack", target)

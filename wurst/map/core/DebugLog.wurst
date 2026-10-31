@@ -1,0 +1,250 @@
+package DebugLog
+import ClosureEvents
+import ClosureTimers
+import OnUnitEnterLeave
+import GameTimer
+import HashMap
+import LinkedList
+import MapGlobals
+import GameMode
+import UnitEvents
+
+/*
+    Временный журнал для поиска зависания: раз в секунду пишет в файл (Documents\Warcraft III\CustomMapData\
+    TheWarLog\log.txt) картину игры. Зависнет игра — в файле останется последняя секунда перед зависанием
+    и история за HISTORY секунд до неё. Только запись файла у своего клиента: на синхронное состояние не влияет.
+    Убрать, когда зависание найдено.
+
+    В файле:
+    - заголовок: секунда журнала, игровое время, раунд, режим, короли (владелец, HP);
+    - history: по секундам — число юнитов и событий (атаки, смерти, удары, касты, эффекты, приказы, призывы, появления);
+    - units: всего, мёртвых, но не убранных, спрятанных, на паузе; по владельцам; самые многочисленные типы;
+    - by type за последнюю секунду: кто больше всех приказывал, кастовал, наносил урон, получал урон (и сколько);
+    - обработчики урона Just Fight (UnitEvents): сколько раз выполнялись и сколько событий отбросил предел вложенности;
+    - last ...: последние события каждого вида с типами юнитов (#номер владельца). */
+
+constant FILE = "TheWarLog\\log.txt"
+constant LAST = 10
+constant HISTORY = 10
+constant TOP = 12
+
+constant ATTACK = 0
+constant DEATH = 1
+constant DAMAGE = 2
+constant CAST = 3
+constant EFFECT = 4
+constant ORDER = 5
+constant SUMMON = 6
+constant ENTER = 7
+constant KINDS = 8
+
+/** Счётчик по типам юнитов: сколько раз и сколько всего (урон) */
+class TypeCounter
+    constant times = new HashMap<int, int>()
+    constant sums = new HashMap<int, int>()
+    constant types = new LinkedList<int>()
+
+    function add(int typeId, int amount)
+        if not times.has(typeId)
+            times.put(typeId, 0)
+            sums.put(typeId, 0)
+            types.add(typeId)
+        times.put(typeId, times.get(typeId) + 1)
+        sums.put(typeId, sums.get(typeId) + amount)
+
+    /** TOP типов по числу раз: «Имя=раз(сумма)» */
+    function top(bool withSum) returns string
+        var line = ""
+        let left = types.copy()
+        for n = 1 to TOP
+            var best = 0
+            var bestTimes = 0
+            for t in left
+                if times.get(t) > bestTimes
+                    best = t
+                    bestTimes = times.get(t)
+            if bestTimes == 0
+                break
+            left.remove(best)
+            line += GetObjectName(best) + "=" + bestTimes + (withSum ? "(" + sums.get(best) + ")" : "") + "; "
+        destroy left
+        return line
+
+    function clear()
+        times.flush()
+        sums.flush()
+        types.clear()
+
+    // без этого список и таблицы оставались жить: «Out of memory: Could not create LLEntry» через несколько минут
+    ondestroy
+        destroy times
+        destroy sums
+        destroy types
+
+int array counts
+var seconds = 0
+string array history
+var historyIndex = 0
+
+/** Кольцевые буферы последних событий: [kind * LAST + i] */
+string array lastEvents
+int array lastIndex
+
+constant ordersBy = new TypeCounter()
+constant castsBy = new TypeCounter()
+constant damageBy = new TypeCounter()
+constant damagedType = new TypeCounter()
+
+function kindName(int k) returns string
+    switch k
+        case ATTACK
+            return "attack"
+        case DEATH
+            return "death"
+        case DAMAGE
+            return "damage"
+        case CAST
+            return "cast"
+        case EFFECT
+            return "effect"
+        case ORDER
+            return "order"
+        case SUMMON
+            return "summon"
+        default
+            return "enter"
+
+function nameOf(unit u) returns string
+    if u == null
+        return "-"
+    return GetObjectName(u.getTypeId()) + "#" + u.getOwner().getId()
+
+function remember(int kind, string text)
+    let i = lastIndex[kind]
+    lastEvents[kind * LAST + i] = text
+    lastIndex[kind] = (i + 1) mod LAST
+
+function writeLast(int kind)
+    Preload("last " + kindName(kind) + ":")
+    for i = 0 to LAST - 1
+        let s = lastEvents[kind * LAST + (lastIndex[kind] + i) mod LAST]
+        if s != null
+            Preload("  " + s)
+
+function kingText(int a) returns string
+    let k = kings[a]
+    if k == null
+        return "king" + a + "=-"
+    return "king" + a + "=" + nameOf(k) + " hp=" + k.getHP().toInt()
+
+function flush()
+    seconds++
+    // всё о юнитах на карте
+    let g = CreateGroup()
+    let world = GetWorldBounds()
+    GroupEnumUnitsInRect(g, world, null)
+    RemoveRect(world)
+    let total = BlzGroupGetSize(g)
+    var dead = 0
+    var hidden = 0
+    var paused = 0
+    int array perOwner
+    let unitTypes = new TypeCounter()
+    for i = 0 to total - 1
+        let u = BlzGroupUnitAt(g, i)
+        if u.getHP() < 0.405
+            dead++
+        if IsUnitHidden(u)
+            hidden++
+        if IsUnitPaused(u)
+            paused++
+        perOwner[u.getOwner().getId()]++
+        unitTypes.add(u.getTypeId(), 0)
+    DestroyGroup(g)
+
+    var counters = ""
+    for k = 0 to KINDS - 1
+        counters += kindName(k) + "=" + counts[k] + " "
+        counts[k] = 0
+    history[historyIndex] = "t=" + seconds + " units=" + total + " " + counters
+    historyIndex = (historyIndex + 1) mod HISTORY
+
+    PreloadGenClear()
+    PreloadGenStart()
+    Preload("t=" + seconds + " game=" + getElapsedGameTime().toInt() + " round=" + round + " mode=" + modeTitle()
+        + " " + kingText(1) + " " + kingText(2))
+    Preload("history:")
+    for i = 0 to HISTORY - 1
+        let s = history[(historyIndex + i) mod HISTORY]
+        if s != null
+            Preload("  " + s)
+    Preload("units=" + total + " dead=" + dead + " hidden=" + hidden + " paused=" + paused)
+    var owners = "by owner: "
+    for p = 0 to bj_MAX_PLAYER_SLOTS - 1
+        if perOwner[p] > 0
+            owners += p + "=" + perOwner[p] + " "
+    Preload(owners)
+    Preload("types: " + unitTypes.top(false))
+    destroy unitTypes
+    Preload("orders by type: " + ordersBy.top(false))
+    Preload("casts by type: " + castsBy.top(false))
+    Preload("damage dealt by type (hits(total)): " + damageBy.top(true))
+    Preload("damage taken by type (hits(total)): " + damagedType.top(true))
+    Preload("JF damage handler runs=" + jfDamageRuns + " depth-limit blocked=" + depthBlocked)
+    jfDamageRuns = 0
+    depthBlocked = 0
+    ordersBy.clear()
+    castsBy.clear()
+    damageBy.clear()
+    damagedType.clear()
+    writeLast(CAST)
+    writeLast(ORDER)
+    writeLast(SUMMON)
+    writeLast(DEATH)
+    writeLast(ENTER)
+    writeLast(DAMAGE)
+    writeLast(ATTACK)
+    PreloadGenEnd(FILE)
+
+function onOrder(string kind, unit target)
+    let u = GetTriggerUnit()
+    counts[ORDER]++
+    ordersBy.add(u.getTypeId(), 0)
+    remember(ORDER, kind + OrderId2String(GetIssuedOrderId()) + " by " + nameOf(u) + (target != null ? " -> " + nameOf(target) : ""))
+
+init
+    EventListener.add(EVENT_PLAYER_UNIT_ATTACKED) ->
+        counts[ATTACK]++
+        remember(ATTACK, nameOf(GetAttacker()) + " -> " + nameOf(GetTriggerUnit()))
+    EventListener.add(EVENT_PLAYER_UNIT_DEATH) ->
+        counts[DEATH]++
+        remember(DEATH, nameOf(GetDyingUnit()) + " by " + nameOf(GetKillingUnit()))
+    EventListener.add(EVENT_PLAYER_UNIT_DAMAGED) ->
+        let source = GetEventDamageSource()
+        let target = GetTriggerUnit()
+        let amount = GetEventDamage().toInt()
+        counts[DAMAGE]++
+        if source != null
+            damageBy.add(source.getTypeId(), amount)
+        damagedType.add(target.getTypeId(), amount)
+        remember(DAMAGE, nameOf(source) + " -> " + nameOf(target) + " " + amount)
+    EventListener.add(EVENT_PLAYER_UNIT_SPELL_CAST) ->
+        counts[CAST]++
+        castsBy.add(GetTriggerUnit().getTypeId(), 0)
+        remember(CAST, GetObjectName(GetSpellAbilityId()) + " by " + nameOf(GetTriggerUnit()) + " -> " + nameOf(GetSpellTargetUnit()))
+    EventListener.add(EVENT_PLAYER_UNIT_SPELL_EFFECT) ->
+        counts[EFFECT]++
+    EventListener.add(EVENT_PLAYER_UNIT_ISSUED_ORDER) ->
+        onOrder("", null)
+    EventListener.add(EVENT_PLAYER_UNIT_ISSUED_POINT_ORDER) ->
+        onOrder("point ", null)
+    EventListener.add(EVENT_PLAYER_UNIT_ISSUED_TARGET_ORDER) ->
+        onOrder("target ", GetOrderTargetUnit())
+    EventListener.add(EVENT_PLAYER_UNIT_SUMMON) ->
+        counts[SUMMON]++
+        remember(SUMMON, nameOf(GetSummonedUnit()) + " by " + nameOf(GetSummoningUnit()))
+    onEnter() ->
+        counts[ENTER]++
+        remember(ENTER, nameOf(getEnterLeaveUnit()))
+    doPeriodically(1.) _cb ->
+        flush()

@@ -1,0 +1,79 @@
+package EnergyData
+
+/*
+    Числа и тексты энергий PvE (Energies): общие для игры и для данных кнопок генератора (AbilitiesEnergy пишет
+    подсказки всех 40 уровней при компиляции — подсказки типа способности, заданные в игре, клиент не показывает). */
+
+public constant ENERGY_KINDS = 8
+public constant ENERGY_MAX_LEVEL = 40
+public constant ENERGY_GOLD = 0
+public constant ENERGY_LUMBER = 1
+public constant ENERGY_WATER = 2
+public constant ENERGY_FIRE = 3
+public constant ENERGY_EARTH = 4
+public constant ENERGY_WIND = 5
+public constant ENERGY_THUNDER = 6
+public constant ENERGY_ELECTRICITY = 7
+
+/** Цена активации по числу пройденных уровней PvE: 0, 1, 2+ (Just Fight: 100, 90, 75 заслуг по прогрессу PvE) */
+public constant activateCosts = [100, 90, 75]
+constant LEVEL_COST = 10
+/** Шанс открыть новую энергию при 0..7 уже открытых, % */
+constant activateChance = [50, 44, 38, 32, 25, 19, 13, 7]
+constant energyNames = ["Gold", "Lumber", "Water", "Fire", "Earth", "Wind", "Thunder", "Electricity"]
+constant energyIcons = ["BTNChestOfGold", "BTNBundleOfLumber", "BTNSummonWaterElemental", "BTNImmolationOn",
+    "BTNEarthquake", "BTNCyclone", "BTNThunderclap", "BTNChainLightning"]
+
+/** Огонь: шанс сильного удара */
+public constant FIRE_CHANCE = 20
+
+public function energyName(int kind) returns string
+    return energyNames[kind]
+
+public function energyIcon(int kind) returns string
+    return "ReplaceableTextures\\CommandButtons\\" + energyIcons[kind] + ".blp"
+
+/** Что даёт энергия kind на уровне level (для подсказок) */
+public function energyEffect(int kind, int level) returns string
+    switch kind
+        case ENERGY_GOLD
+            return "+" + 5 * level + " starting gold"
+        case ENERGY_LUMBER
+            return "+" + 5 * level + " starting lumber"
+        case ENERGY_WATER
+            return "your Energy Generator below 9% HP instantly heals " + min(100, 3 * level) + "% max HP and deals as much damage around (60 s cooldown)"
+        case ENERGY_FIRE
+            return FIRE_CHANCE + "% chance for attacks of your units to deal +" + 5 * level + "% damage"
+        case ENERGY_EARTH
+            return "+" + (0.15 * level).toString(2) + " armor to your units"
+        case ENERGY_WIND
+            return "+" + (0.5 * level).toString(1) + "% attack speed to your units"
+        case ENERGY_THUNDER
+            return "+" + (0.3 * level).toString(1) + " HP regeneration to your units"
+        default
+            return "+" + (0.5 * level).toString(1) + "% attack damage to your units"
+
+public function energyActivateChance(int active) returns int
+    return active < ENERGY_KINDS ? activateChance[active] : 0
+
+public function energyLevelCost(int level) returns int
+    return LEVEL_COST * level
+
+/** Заголовок кнопки энергии kind на уровне level */
+public function energyTooltip(int kind, int level) returns string
+    return "|cff00ffffEnergy - " + energyName(kind) + " [Level " + level + "]|r"
+
+/** Описание кнопки энергии kind на уровне level: сейчас, следующий уровень и его цена */
+public function energyTooltipExtended(int kind, int level) returns string
+    var s = "|cffffff00Current:|n" + energyEffect(kind, level) + "|r"
+    if level < ENERGY_MAX_LEVEL
+        s += "|n|n|cffc0c0c0Next level:|n" + energyEffect(kind, level + 1) + "|nClick to level up: |cff00ffff"
+            + energyLevelCost(level) + "|r energy|r"
+    return s + "|n|cffc0c0c0Works only in PvE mode. Max level: " + ENERGY_MAX_LEVEL + "|r"
+
+public constant ACTIVATE_TOOLTIP = "|cff00ffffActivate Energy|r"
+
+public function activateTooltipExtended() returns string
+    return "Randomly activates one of the energies you do not have yet: Gold, Lumber, Water, Fire, Earth, Wind, Thunder "
+        + "or Electricity.|n|cffc0c0c0Costs " + activateCosts[0] + " energy (" + activateCosts[1] + " after 1 beaten PvE level, "
+        + activateCosts[2] + " after 2). The chance drops with every active energy; energy is spent even if none responds.|r"

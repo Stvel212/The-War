@@ -19,6 +19,8 @@ constant PAD_X = 0.008
 constant PAD_Y = 0.006
 /** Как часто проверять юнита под курсором */
 constant TICK = 0.1
+/** Слежение за курсором (здесь и в PickIcons) включается через столько секунд после инициализации */
+public constant DETECT_DELAY = 3.
 
 constant MODE_OFF = 0
 constant MODE_ICONS = 1
@@ -103,5 +105,7 @@ init
             ..setPoint(FRAMEPOINT_BOTTOMLEFT, textFrame, FRAMEPOINT_BOTTOMLEFT, vec2(-PAD_X, -PAD_Y))
             ..setPoint(FRAMEPOINT_TOPRIGHT, textFrame, FRAMEPOINT_TOPRIGHT, vec2(PAD_X, PAD_Y))
             ..hide()
+    // юнит под курсором — не сразу, а через DETECT_DELAY после инициализации (WC3 3.0 падал вскоре после старта)
+    doAfter(DETECT_DELAY) ->
         doPeriodically(TICK) cb ->
             refresh()

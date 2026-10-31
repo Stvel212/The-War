@@ -5,19 +5,24 @@ import Initialization
 import MapGlobals
 import ClosureTimers
 import ClosureForGroups
+import ClosureEvents
+import Dummies
 import GameTimer
 import Messages
+import PveJfTriggers
 
 /*
     PvEvP — «LTD» (по образцу Just Fight 5.6, «Battle Chess (PvEvP)»). Команды против друг друга, но армии игроков
-    не встречаются: каждый держит свою половину линии (GameMode: HOLD_LEFT_X / HOLD_RIGHT_X), команды друг для
-    друга «пассивны». На каждую волну каждому игроку из центра его линии идут одинаковые монстры (CreepWaves):
+    не встречаются: каждый воюет на своей половине линии, команды друг для друга «пассивны».
+    На каждую волну каждому игроку из центра его линии идут одинаковые монстры (CreepWaves):
     против левых — слот CREEP_VS_LEFT (союзник правых), против правых — CREEP_VS_RIGHT.
-    - Следующая волна — только когда монстры обеих команд перебиты (или прошло WAVE_TIMEOUT: оставшиеся на линиях
-      прорываются к королю), после паузы BREAK_TIME; выжившие бойцы игроков на линиях убираются — каждую волну
-      здания выпускают армию заново («шахматы»).
+    - Следующая волна — только когда убиты все монстры обеих команд (и на линиях, и прорвавшиеся к королям), после
+      паузы BREAK_TIME; выжившие бойцы игроков убираются — каждую волну здания выпускают армию заново («шахматы»).
     - Наёмники (Naim) не идут сами, а становятся монстрами против противника на выбранной линии (GameMode.becomeSend).
-    - Прорвавшийся монстр идёт по средней линии к королю этой стороны; Стража Короля по-прежнему идёт к чужому королю.
+    - Боец, дошедший до портала в конце своей половины, переносится к своему королю и стоит перед ним (GameMode:
+      DEFEND_LEFT_X / DEFEND_RIGHT_X; "Soldiers who break through will protect the War God"); прорвавшийся монстр
+      выходит на среднюю линию (MID_HOLD_LEFT_X / MID_HOLD_RIGHT_X) и идёт к королю своей стороны. Стражи Короля нет;
+      юниты Алтаря Вызова идут к чужому королю, как в PvP.
     - Победа — как в PvP: смерть вражеского короля. */
 
 /** До первой волны (постройка) и между волнами, с — как в Just Fight */
@@ -30,8 +35,6 @@ constant BATCHES = 3
 constant BATCH_DELAY = 2.
 /** Пока идёт появление, волну не завершать */
 constant MIN_WAVE_TIME = 10.
-/** Волна дольше этого — оставшиеся на линиях монстры прорываются, волна закончена */
-constant WAVE_TIMEOUT = 100.
 
 var waveActive = false
 var waveStartedAt = 0.
@@ -41,6 +44,7 @@ var waveTable = 1
 
 public function startPvevp()
     gameMode = GameModeKind.PVEVP
+    jfRegisterTriggers()
     manualRounds = true
     waveTable = GetRandomInt(1, 2)
     updateBoardTitle()
@@ -61,12 +65,20 @@ public function startPvevp()
         setAllied(right ? vsLeft : vsRight, players[i], false)
         // и явно враги своей цели: союзы по силам карты не должны остаться
         setEnemies(right ? vsRight : vsLeft, players[i])
-    // порталы, из которых выходят монстры, — на половине каждого игрока (бойцы через них не ходят: держат линию)
+    // порталы, из которых выходят монстры, — на половине каждого игрока; бойцы, дойдя, переносятся к своему королю
     for pid = 0 to 7
         if players[pid].isIngame()
-            addLanePortal(pid, false)
+            addLanePortal(pid, true)
+    // средняя линия (оба короля и их защитники) открыта всем — как в Just Fight (Battle Chess: обзор поля у королей)
+    let world = GetWorldBounds()
+    let mid = Rect(world.getMinX(), MID_LOW_Y - 300., world.getMaxX(), MID_HIGH_Y + 300.)
+    for pid = 0 to 7
+        if players[pid].isIngame()
+            createFogModifier(players[pid], FOG_OF_WAR_VISIBLE, mid, true, false).start()
+    mid.remove()
+    world.remove()
     print("|cffff0000Host selected PvEvP (Battle Chess)|r", 15.)
-    print("|cffffcc00Every wave the same monsters attack each player's half of the lane. Your units hold your half.|r", 15.)
+    print("|cffffcc00Every wave the same monsters attack each player's half of the lane. Units that reach the portal defend your King.|r", 15.)
     print("|cffffcc00The next wave comes only when both teams have cleared their monsters. Survivors are removed - buildings send a new army every wave.|r", 15.)
     print("|cffffcc00Mercenaries join the monsters attacking the enemy. Monsters that break through go to the King!|r", 15.)
 
@@ -111,11 +123,11 @@ function waveReward(int w) returns int
 @noinline
 function endWave()
     waveActive = false
+    // монстров не осталось: выжившие бойцы на линиях и защитники королей на средней линии уходят
     forUnitsAll() u ->
-        if u.isAlive() and u.isCreep() and not isMidLane(u.getY())
-            creepBreakthrough(u)
-        else if u.isLaneFighter()
+        if u.isLaneFighter() or u.isMidDefender()
             u.recallFighter()
+    removeLeavers()
     let gold = waveReward(waveNumber)
     for pid = 0 to 7
         if isInGame(players[pid])
@@ -127,21 +139,21 @@ function endWave()
     doAfter(3.) ->
         announceNext()
 
-/** Монстры волны на линиях (прорвавшиеся к королю на средней линии волну не держат) */
-function creepsOnLanes() returns int
-    return creepsOnLanes(players[CREEP_VS_LEFT]) + creepsOnLanes(players[CREEP_VS_RIGHT])
+/** Живые монстры обеих команд — на линиях и прорвавшиеся к королям (без саранчи 'Aloc' и даммиков) */
+function creepsAlive() returns int
+    return creepsAlive(players[CREEP_VS_LEFT]) + creepsAlive(players[CREEP_VS_RIGHT])
 
-function creepsOnLanes(player owner) returns int
+function creepsAlive(player owner) returns int
     var n = 0
     let g = CreateGroup()
     g.enumUnitsOfPlayer(owner, null)
     for u from g
-        if u.isAlive() and not isMidLane(u.getY())
+        if u.isAlive() and u.getAbilityLevel('Aloc') == 0 and not u.isDummy() and not u.onLeaverLane()
             n++
     g.destr()
     return n
 
-/** Волна закончена: монстров на линиях не осталось ни у одной команды (или вышло время) */
+/** Волна закончена: убиты все монстры обеих команд, включая прорвавшихся к королям */
 @noinline
 function checkWave()
     if not isPvevp() or not waveActive
@@ -150,10 +162,38 @@ function checkWave()
     // монстры появляются порциями несколько секунд, наёмники — через 1 с
     if elapsed < MIN_WAVE_TIME
         return
-    if elapsed >= WAVE_TIMEOUT or creepsOnLanes() == 0
+    if creepsAlive() == 0
         endWave()
 
+/** Вышедшие игроки (их юниты убираются в конце волны) */
+bool array leaver
+
+/** Монстр на половине линии вышедшего игрока: волну не держит (воевать с ним уже может быть некому) */
+function unit.onLeaverLane() returns bool
+    return not isMidLane(this.getY()) and leaver[this.creepTargetPlayer()]
+
+/** Игрок вышел: до конца волны его армия воюет (управление у команды), в конце волны — или сразу, если волны
+    нет, — убирается всё его (кроме королей) и монстры его половины линии */
+@noinline
+function playerLeft(player p)
+    if not isPvevp() or p.getId() > 7
+        return
+    leaver[p.getId()] = true
+    if not waveActive
+        removeLeavers()
+
+function removeLeavers()
+    forUnitsAll() u ->
+        let id = u.getOwner().getId()
+        if id < 8 and leaver[id] and u != kings[1] and u != kings[2]
+            buildUnits.remove(u)
+            u.remove()
+        else if u.isCreep() and u.onLeaverLane()
+            u.remove()
+
 init
+    EventListener.add(EVENT_PLAYER_LEAVE) ->
+        playerLeft(GetTriggerPlayer())
     onRound() r ->
         onRoundStart(r)
     doPeriodically(1.) cb ->

@@ -1,0 +1,27 @@
+package PveJfTests
+import PveJfSupport
+import GameMode
+
+interface Tick
+    function call() returns int
+
+/** Перенос таймеров Just Fight (PortJfTriggers -> doPeriodically): счётчик, который в Just Fight хранился в хеш-таблице
+    таймера, — переменная замыкания; её изменения должны сохраняться между вызовами */
+@Test function closureKeepsCapturedCounter()
+    var n = 0
+    Tick tick = () -> begin
+        n = n + 1
+        return n
+    end
+    tick.call()
+    tick.call()
+    tick.call().assertEquals(3)
+    destroy tick
+
+@Test function justFightPveLevelOnlyInPve()
+    gameMode = GameModeKind.PVP
+    pveLevel = 3
+    jfPveLevel().assertEquals(0)
+    gameMode = GameModeKind.PVE
+    jfPveLevel().assertEquals(3)
+    gameMode = GameModeKind.PVP

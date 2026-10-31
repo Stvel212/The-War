@@ -5,7 +5,6 @@ import ClosureEvents
 import UnitEvents
 import ClosureTimers
 import GameMode
-import BaseShortcuts
 import Messages
 import HashMap
 
@@ -188,10 +187,9 @@ function kingControl()
     let p = GetTriggerPlayer()
     let a = p.isLeftTeam() or isPve() ? 1 : 2
     if u == kings[a] and p.getId() < 8 and not IsUnitSelected(u, u.getOwner())
+        // кнопку короля на панели героев больше не прячем: прятать кнопки панели героев, пока игра её перестраивает
+        // (король переходит от игрока к игроку при каждом выделении), — зависания и падения WC3 3.0
         u.setOwner(p, true)
-        // король у игрока — герой: игра ставит его на панель героев, кнопку прячем (BaseShortcuts)
-        doAfter(0.) ->
-            hideExtraHeroButtons()
 
 // ============================================================
 // Триггер: KingMesage — при атаке на короля: сообщения о HP команде и автолечение из запаса heals

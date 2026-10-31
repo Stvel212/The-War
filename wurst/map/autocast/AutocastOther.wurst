@@ -320,12 +320,16 @@ function tinik()
 function castNaga()
     let a = GetAttacker()
     let id = a.getTypeId()
-    if id == 'n028' and a.getMana() != 60
+    // обе наги — за 60 маны (Служанка 'n02O' раньше кастовала на каждую атаку)
+    if a.getMana() < 60
         return
     let p = a.getOwner()
-    a.setMana(0.0)
-    let t = firstUnitInRange(a.getPos(), 700.0, (u) -> u.isAllyOf(p) and u.isAlive() and u.isType(UNIT_TYPE_GIANT) and u.isType(UNIT_TYPE_MELEE_ATTACKER) and u.getAbilityLevel('B01N') != 1 and u.getTypeId() != 'n03J')
+    // щит уже есть — метка регенерации 'A06L'/'A06M' (держится 15/24 с; бафф 'B01N' живёт меньше секунды и второго
+    // щита не останавливал)
+    let t = firstUnitInRange(a.getPos(), 700.0, (u) -> u.isAllyOf(p) and u.isAlive() and u.isType(UNIT_TYPE_GIANT) and u.isType(UNIT_TYPE_MELEE_ATTACKER)
+        and u.getAbilityLevel('B01N') != 1 and u.getAbilityLevel('A06L') == 0 and u.getAbilityLevel('A06M') == 0 and u.getTypeId() != 'n03J')
     if t != null
+        a.setMana(0.0)
         p.instantCast(id == 'n02O' ? 'A06J' : 'A06K', OrderIds.frostarmor, t, a.getPos())
 
 // ============================================================

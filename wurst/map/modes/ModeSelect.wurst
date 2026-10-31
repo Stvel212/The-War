@@ -31,12 +31,10 @@ function findHost() returns player
             return players[pid]
     return players[0]
 
-/** Закрыть диалог: уничтожение — на следующем кадре (кнопка диалога ещё выполняет своё замыкание) */
+/** Закрыть диалог: только спрятать. Уничтожение сразу после нажатия (даже через кадр) роняло WC3 3.0
+    (ACCESS_VIOLATION в интерфейсе) — диалогов за игру два-три, их не жалко */
 function close(DialogBox box)
-    if box != null
-        box.display(host, false)
-        doAfter(0.) ->
-            destroy box
+    box?.display(host, false)
 
 function startGame()
     chosen = true

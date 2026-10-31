@@ -1,57 +1,24 @@
 package BaseShortcuts
 import TableUi
 import ClosureKeyPresses
-import ClosureTimers
 import GameTimer
 import PreplacedBuildings
 import MapGlobals
 
 /*
-    Быстрый выбор зданий базы (как в Legion TD): столбец иконок слева под панелью героев и клавиши F2..F4, F6..F8
-    (F1 — строитель, это панель героев игры). Иконка/клавиша выделяет здание, повторное нажатие в течение
+    Быстрый выбор зданий базы (как в Legion TD): клавиши F2..F4, F6..F8
+    (F1 — строитель, это панель героев игры). Клавиша выделяет здание, повторное нажатие в течение
     DOUBLE_PRESS с — ещё и наводит камеру. Порядок: Главное здание (baza, его тип зависит от скина),
     затем baseBuildingTypes — Алтарь Короля, Алтарь Вызова, два Дома Странника, Флаг.
-    Раньше это были невидимые герои-ярлыки на панели героев, но плашку уровня/здоровья героя не спрятать
-    (Aloc запрещает выбор, высота полёта всё равно попадает в кадр) — поэтому своя панель.
-    Клики и клавиши — синхронные события; локально только выделение и камера. */
+    Столбец иконок под панелью героев убран: он был привязан к кнопке героя, а WC3 3.0 падал (ACCESS_VIOLATION),
+    когда в 1-м раунде строитель заменялся на особый по нику. Клавиши — синхронные события; локально только выделение и камера. */
 
-/** Размер иконки — как у кнопки героя на панели героев */
-constant ICON = 0.038
-constant GAP = 0.004
-/** Отступ столбца от низа кнопки первого героя (строителя) */
-constant BELOW_HERO = 0.012
 constant DOUBLE_PRESS = 0.4
-/** Кнопок в столбце: главное здание + здания baseBuildingTypes */
+/** Клавиш: главное здание + здания baseBuildingTypes */
 constant SHORTCUTS = BASE_BUILDINGS + 1
 
 /** Время последнего выбора здания k игроком a: lastPress[a * SHORTCUTS + k] */
 real array lastPress
-
-function iconOf(int k) returns string
-    switch k
-        case 0
-            return "ReplaceableTextures\\CommandButtons\\BTN3M3.blp"
-        case 1
-            return "ReplaceableTextures\\CommandButtons\\BTNAltarOfKings.blp"
-        case 2
-            return "ReplaceableTextures\\CommandButtons\\BTNArthas.blp"
-        case 5
-            return "ReplaceableTextures\\CommandButtons\\BTNHumanCaptureFlag.blp"
-        default
-            return "ReplaceableTextures\\CommandButtons\\BTNHornOfCenarius.blp"
-
-function nameOf(int k) returns string
-    switch k
-        case 0
-            return "Main Building"
-        case 1
-            return "Altar of the King"
-        case 2
-            return "Altar of Summoning"
-        case 5
-            return "Flag"
-        default
-            return "Wanderer's House"
 
 /** Номер F-клавиши кнопки k: F2..F4, F6..F8 — F5 пропущена, это «Быстрое сохранение» игры
     (его хоткей картой не перехватить, нажатие сохраняло бы игру) */
@@ -113,33 +80,6 @@ public function framehandle.cornerTooltip(string text, real width) returns frame
     return this
 
 
-/** Столбец иконок игрока owner (строится у всех клиентов, виден только ему; у наблюдателей базы нет) */
-function buildColumn(player owner) returns framehandle
-    if owner.getId() >= 8
-        return null
-    // родитель ConsoleUIBackdrop: столбец стоит за краем области 4:3 (под кнопкой героя), а обычные фреймы
-    // (родитель GAME_UI) за 4:3 не рисуются — так велит WC3_FRAMEHANDLE_GUIDE библиотеки wurst-table-layout
-    let root = container(getFrame("ConsoleUIBackdrop", 0), ICON, SHORTCUTS * ICON + (SHORTCUTS - 1) * GAP)
-    for k = 0 to SHORTCUTS - 1
-        let index = k
-        iconButton(root, iconOf(k), ICON)
-            ..setPoint(FRAMEPOINT_TOPLEFT, root, FRAMEPOINT_TOPLEFT, 0., -k * (ICON + GAP))
-            ..cornerTooltip(nameOf(k) + " (F" + keyNumber(k) + ")")
-            ..onClick(() -> pick(owner, index))
-    // прямо под кнопкой первого героя (строителя): она за краем области 4:3, поэтому привязка к самой кнопке,
-    // а не к координатам — так столбец стоит под ней при любом соотношении сторон экрана
-    root.setPoint(FRAMEPOINT_TOPLEFT, getOriginFrame(ORIGIN_FRAME_HERO_BUTTON, 0), FRAMEPOINT_BOTTOMLEFT, 0., -BELOW_HERO)
-    return root
-
-/** Свой герой у игрока один — строитель (кнопка 0). Кнопки 1+ появляются только у взявшего под контроль короля
-    (King.kingControl меняет владельца) — их прячем после смены владельца. Только видимость: панель героев целиком
-    прятать нельзя — игра падала, добавляя героя на спрятанную панель (особый строитель по нику в 1-м раунде) */
-public function hideExtraHeroButtons()
-    for i = 1 to 6
-        getOriginFrame(ORIGIN_FRAME_HERO_BUTTON, i).setVisible(false)
-        getOriginFrame(ORIGIN_FRAME_HERO_HP_BAR, i).setVisible(false)
-        getOriginFrame(ORIGIN_FRAME_HERO_MANA_BAR, i).setVisible(false)
-        getOriginFrame(ORIGIN_FRAME_HERO_BUTTON_INDICATOR, i).setVisible(false)
 
 init
     for a = 0 to 7
@@ -147,6 +87,3 @@ init
             let index = k
             onKeyPress(players[a], keyOf(k)) ->
                 pick(GetTriggerPlayer(), index)
-    // UI — после блокирующего init (так требует TableLayout)
-    doAfter(0.0) ->
-        perPlayerFrames(owner -> buildColumn(owner)).showEach()

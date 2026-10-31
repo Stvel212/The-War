@@ -1,13 +1,12 @@
 package GameModeTests
 import GameMode
-import Energies
+import EnergyData
 import CreepWaves
 import PveWaveTables
 import Pve
 import ArthasJf
 import King
 import MapGlobals
-import CreepSpells
 
 @Test function laneAtPicksNearestLane()
     laneAt(-4990.).assertEquals(0)
@@ -29,9 +28,9 @@ import CreepSpells
 
 @Test function pvevpMonstersSpawnOnTheirHalf()
     gameMode = GameModeKind.PVEVP
-    // между центром и линией обороны своей команды
-    (spawnX(true) > HOLD_LEFT_X and spawnX(true) < HOLD_RIGHT_X).assertTrue()
-    (spawnX(false) > HOLD_LEFT_X and spawnX(false) < HOLD_RIGHT_X).assertTrue()
+    // между местами выхода прорвавшихся монстров на средней линии
+    (spawnX(true) > MID_HOLD_LEFT_X and spawnX(true) < MID_HOLD_RIGHT_X).assertTrue()
+    (spawnX(false) > MID_HOLD_LEFT_X and spawnX(false) < MID_HOLD_RIGHT_X).assertTrue()
     (spawnX(true) < spawnX(false)).assertTrue()
     gameMode = GameModeKind.PVP
 
@@ -66,20 +65,16 @@ import CreepSpells
     for i = 0 to waveFirst4[WAVES_4 + 1] - 1
         (waveCount4[i] > 0).assertTrue()
 
-@Test function waveEntriesUseJustFightProfiles()
-    // запись волны — либо копия юнита Just Fight (UnitsPveJf, ID ?J??), либо юнит The War с профилем характеристик
-    // Just Fight; без того и другого — только юнит без экспорта (N01C)
+@Test function waveEntriesAreJustFightCopies()
+    // запись волны — копия юнита Just Fight (UnitsPveJf, ID ?J??); юнит The War — только вместо юнита без экспорта (N01C)
     var plain = 0
-    for i = 0 to waveFirst1[WAVES_1 + 1] - 1
-        (waveStat1[i] >= 0 and waveStat1[i] <= STAT_PROFILES).assertTrue()
-        let copy = (waveType1[i] div 65536) mod 256 == 'J'
-        if waveStat1[i] == 0 and not copy
+    for i = 0 to waveFirst4[WAVES_4 + 1] - 1
+        if (waveType4[i] div 65536) mod 256 != 'J'
             plain++
-    (plain <= 1).assertTrue()
-    // у оставшихся юнитов The War — профили Just Fight с заданным базовым типом
-    (STAT_PROFILES > 50).assertTrue()
-    for p = 1 to STAT_PROFILES
-        (statBase[p] != 0).assertTrue()
+    for i = 0 to waveFirst1[WAVES_1 + 1] - 1
+        if (waveType1[i] div 65536) mod 256 != 'J'
+            plain++
+    (plain <= 3).assertTrue()
 
 @Test function elitesOnPveLevelsTwoAndThree()
     // Just Fight: элитные на волнах 31-60 при LIlLI 2..3
@@ -107,8 +102,22 @@ import CreepSpells
     teamSize = 0
     round = 0
 
-@Test function creepSpellLethalHit()
-    // юнит умирает, когда здоровья остаётся меньше 0.405
-    isLethal(100., 100.).assertTrue()
-    isLethal(100., 99.7).assertTrue()
-    isLethal(100., 99.5).assertFalse()
+@Test function forgottenScaleWithPlayers()
+    // 200 ур. +20, 500 ур. +40, Злой Бог (и ложный) +70 интеллекта за каждого игрока сверх первого
+    forgottenIntBonus('UPB1', 8).assertEquals(140)
+    forgottenIntBonus('UPB2', 4).assertEquals(120)
+    forgottenIntBonus('UPB3', 3).assertEquals(140)
+    forgottenIntBonus('UPB4', 1).assertEquals(0)
+
+@Test function evilGodAurasFollowJustFightSchedule()
+    // уровень 1 — без аур; 2 — с 26-й через 5; 5 — со 2-й через 4; бесконечный — через 3; всего 6 аур × 3 уровня
+    godAuraIndex(1, 26).assertEquals(-1)
+    godAuraIndex(2, 25).assertEquals(-1)
+    godAuraIndex(2, 26).assertEquals(0)
+    godAuraIndex(2, 31).assertEquals(1)
+    godAuraIndex(5, 2).assertEquals(0)
+    godAuraIndex(5, 3).assertEquals(-1)
+    godAuraIndex(5, 6).assertEquals(1)
+    godAuraIndex(5, 70).assertEquals(17)
+    godAuraIndex(5, 74).assertEquals(-1)
+    godAuraIndex(PVE_ENDLESS, 5).assertEquals(1)

@@ -7,7 +7,7 @@ import PveWaveTables
 import LinkedList
 
 /*
-    Волны монстров PvE и PvEvP — таблицы Just Fight 5.6 (PveWaveTables, юниты переведены на юниты The War):
+    Волны монстров PvE и PvEvP — таблицы Just Fight 5.6 (PveWaveTables, юниты — копии Just Fight из UnitsPveJf):
     1 — по одному типу (уровень 1), 2 — по одному типу с элитными добавками (уровень 2), 3 — по два типа (уровень 3),
     4 — отряды до 7 типов (уровень 4); уровень 5 и бесконечный берут случайную из четырёх, PvEvP — случайную из 1-2
     каждую волну. Количество — на одного игрока, появляются у его портала порциями раз в 0.5 с (как в оригинале).
@@ -82,15 +82,6 @@ function entryTick(int t, int i) returns int
         return waveTick3[i]
     return waveTick4[i]
 
-function entryStat(int t, int i) returns int
-    if t == 1
-        return waveStat1[i]
-    if t == 2
-        return waveStat2[i]
-    if t == 3
-        return waveStat3[i]
-    return waveStat4[i]
-
 /** Терминаторов на игрока в волне w таблицы t (после обычных волн; 0 — волн больше нет) */
 public function terminatorsPerPlayer(int t, int w) returns int
     // Терминаторы — с 70-й (в таблице 3 нет 69-й волны: она пустая)
@@ -127,68 +118,10 @@ public function waveDescription(int t, int w, int mult) returns string
         s += (s == "" ? "" : "; ") + GetObjectName(entryType(t, i)) + " x " + entryCount(t, i) * mult
     return s
 
-// ---- характеристики Just Fight ----
-// Юнит The War даёт волне вид и способности, а числа — профиль юнита Just Fight (PveWaveTables.stat*). Поля,
-// не изменённые в Just Fight (-1), — как у его базового типа: их один раз читаем с временного юнита этого типа.
-
-bool array profileResolved
-int array resHp
-int array resDamage
-int array resDice
-int array resSides
-real array resArmor
-real array resCooldown
-real array resRange
-real array resSpeed
-int array resAttackType
-int array resDefenseType
-
-function pick(int value, int fallback) returns int
-    return value >= 0 ? value : fallback
-
-function pickReal(real value, real fallback) returns real
-    return value >= 0. ? value : fallback
-
-/** Значения профиля p: заданные в Just Fight, остальные — с образца базового типа */
-function resolveProfile(int p)
-    if profileResolved[p]
-        return
-    profileResolved[p] = true
-    let sample = createUnit(players[PLAYER_NEUTRAL_PASSIVE], statBase[p], vec2(0., 0.))
-    resHp[p] = pick(statHp[p], sample.getIntMaxHP())
-    resDamage[p] = pick(statDamage[p], sample.getBaseDamage(0))
-    resDice[p] = pick(statDice[p], sample.getDiceNumber(0))
-    resSides[p] = pick(statSides[p], sample.getDiceSides(0))
-    resArmor[p] = pickReal(statArmor[p], sample.getArmor())
-    resCooldown[p] = pickReal(statCooldown[p], sample.getAttackCooldown(0))
-    resRange[p] = pickReal(statRange[p].toReal(), sample.getFieldWeapon(UNIT_WEAPON_RF_ATTACK_RANGE, 0))
-    resSpeed[p] = pickReal(statSpeed[p].toReal(), sample.getDefaultMovespeed())
-    resAttackType[p] = pick(statAttackType[p], sample.getFieldWeapon(UNIT_WEAPON_IF_ATTACK_ATTACK_TYPE, 0))
-    resDefenseType[p] = pick(statDefenseType[p], sample.getField(UNIT_IF_DEFENSE_TYPE))
-    sample.remove()
-
-/** Числа юнита Just Fight по профилю p (0 — оставить юнит The War как есть) */
-public function applyJfStats(unit u, int p)
-    if p <= 0 or p > STAT_PROFILES
-        return
-    resolveProfile(p)
-    u.setMaxHP(resHp[p])
-    u.setHP(resHp[p].toReal())
-    u.setBaseDamage(resDamage[p], 0)
-    u.setDiceNumber(resDice[p], 0)
-    u.setDiceSides(resSides[p], 0)
-    u.setArmor(resArmor[p])
-    u.setAttackCooldown(resCooldown[p], 0)
-    u.setFieldWeapon(UNIT_WEAPON_RF_ATTACK_RANGE, 0, resRange[p])
-    u.setMoveSpeed(resSpeed[p])
-    u.setFieldWeapon(UNIT_WEAPON_IF_ATTACK_ATTACK_TYPE, 0, resAttackType[p])
-    u.setField(UNIT_IF_DEFENSE_TYPE, resDefenseType[p])
-
-/** Монстр: направление, без «лагеря», числа юнита Just Fight (профиль stat > 0), приказ */
-public function setupCreep(unit u, bool goesLeft, int stat)
+/** Монстр: направление, без «лагеря», приказ */
+public function setupCreep(unit u, bool goesLeft)
     u.setCreepDirection(goesLeft)
     u.removeGuardPosition()
-    applyJfStats(u, stat)
     u.setPathing(true)
     u.attackLane()
 
@@ -198,7 +131,7 @@ public function spawnPoint(int lane, bool goesLeft) returns vec2
     return vec2(spawnX(goesLeft), laneY(lane))
 
 /** count монстров типа typeId порциями по perTick раз в TICK */
-function spawnStream(int typeId, int count, int perTick, int stat, player owner, int lane, bool goesLeft)
+function spawnStream(int typeId, int count, int perTick, player owner, int lane, bool goesLeft)
     if count <= 0
         return
     let portion = max(1, perTick)
@@ -209,17 +142,17 @@ function spawnStream(int typeId, int count, int perTick, int stat, player owner,
         for k = 1 to n
             let pos = spawnPoint(lane, goesLeft)
             let u = createUnit(owner, typeId, pos, (goesLeft ? 180. : 0.).fromDeg())
-            setupCreep(u, goesLeft, stat)
+            setupCreep(u, goesLeft)
             spawned(u, targetPlayer(lane, goesLeft))
 
 /** Волна w таблицы t против одного игрока: монстры владельца owner на линии lane к стороне goesLeft */
 public function spawnTableWave(int t, int w, player owner, int lane, bool goesLeft)
     if w > tableWaves(t)
         let n = terminatorsPerPlayer(t, w)
-        spawnStream(TERMINATOR, n, 1, 0, owner, lane, goesLeft)
+        spawnStream(TERMINATOR, n, 1, owner, lane, goesLeft)
         return
     for i = firstEntry(t, w) to firstEntry(t, w + 1) - 1
-        spawnStream(entryType(t, i), entryCount(t, i), entryTick(t, i), entryStat(t, i), owner, lane, goesLeft)
+        spawnStream(entryType(t, i), entryCount(t, i), entryTick(t, i), owner, lane, goesLeft)
 
 /** Один элитный монстр (таблица 2, волны 31-60): до 49-й — из ранних, дальше — из поздних */
 public function spawnElite(int w, player owner, int lane, bool goesLeft)
@@ -227,7 +160,7 @@ public function spawnElite(int w, player owner, int lane, bool goesLeft)
     let pos = spawnPoint(lane, goesLeft)
     let typeId = w >= 50 ? eliteLate[i] : eliteEarly[i]
     let u = createUnit(owner, typeId, pos, (goesLeft ? 180. : 0.).fromDeg())
-    setupCreep(u, goesLeft, w >= 50 ? eliteLateStat[i] : eliteEarlyStat[i])
+    setupCreep(u, goesLeft)
     spawned(u, targetPlayer(lane, goesLeft))
 
 init

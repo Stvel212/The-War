@@ -132,6 +132,7 @@ import AbilityObjEditing
 
 @compiletime function create_w3a_A03C()
 	new AbilityDefinitionBerserk('A03C')
+	..setRequirements("")
 	..setDamageTakenIncrease(1, 0.0)
 	..setMovementSpeedIncrease(1, 0.0)
 	..setEditorSuffix("(Красный орк)")
@@ -176,7 +177,7 @@ import AbilityObjEditing
 	..setChancetoBash(1, 100.0)
 	..setDurationHero(1, 0.0)
 	..setDurationNormal(1, 1.6)
-	..setTargetsAllowed(1, "ground,nonhero")
+	..setTargetsAllowed(1, "ground,nonhero,ward")
 	..setTooltipNormalExtended(1, "")
 
 @compiletime function create_w3a_A03J()
@@ -193,7 +194,7 @@ import AbilityObjEditing
 	..setCooldown(1, 40.0)
 	..setManaCost(1, 60)
 	..setDurationHero(1, 0.0)
-	..setTargetsAllowed(1, "ground,nonhero")
+	..setTargetsAllowed(1, "ground,nonhero,ward")
 	..setEditorSuffix("(Повелитель джунглей)")
 
 @compiletime function create_w3a_A03L()
@@ -241,7 +242,7 @@ import AbilityObjEditing
 	..setChancetoBash(1, 20.0)
 	..setDurationHero(1, 0.0)
 	..setDurationNormal(1, 0.5)
-	..setTargetsAllowed(1, "ground,nonhero")
+	..setTargetsAllowed(1, "ground,nonhero,ward")
 	..setTooltipNormalExtended(1, "")
 
 @compiletime function create_w3a_A03R()
@@ -341,7 +342,7 @@ import AbilityObjEditing
 	..setAreaofEffect(1, 150.0)
 	..setAttackSpeedReduction(1, -0.5)
 	..setMovementSpeedReduction(1, -0.5)
-	..setTargetsAllowed(1, "neutral,ground,enemies,organic,air,nonhero")
+	..setTargetsAllowed(1, "neutral,ground,enemies,organic,air,nonhero,ward")
 	..setMissileArt("Abilities\\Spells\\Orc\\LiquidFire\\BatRiderMissile.mdl")
 	..setBuffs(1, "B013")
 	..setTooltipNormal(1, "")
@@ -354,7 +355,7 @@ import AbilityObjEditing
 	..setChancetoBash(1, 30.0)
 	..setDurationHero(1, 0.0)
 	..setDurationNormal(1, 1.5)
-	..setTargetsAllowed(1, "ground,nonhero")
+	..setTargetsAllowed(1, "ground,nonhero,ward")
 	..setTooltipNormalExtended(1, "")
 
 @compiletime function create_w3a_A040()
@@ -363,7 +364,7 @@ import AbilityObjEditing
 	..setDamageBonus(1, 0.0)
 	..setDurationHero(1, 0.0)
 	..setDurationNormal(1, 0.75)
-	..setTargetsAllowed(1, "ground,nonhero")
+	..setTargetsAllowed(1, "ground,nonhero,ward")
 	..setTooltipNormalExtended(1, "")
 
 @compiletime function create_w3a_A041()
@@ -387,7 +388,7 @@ import AbilityObjEditing
 	new AbilityDefinitionAuraTrueshotCreep('A043')
 	..setDamageBonus(1, 0.0)
 	..setEditorSuffix("(Фиолетовая саламандра)")
-	..setTargetsAllowed(1, "air,enemies,ground,nonhero")
+	..setTargetsAllowed(1, "air,enemies,ground,nonhero,ward")
 	..setAreaofEffect(1, 700.0)
 	..setBuffs(1, "B015")
 	..setArtTarget("")
@@ -405,7 +406,7 @@ import AbilityObjEditing
 	..setChancetoBash(1, 30.0)
 	..setDurationHero(1, 0.0)
 	..setDurationNormal(1, 0.3)
-	..setTargetsAllowed(1, "ground,nonhero")
+	..setTargetsAllowed(1, "ground,nonhero,ward")
 	..setTooltipNormalExtended(1, "")
 
 @compiletime function create_w3a_A07U()
@@ -415,7 +416,7 @@ import AbilityObjEditing
 	..setChancetoBash(1, 60.0)
 	..setDurationHero(1, 0.0)
 	..setDurationNormal(1, 0.7)
-	..setTargetsAllowed(1, "ground,nonhero")
+	..setTargetsAllowed(1, "ground,nonhero,ward")
 	..setTooltipNormalExtended(1, "")
 
 @compiletime function create_w3a_A03V()
@@ -424,7 +425,7 @@ import AbilityObjEditing
 	..setCooldown(1, 10.0)
 	..setManaCost(1, 60)
 	..setDurationHero(1, 0.0)
-	..setTargetsAllowed(1, "ground,nonhero")
+	..setTargetsAllowed(1, "ground,nonhero,ward")
 	..setEditorSuffix("(Кентавр)")
 	..setDurationNormal(1, 1.15)
 
@@ -442,7 +443,7 @@ import AbilityObjEditing
 	..setChancetoBash(1, 20.0)
 	..setDurationHero(1, 0.0)
 	..setDurationNormal(1, 0.2)
-	..setTargetsAllowed(1, "ground,nonhero")
+	..setTargetsAllowed(1, "ground,nonhero,ward")
 	..setTooltipNormalExtended(1, "")
 
 @compiletime function create_w3a_A0H3()

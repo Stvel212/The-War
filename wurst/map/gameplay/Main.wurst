@@ -123,8 +123,10 @@ function passLane(unit u, player a, int food, bool leftPassed)
 
 /** Награда за проход игроку a: food·2 золота и бонусы исследований 'R001'/'R002' юниту */
 function passReward(unit u, player a, int food)
-    a.setGold(a.getGold() + food * 2)
-    a.message("|cffff0000You received:|r |cffffff00+" + (food * 2) + " gold!|r")
+    // юниты без барака (дети краба 'n047', призванные) награды не дают — и «+0 gold» не пишется
+    if food > 0
+        a.setGold(a.getGold() + food * 2)
+        a.message("|cffff0000You received:|r |cffffff00+" + (food * 2) + " gold!|r")
     let r1 = GetPlayerTechCount(a, 'R001', true)
     if r1 > 0
         u.addAbility('A09T')
@@ -135,19 +137,22 @@ function passReward(unit u, player a, int food)
         u.setAbilityLevel('A09U', r2)
 
 /** PvE: юнит игрока вошёл в портал в конце своей половины линии (как в Just Fight, ILLLLII) — награда за прорыв и
-    на среднюю линию за Богом Войны (между воротами и левым королём, обе команды), оттуда на Злого Бога */
+    на среднюю линию за Богом Войны (между воротами и левым королём, обе команды), оттуда на Злого Бога.
+    PvEvP: к своему королю — защищать его от прорвавшихся монстров (Just Fight, Battle Chess) */
 function passLanePve(unit u, player a, int food)
-    let x = PVE_TELEPORT_X
+    let x = not isPvevp() ? PVE_TELEPORT_X : (a.isLeftTeam() ? DEFEND_LEFT_X : DEFEND_RIGHT_X)
     u.setPos(x + GetRandomReal(-100.0, 100.0), GetRandomReal(-300.0, 850.0))
     addEffect("Abilities\\Spells\\Human\\MassTeleport\\MassTeleportCaster.mdl", u.getPos()).destr()
+    if isPvevp()
+        u.makePortalDefender()
     u.attackLane()
     passReward(u, a, food)
 
-/** PvE: боец дошёл до портала в конце своей половины линии — на мид */
+/** PvE и PvEvP: боец дошёл до портала в конце своей половины линии — на мид */
 @noinline
 function pvePortal()
     let u = GetTriggerUnit()
-    if isPve() and u.isLaneFighter()
+    if (isPve() or isPvevp()) and u.isLaneFighter()
         let food = GetFoodUsed(u.baseType())
         passLanePve(u, u.getOwner(), food)
 
@@ -172,11 +177,12 @@ function proxod()
     else if isPvevp()
         if u.isFighter()
             u.attackLane()
-    else if u.getTypeId() != 'e01Q'
+    else if u.getTypeId() != 'e01Q' and not isTornado(u.getTypeId())
         let food = GetFoodUsed(u.baseType())
-        // PvE: прошедший дальний портал (левые — правый, правые — левый) — к воротам Бога Войны
-        if isPve() and id < 8
-            if (a.isLeftTeam() and x > 0) or (not a.isLeftTeam() and x < 0)
+        // PvE: прошедший дальний портал (левые — правый, правые — левый) — к воротам Бога Войны; стража Бога Войны
+        // (слот 8) — туда же. Первой крови и наград PvP в PvE нет
+        if isPve()
+            if id < 9 and ((a.isLeftTeam() and x > 0) or (not a.isLeftTeam() and x < 0))
                 passLanePve(u, a, food)
         else if id > 3 and id != 8 and x < 0
             passLane(u, a, food, false)
@@ -254,17 +260,23 @@ function build1(unit u)
     u.setUpgradeProgress(99)
     u.setTimeScale(0.0)
     doAfter(0.5) ->
-        u.tintByValue()
-        if t == 'h07X' or t == 'h07Y' or t == 'h07Z'
-            skip
-        else if t == 'h04R' or t == 'h04S'
-            u.setAnimation("Morph Alternate")
-        else if t == 'h02G'
-            u.setAnimation("Attack Alternate")
-        else if t == 'h016'
-            u.setAnimation("Attack Slam Alternate")
-        else
-            u.setAnimation("Attack")
+        posBuilding(u)
+
+/** Поза барака — застывшая анимация его юнита (после улучшения игра сбрасывает её на «stand» — заново по новому
+    типу: иначе «Древний Сфинкс» стоит статуей, а не в форме разрушителя) */
+function posBuilding(unit u)
+    let t = u.getTypeId()
+    u.tintByValue()
+    if t == 'h07X' or t == 'h07Y' or t == 'h07Z'
+        skip
+    else if t == 'h04R' or t == 'h04S'
+        u.setAnimation("Morph Alternate")
+    else if t == 'h02G'
+        u.setAnimation("Attack Alternate")
+    else if t == 'h016'
+        u.setAnimation("Attack Slam Alternate")
+    else
+        u.setAnimation("Attack")
 
 // ============================================================
 // Триггер: CastGlobal — каждому новому бойцу способности по улучшениям и синергиям хозяина
@@ -522,6 +534,7 @@ function kingGuard(unit u)
     print(u.getOwner().coloredName() + "|cffc0c0c0 called for help from the |r|cffff8080King's Guard|r", 10.0)
     // PvE: все — у ворот Бога Войны (у правых ворот стоит Злой Бог)
     u.setPos(u.getOwner().isLeftTeam() or isPve() ? LEFT_GATE_X : RIGHT_GATE_X, GetRandomReal(-300.0, 850.0))
+    u.removeGuardPosition()
     u.attackLane()
 
 @noinline
@@ -548,6 +561,8 @@ function naim()
         y = GetRandomInt(4800, 5100)
     income[id] += mercenaryIncome(u, income[id])
     u.setPos(u.getX() + GetRandomInt(-50, 50), y.toReal())
+    // до выхода стоит в зоне инкома на паузе и неуязвим: не уходит сам и его не бьют
+    u..pause()..setInvulnerable(true)
     naimGroup.add(u)
 
 // ============================================================
@@ -562,6 +577,12 @@ function naimMid()
 // ============================================================
 // Триггер: ZapretHero — построено здание героя: остальные герои этому игроку запрещаются
 // ============================================================
+
+/** Здание героя — базовое или улучшенное (setUpgradesTo базовых) */
+public function isHeroBuildingAnyLevel(int t) returns bool
+    return isHeroBuilding(t) or t == 'h016' or t == 'h026' or t == 'h028' or t == 'h02G' or t == 'h02I' or t == 'h01U'
+        or t == 'h022' or t == 'h02N' or t == 'h01W' or t == 'h020' or t == 'h08Q' or t == 'h024' or t == 'h02C'
+        or t == 'h02A' or t == 'h09A' or t == 'h09K' or t == 'h09X' or t == 'h0AH'
 
 public function isHeroBuilding(int t) returns bool
     return t == 'h02P' or t == 'h025' or t == 'h027' or t == 'h02F' or t == 'h02H' or t == 'h01S' or t == 'h021' or t == 'h02O' or t == 'h01X' or t == 'h01Z' or t == 'h01T' or t == 'h023' or t == 'h02B' or t == 'h029' or t == 'h099' or t == 'h09J' or t == 'h09W' or t == 'h0AG'
@@ -747,8 +768,15 @@ init
     EventListener.add(EVENT_PLAYER_UNIT_SUMMON) ->
         // призванный монстром идёт туда же, куда призвавший (иначе направление по умолчанию — вправо)
         let summoner = GetSummoningUnit()
+        let summoned = GetSummonedUnit()
         if summoner.isCreep()
-            GetSummonedUnit()..setCreepDirection(summoner.creepGoesLeft())..removeGuardPosition()..attackLane()
+            // рой (Locust Swarm Рексара и др., с 'Aloc') кружит у призвавшего сам — приказ по линии уводил его прочь
+            if summoned.getAbilityLevel('Aloc') == 0
+                // призвал даммик (иллюзия Охотника на демонов из тригера Just Fight и т.п.): своего направления у него
+                // нет — по месту появления, иначе иллюзии шли назад
+                let goesLeft = summoner.isDummy() or summoner.getTypeId() == 'eJ6O'
+                    ? creepDirectionAt(summoned.getPos()) : summoner.creepGoesLeft()
+                summoned..setCreepDirection(goesLeft)..removeGuardPosition()..attackLane()
         else
             castAttack()
     EventListener.add(EVENT_PLAYER_UNIT_CONSTRUCT_FINISH) ->
@@ -760,6 +788,9 @@ init
     EventListener.add(EVENT_PLAYER_UNIT_UPGRADE_FINISH) ->
         upgreid()
         antiKamen()
+        let up = GetTriggerUnit()
+        if up.isType(UNIT_TYPE_STRUCTURE) and up.getTypeId() != 'h08N' and up.getTypeId() != 'h08X'
+            posBuilding(up)
     CreateTrigger()
         ..registerLeaveRegion(regionOf(rct_Baza1, rct_Baza2, rct_Baza3, rct_Baza4, rct_Baza5, rct_Baza6, rct_Baza7, rct_Baza8), null)
         ..addAction(function zapretBaza)

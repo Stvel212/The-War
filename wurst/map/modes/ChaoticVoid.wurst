@@ -388,7 +388,7 @@ function spawnLeaders()
                 let goesLeft = p < 4
                 let pos = spawnPoint(p mod 4, goesLeft)
                 let u = createUnit(players[CREEP_PVE], leaders[lvl - 1], pos, (goesLeft ? 180. : 0.).fromDeg())
-                setupCreep(u, goesLeft, 0)
+                setupCreep(u, goesLeft)
                 print(players[p].getName() + "  |cffff9900Ongoing Boss Challenge: " + u.getName() + "|r", 10.)
 
 init
