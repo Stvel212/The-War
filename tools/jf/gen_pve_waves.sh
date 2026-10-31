@@ -3,8 +3,9 @@
 #   bash tools/jf/gen_pve_waves.sh "путь/к/3082_Just_Fight!_[5.6.2_A1].w3x"
 # Шаги: скрипт карты (scripts\war3map.j, его нет в listfile) читается по имени (ReadMpq), строки CR -> LF;
 # объекты — grill exportobjects; из функций-таблиц (ILL1III, ILL1I1I, ILL1LII, ILL1L1I) берутся волны;
-# юнит Just Fight -> юнит The War: тот же базовый тип и ближайшее здоровье среди юнитов бараков (fillTiers и их
-# улучшения), иначе среди всех юнитов, иначе по модели; казарма Just Fight -> юнит, которого она обучает.
+# казарма Just Fight -> юнит, которого она обучает; все юниты волн копируются из Just Fight целиком (CopyJfUnits ->
+# UnitsPveJf), их триггеры — PveJfTriggers (PortJfTriggers). Сопоставление с юнитами The War (match2.awk) осталось только
+# для записей без объекта в экспорте (N01C).
 set -e
 MAP="$1"
 [ -f "$MAP" ] || { echo "usage: $0 just_fight.w3x"; exit 1; }
@@ -28,7 +29,6 @@ mkdir -p "$TMP/proj/wurst"
 cp "$ROOT/wurst.build" "$TMP/proj/"
 (cd "$TMP/proj" && "$W/grill.cmd" exportobjects ../jf.w3x > /dev/null)
 awk -f "$JF/ext.awk" "$TMP/objectEditingOutput/WurstExportedObjects_w3u.wurst" > "$TMP/jf_units.tsv"
-awk -f "$JF/stats.awk" "$TMP/objectEditingOutput/WurstExportedObjects_w3u.wurst" > "$TMP/jf_prof.tsv"
 awk '/new BuildingDefinition\(/{match($0,/\x27[A-Za-z0-9]{4}\x27/); id=substr($0,RSTART+1,4)} /setUnitsTrained\("/{match($0,/"[^",]*/); t=substr($0,RSTART+1,RLENGTH-1); if(id!="" && t!="") print id "\t" t}' \
     "$TMP/objectEditingOutput/WurstExportedObjects_w3u.wurst" > "$TMP/jf_trains.tsv"
 # без UnitsPveJf (сами копии Just Fight, их выпускает этот скрипт)
@@ -79,27 +79,38 @@ awk -F'\t' '$2=="U"{print $1}' war_units.tsv > war_all.txt
 awk -f "$JF/match2.awk" jf_units.tsv jf_trains.tsv war_units.tsv war_cand.txt war_all.txt jf_ids.txt > matches.tsv
 awk -F'\t' '$6 == "none" { print "НЕ СОПОСТАВЛЕН: " $1 > "/dev/stderr" }' matches.tsv
 
-# юниты Just Fight, которых в The War нет (у найденной пары другая модель или другой набор способностей по их
-# классам), — копируются из Just Fight целиком (способности, баффы, призываемые) в UnitsPveJf.wurst под новыми ID
-awk -f "$JF/abcls.awk" "$TMP/objectEditingOutput/WurstExportedObjects_w3a.wurst" > jf_abcls.tsv
-cat "$ROOT"/wurst/objects/abilities/*.wurst | awk -f "$JF/abcls.awk" > war_abcls.tsv
-awk -f "$JF/unitabil.awk" jf_abcls.tsv "$TMP/objectEditingOutput/WurstExportedObjects_w3u.wurst" > jf_abil.tsv
-ls "$ROOT"/wurst/objects/units/*.wurst | grep -v UnitsPveJf | xargs cat | awk -f "$JF/unitabil.awk" war_abcls.tsv - > war_abil.tsv
-awk -F'\t' 'FILENAME == ARGV[1] { wm[$1] = $5; next } FILENAME == ARGV[2] { jm[$1] = $5; ok[$1] = 1; next }
-    FILENAME == ARGV[3] { ja[$1] = $2; next } FILENAME == ARGV[4] { wa[$1] = $2; next }
-    ok[$2] && (jm[$2] != wm[$7] || ja[$2] != wa[$7]) && !seen[$2]++ { print $2 }' \
-    war_units.tsv jf_units.tsv jf_abil.tsv war_abil.tsv matches.tsv > copy_ids.txt
-javac --release 17 -encoding UTF-8 -d "$WTMP/cls" "$JF/CopyJfUnits.java" "$JF/PatchMdxTextures.java"
-"$W/wurst-runtime/bin/java" -cp "$WTMP/cls" CopyJfUnits "$WTMP/objectEditingOutput" "$WTMP/copy_ids.txt" \
-    "$(cygpath -m "$ROOT" 2>/dev/null || echo "$ROOT")/wurst/objects/units/UnitsPveJf.wurst" "$WTMP/copy_map.tsv" "$WTMP/assets.txt" \
-    "$(cygpath -m "$ROOT" 2>/dev/null || echo "$ROOT")/_build/dependencies/wurstStdlib2/wurst/objediting"
-# казарма из таблицы -> её юнит (столбец 2) скопирован: запись ведёт на копию, характеристики — уже свои (профиль 0)
+# все юниты волн Just Fight копируются целиком (способности, баффы, призываемые) в UnitsPveJf.wurst под новыми ID, их
+# триггеры (способности, которые в Just Fight делает скрипт карты) — в PveJfTriggers.wurst (PortJfTriggers). Объекты,
+# нужные только триггерам (даммики, призываемые триггером), копируются следующим проходом, пока список не перестанет расти
+awk -F'\t' '!seen[$2]++ { print $2 }' matches.tsv > copy_ids.txt
+javac --release 17 -encoding UTF-8 -d "$WTMP/cls" "$JF/CopyJfUnits.java" "$JF/PatchMdxTextures.java" "$JF/PortJfTriggers.java" "$JF/JassToWurst.java"
+M="$(cygpath -m "$ROOT" 2>/dev/null || echo "$ROOT")"
+copy_and_port() {
+    "$W/wurst-runtime/bin/java" -cp "$WTMP/cls" CopyJfUnits "$WTMP/objectEditingOutput" "$WTMP/copy_ids.txt" \
+        "$M/wurst/objects/units/UnitsPveJf.wurst" "$WTMP/copy_map.tsv" "$WTMP/assets.txt" \
+        "$M/_build/dependencies/wurstStdlib2/wurst/objediting" "$WTMP/script_ids.txt" > /dev/null
+    "$W/wurst-runtime/bin/java" -cp "$WTMP/cls" PortJfTriggers "$WTMP/jf.j" "$WTMP/copy_map.tsv" "$WTMP/objectEditingOutput" \
+        "$M/imports/models" "$M/wurst/map/PveJfTriggers.wurst" "$(cygpath -m "$JF" 2>/dev/null || echo "$JF")/trigger_exclude.txt" \
+        "$WTMP/script_ids_next.txt" 2> port_report.txt
+}
+: > script_ids.txt
+for pass in 1 2 3 4 5; do
+    copy_and_port
+    cat script_ids.txt script_ids_next.txt | sort -u > script_ids_all.txt
+    cmp -s script_ids_all.txt <(sort -u script_ids.txt) && break
+    mv script_ids_all.txt script_ids.txt
+done
+cat port_report.txt >&2
+# казарма из таблицы -> её юнит (столбец 2) скопирован: запись ведёт на копию
 awk -F'\t' -v OFS='\t' 'FILENAME == ARGV[1] { if ($3 == "w3u") nid[$1] = $2; next } ($2 in nid) { $7 = nid[$2]; $6 = "copy" } { print }' \
     copy_map.tsv matches.tsv > matches2.tsv && mv matches2.tsv matches.tsv
-# импортированные модели Just Fight (в корне архива): в imports/models, их текстуры — в imports/textures
-for m in $(tr ',' '\n' < assets.txt | grep -i -E '^[A-Za-z0-9_]+\.md[lx]$' | sed -E 's/\.[A-Za-z]+$//' | sort -u); do
+# импортированные модели Just Fight (в корне архива; у объектов и в триггерах): в imports/models, их текстуры — в
+# imports/textures
+for m in $({ tr ',' '\n' < assets.txt; grep -o '"[A-Za-z0-9_]*\.md[lxLX]"' "$ROOT/wurst/map/PveJfTriggers.wurst" | tr -d '"'; } \
+        | grep -i -E '^[A-Za-z0-9_]+\.md[lx]$' | sed -E 's/\.[A-Za-z]+$//' | sort -u); do
     [ -f "$ROOT/imports/models/$m.mdx" ] && continue
-    "$W/wurst-runtime/bin/java" -cp "$WTMP/cls;$WW/wurst-compiler/wurstscript.jar" ReadMpq "$WTMP/jf.w3x" "$WTMP" "$m.mdx" > /dev/null
+    "$W/wurst-runtime/bin/java" -cp "$WTMP/cls;$WW/wurst-compiler/wurstscript.jar" ReadMpq "$WTMP/jf.w3x" "$WTMP" "$m.mdx" > /dev/null || continue
+    [ -f "$TMP/$m.mdx" ] || continue
     "$W/wurst-runtime/bin/java" -cp "$WTMP/cls" PatchMdxTextures "$WTMP/$m.mdx" "$(cygpath -m "$ROOT" 2>/dev/null || echo "$ROOT")/imports/models/$m.mdx" 'textures\'
     for t in $(grep -a -o -E 'textures.[A-Za-z0-9_]+\.blp' "$ROOT/imports/models/$m.mdx" | sed 's/^textures.//' | sort -u); do
         [ -f "$ROOT/imports/textures/$t" ] && continue
@@ -107,14 +118,17 @@ for m in $(tr ',' '\n' < assets.txt | grep -i -E '^[A-Za-z0-9_]+\.md[lx]$' | sed
         [ -f "$TMP/$t" ] && cp "$TMP/$t" "$ROOT/imports/textures/$t"
     done
 done
+# триггеры — ещё раз: пути к только что импортированным моделям
+copy_and_port
 
-awk -f "$JF/gen.awk" jf_prof.tsv matches.tsv t1.parsed t2.parsed t3.parsed t4.parsed > "$ROOT/wurst/map/PveWaveTables.wurst"
+awk -f "$JF/gen.awk" matches.tsv t1.parsed t2.parsed t3.parsed t4.parsed > "$ROOT/wurst/map/PveWaveTables.wurst"
 # золото за убийство скопированных юнитов (у юнитов The War — по их бараку, Initialization.unitGold)
 awk -f "$JF/bounty.awk" "$TMP/jf.j" "$TMP/objectEditingOutput/WurstExportedObjects_w3u.wurst" copy_map.tsv > bounty.tsv
+# в подсказках — то же золото («Reward: +N gold» у Just Fight местами расходится с формулой)
+awk -f "$JF/bounty_tips.awk" bounty.tsv "$ROOT/wurst/objects/units/UnitsPveJf.wurst" > UnitsPveJf.new \
+    && mv UnitsPveJf.new "$ROOT/wurst/objects/units/UnitsPveJf.wurst"
 awk -F'\t' '{ t = t (NR > 1 ? ", " : "") "\x27" $1 "\x27"; g = g (NR > 1 ? ", " : "") $2 }
     END { print ""; print "// Золото за убийство скопированных юнитов Just Fight (I1IlILI: 2 × еда барака с номером = point value юнита)"
           print "public constant JF_BOUNTIES = " NR; print "public constant jfBountyType = [" t "]"; print "public constant jfBounty = [" g "]" }' \
     bounty.tsv >> "$ROOT/wurst/map/PveWaveTables.wurst"
-# автокаст монстров: активные способности копий -> приказ и цель (классы — tools/jf/orders.tsv)
-awk -F'\t' -f "$JF/casts.awk" "$JF/orders.tsv" "$ROOT/wurst/objects/units/UnitsPveJf.wurst" >> "$ROOT/wurst/map/PveWaveTables.wurst"
 echo "wurst/map/PveWaveTables.wurst: $(awk -F'\t' '{print $6}' matches.tsv | sort | uniq -c | tr '\n' ' ')"

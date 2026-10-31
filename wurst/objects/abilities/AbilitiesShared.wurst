@@ -92,7 +92,7 @@ import AbilityObjEditing
 	..setCooldown(1, 10.0)
 	..setManaCost(1, 60)
 	..setDurationHero(1, 0.0)
-	..setTargetsAllowed(1, "ground,nonhero")
+	..setTargetsAllowed(1, "ground,nonhero,ward")
 	..setEditorSuffix("(Кентавр)")
 	..setDurationNormal(1, 1.15)
 
@@ -146,7 +146,7 @@ import AbilityObjEditing
 	..setDurationNormal(1, 3.0)
 	..setMissileArc(0.15)
 	..setMissileSpeed(900)
-	..setTargetsAllowed(1, "ground,air,nonhero")
+	..setTargetsAllowed(1, "ground,air,nonhero,ward")
 
 @compiletime function create_w3a_A08U()
 	new AbilityDefinitionHardenedSkin('A08U')

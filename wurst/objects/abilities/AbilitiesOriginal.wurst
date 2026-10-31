@@ -31,7 +31,7 @@ import AbilityObjEditing
 	new AbilityDefinitionSlowPoison('Aspo')
 	..setStackingType(1, 0)
 	..setDamagePerSecond(1, 0.0)
-	..setTargetsAllowed(1, "ground,organic,air,nonhero")
+	..setTargetsAllowed(1, "ground,organic,air,nonhero,ward")
 	..setAttackSpeedFactor(1, 0.7)
 	..setMovementSpeedFactor(1, 0.7)
 

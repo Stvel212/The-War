@@ -56,7 +56,7 @@ import AbilityObjEditing
 
 @compiletime function create_w3a_A05T()
 	new AbilityDefinitionTornadoDamage('A05T')
-	..setTargetsAllowed(1, "ground,enemies,air")
+	..setTargetsAllowed(1, "ground,enemies,air,ward")
 	..setMediumDamageRadius(1, 0.0)
 	..setMediumDamagePerSecond(1, 0.0)
 	..setDamagePerSecond(1, 10.0)
@@ -71,7 +71,7 @@ import AbilityObjEditing
 	new AbilityDefinitionAuraDevotionCreep('A05U')
 	..setEditorSuffix("(-2 армора)")
 	..setAreaofEffect(1, 400.0)
-	..setTargetsAllowed(1, "ground,enemies,air")
+	..setTargetsAllowed(1, "ground,enemies,air,ward")
 	..setArmorBonus(1, -2.0)
 	..setIconNormal("ReplaceableTextures\\CommandButtons\\BTNShadowStrike.blp")
 	..setBuffs(1, "B01L")
@@ -113,7 +113,7 @@ import AbilityObjEditing
 @compiletime function create_w3a_A05Y()
 	new AbilityDefinitionCleavingAttackCreep('A05Y')
 	..setAreaofEffect(1, 225.0)
-	..setTargetsAllowed(1, "ground,enemies,air")
+	..setTargetsAllowed(1, "ground,enemies,air,ward")
 	..setDistributedDamageFactor(1, 0.15)
 	..setEditorSuffix("(Тиник)")
 
@@ -174,7 +174,7 @@ import AbilityObjEditing
 	..setDurationHero(1, 0.1)
 	..setDurationNormal(1, 6.0)
 	..setCooldown(1, 10.0)
-	..setTargetsAllowed(1, "enemies,ground,nonhero,air,organic,neutral")
+	..setTargetsAllowed(1, "enemies,ground,nonhero,air,organic,neutral,ward")
 	..setChancetoMiss(1, 0.4)
 
 @compiletime function create_w3a_A069()
@@ -190,7 +190,7 @@ import AbilityObjEditing
 	new AbilityDefinitionCleavingAttackCreep('A06A')
 	..setDistributedDamageFactor(1, 0.35)
 	..setEditorSuffix("(Магнатавр) (Старейшина Магнатавров)")
-	..setTargetsAllowed(1, "ground,enemies,air")
+	..setTargetsAllowed(1, "ground,enemies,air,ward")
 
 @compiletime function create_w3a_A06B()
 	new AbilityDefinitionRoar('A06B')
@@ -201,7 +201,7 @@ import AbilityObjEditing
 	..setAreaofEffect(1, 700.0)
 	..setEditorSuffix("(Вожак гноллов)")
 	..setCooldown(1, 30.0)
-	..setTargetsAllowed(1, "air,friend,ground,nonhero,self")
+	..setTargetsAllowed(1, "air,friend,ground,nonhero,self,ward")
 
 @compiletime function create_w3a_A06C()
 	new AbilityDefinitionAuraCommandCreep('A06C')
@@ -212,7 +212,7 @@ import AbilityObjEditing
 
 @compiletime function create_w3a_A08K()
 	new AbilityDefinitionTornadoDamage('A08K')
-	..setTargetsAllowed(1, "ground,enemies,air")
+	..setTargetsAllowed(1, "ground,enemies,air,ward")
 	..setMediumDamageRadius(1, 0.0)
 	..setMediumDamagePerSecond(1, 0.0)
 	..setDamagePerSecond(1, 10.0)
@@ -241,7 +241,7 @@ import AbilityObjEditing
 	new AbilityDefinitionAuraDevotionCreep('A0DO')
 	..setEditorSuffix("(-3 армора)")
 	..setAreaofEffect(1, 400.0)
-	..setTargetsAllowed(1, "ground,enemies,air")
+	..setTargetsAllowed(1, "ground,enemies,air,ward")
 	..setArmorBonus(1, -3.0)
 	..setIconNormal("ReplaceableTextures\\CommandButtons\\BTNShadowStrike.blp")
 	..setBuffs(1, "B01L")
@@ -260,5 +260,5 @@ import AbilityObjEditing
 	..setChancetoBash(1, 30.0)
 	..setDurationHero(1, 0.0)
 	..setDurationNormal(1, 0.1)
-	..setTargetsAllowed(1, "ground,nonhero")
+	..setTargetsAllowed(1, "ground,nonhero,ward")
 	..setTooltipNormalExtended(1, "")

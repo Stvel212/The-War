@@ -1,0 +1,38 @@
+# Имена функций и глобальных Just Fight (обфусцированных) в PveJfTriggers: имя_в_war3map.j (с префиксом jf) новое_имя
+# эффект исчезнет через N с — в Just Fight своя очередь таймеров (её обработчик не перенесён)
+jflILI1I -> jfDestroyEffectLater
+
+# общие функции Just Fight (аналоги BJ)
+jfLlL11I unitsInRange
+jflIIL1I -> jfRandomSubGroup
+jfLlLILI forceOfPlayer
+jfLllllI unitWoodCost
+jfLlll1I unitGoldCost
+
+# награда за юнита (тригеры Just Fight LLI11I и LLI1lI, их вызывают способности «золото за убийство»)
+jfLLI11I bountyTrigger
+jfLLI1lI bountyOfTargetTrigger
+jfLL11 bountyGold
+jflLLL bountyUnitType
+jfl11L unitTypeByPointValue
+
+# временные значения Just Fight
+jfIIL1 laneUnit
+jflI1L tempPos
+jflIlL tempGroup
+jflLIL tempForce
+jfLllI lastGroup
+jfLl1I lastForce
+jfLLI1 tempReal
+
+# по игрокам: улучшения (исследования) Just Fight, у монстров их нет — 0
+jfII1LI upgradeNJ4B
+jfL111 upgradeNJ3E
+jfL1I1 upgradeEJ0C
+jfL1L1 upgradeOJ54
+jfL1l1 upgradeAir
+jflILII upgradeAir2
+jfllL1 upgradeNJ44
+jflIIL attackUpgradeCounter
+jflLL1I summonUpgrade
+jfIlI1 playerHero

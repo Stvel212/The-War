@@ -560,11 +560,11 @@ function initPlayers()
     for a = 0 to 7
         let wisp = createWorker(a)
         baza[a].setVertexColor(255, 255, 255, 180)
-        // текст ресурсов над базой — виден только своей команде
+        // текст ресурсов над базой — виден только своей команде (в PvE команда одна — всем)
         textR[a] = CreateTextTag()
             ..setText("", 10)
             ..setPos(baza[a].getX() - 50, baza[a].getY(), 0.0)
-        if (forceG[1].containsPlayer(localPlayer) and a > 3) or (forceG[2].containsPlayer(localPlayer) and a < 4)
+        if not isPve() and ((forceG[1].containsPlayer(localPlayer) and a > 3) or (forceG[2].containsPlayer(localPlayer) and a < 4))
             textR[a].setVisibility(false)
         // рабочий сразу рубит ближайшее дерево
         wisp.harvestNearestTree()
@@ -771,11 +771,19 @@ public function spawnFrom(unit u)
 function naimAttack(unit u)
     let p = u.getOwner()
     naimGroup.remove(u)
-    u.setPathing(true)
+    u..unpause()..setInvulnerable(false)..setPathing(true)
     if isPvevp()
         u.becomeSend()
         return
-    SetUnitPosition(u, u.getX() + (u.getX() < 0 ? 900 : -900), u.getY() + 700)
+    let y = u.getY() + 700
+    if not isPve()
+        SetUnitPosition(u, u.getX() + (u.getX() < 0 ? 900 : -900), y)
+    // PvE: выходят со стороны своих — на линии у своего генератора (позади армии), на средней линии — за Богом Войны
+    else if isMidLane(y)
+        SetUnitPosition(u, PVE_TELEPORT_X + GetRandomReal(-100., 100.), GetRandomReal(-300., 850.))
+    else
+        SetUnitPosition(u, u.getX() < 0 ? GENERATOR_LEFT_X + 300. : GENERATOR_RIGHT_X - 300., y)
+    u.removeGuardPosition()
     u.attackLane()
     if u.getTypeId() == 'n03T'
         forUnitsInRange(u.getPos(), 1100.0) s ->
@@ -792,6 +800,8 @@ function kingGuards(int a)
         let u = CreateUnit(players[a == 1 ? 8 : 9], 'h01L', a == 1 ? -3400.0 : 2800.0, (-250 + 100 * i).toReal(), a == 1 ? 180.0 : 270.0)
         wDammiAtt(u, dmg)
         wDammiHP(u, hp)
+        // слоты королей — компьютеры: без этого ИИ держит юнита на точке создания («guard position»)
+        u.removeGuardPosition()
         u.attackLane()
 
 /** Первый раунд: подписи магазинов, стартовое золото, лимиты построек, случайный набор зданий, пустые слоты */
@@ -848,9 +858,10 @@ function wave()
         firstRound()
         fireRoundHooks(round)
         return
-    kingGuards(1)
-    // PvE: правого короля нет — на его месте Злой Бог
-    if not isPve()
+    // стража королей — только в PvP (PvE: правого короля нет — на его месте Злой Бог; PvEvP: короля защищают
+    // бойцы, прошедшие портал)
+    if gameMode == GameModeKind.PVP
+        kingGuards(1)
         kingGuards(2)
     for a = 0 to 7
         incomeR[a] += 3

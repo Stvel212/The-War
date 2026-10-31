@@ -2,6 +2,7 @@ package UnitEvents
 import ClosureEvents
 import HashMap
 import LinkedList
+import ClosureTimers
 
 /*
     Диспетчер событий по типу юнита. Раньше на каждую атаку любого юнита срабатывало ~90 обработчиков, и каждый
@@ -36,6 +37,33 @@ constant attacked = new Handlers()     // по типу атакуемого (Ge
 constant deathOf = new Handlers()      // по типу умершего (GetDyingUnit)
 constant killBy = new Handlers()       // по типу убийцы (GetKillingUnit)
 
+// ---- сторож от зацикливания ----
+
+/** Событий подряд без единого кадра игры (таймер ниже не успевает сбросить счётчик) — это цепочка, которая сама
+    себя запускает (зависание). Тогда обработчики выключаются на RUNAWAY_PAUSE, а в чат пишется, что зациклилось */
+constant RUNAWAY_LIMIT = 3000
+constant RUNAWAY_PAUSE = 2.
+var burst = 0
+var suppressed = false
+
+function unitName(unit u) returns string
+    return u == null ? "-" : GetObjectName(u.getTypeId())
+
+function runaway(string kind, unit a, unit b) returns bool
+    if suppressed
+        return true
+    burst++
+    if burst <= RUNAWAY_LIMIT
+        return false
+    suppressed = true
+    let msg = "|cffff0000[The War] runaway " + kind + ": " + unitName(a) + " -> " + unitName(b) + "|r"
+    for i = 0 to bj_MAX_PLAYER_SLOTS - 1
+        DisplayTimedTextToPlayer(Player(i), 0., 0., 60., msg)
+    doAfter(RUNAWAY_PAUSE) ->
+        suppressed = false
+        burst = 0
+    return true
+
 // ---- атака: EVENT_PLAYER_UNIT_ATTACKED ----
 
 /** Юнит типа t атакует (GetAttacker) */
@@ -58,6 +86,12 @@ public function onAttacked(int t, UnitHandler h)
 public function onAttacked(int t1, int t2, UnitHandler h)
     attacked..add(t1, h)..add(t2, h)
 
+public function onAttacked(int t1, int t2, int t3, UnitHandler h)
+    attacked..add(t1, h)..add(t2, h)..add(t3, h)
+
+public function onAttacked(int t1, int t2, int t3, int t4, UnitHandler h)
+    attacked..add(t1, h)..add(t2, h)..add(t3, h)..add(t4, h)
+
 /** Любая атака (обработчик сам проверяет способности/баффы) */
 public function onAnyAttack(UnitHandler h)
     attackBy.generic.add(h)
@@ -71,6 +105,12 @@ public function onDeathOf(int t, UnitHandler h)
 public function onDeathOf(int t1, int t2, UnitHandler h)
     deathOf..add(t1, h)..add(t2, h)
 
+public function onDeathOf(int t1, int t2, int t3, UnitHandler h)
+    deathOf..add(t1, h)..add(t2, h)..add(t3, h)
+
+public function onDeathOf(int t1, int t2, int t3, int t4, UnitHandler h)
+    deathOf..add(t1, h)..add(t2, h)..add(t3, h)..add(t4, h)
+
 /** Убил юнит типа t (GetKillingUnit) */
 public function onKillBy(int t, UnitHandler h)
     killBy.add(t, h)
@@ -78,16 +118,119 @@ public function onKillBy(int t, UnitHandler h)
 public function onKillBy(int t1, int t2, UnitHandler h)
     killBy..add(t1, h)..add(t2, h)
 
+public function onKillBy(int t1, int t2, int t3, UnitHandler h)
+    killBy..add(t1, h)..add(t2, h)..add(t3, h)
+
+public function onKillBy(int t1, int t2, int t3, int t4, UnitHandler h)
+    killBy..add(t1, h)..add(t2, h)..add(t3, h)..add(t4, h)
+
 /** Любая смерть */
 public function onAnyDeath(UnitHandler h)
     deathOf.generic.add(h)
 
+
+// ---- урон: EVENT_PLAYER_UNIT_DAMAGED (слушатель — с первой подписки: в PvP её нет) ----
+
+constant damageBy = new Handlers()     // по типу источника урона (GetEventDamageSource)
+constant damaged = new Handlers()      // по типу получившего урон (GetTriggerUnit)
+var damageListened = false
+/** Урон внутри обработчиков урона вызывает их снова (событие приходит сразу): глубже DAMAGE_DEPTH_MAX — не
+    обрабатывать, чтобы обработчики разных юнитов не гоняли урон друг другу без конца (зависание) */
+constant DAMAGE_DEPTH_MAX = 4
+var damageDepth = 0
+/** Для журнала (DebugLog): сколько раз обработчики урона Just Fight выполнялись и сколько событий отброшено пределом
+    вложенности (урон, атака, смерть) — счётчики сбрасывает журнал */
+public var jfDamageRuns = 0
+public var depthBlocked = 0
+
+function listenDamage()
+    if damageListened
+        return
+    damageListened = true
+    // отдельный слушатель, не DamageEvent.addListener: обработчики наносят вложенный урон, а DamageEvent после своих
+    // слушателей пишет урон в событие (BlzSetEventDamage) — после вложенного урона это роняло WC3 3.0 (ACCESS_VIOLATION)
+    EventListener.add(EVENT_PLAYER_UNIT_DAMAGED) ->
+        if damageDepth >= DAMAGE_DEPTH_MAX
+            depthBlocked++
+        if damageDepth < DAMAGE_DEPTH_MAX and not runaway("damage", GetEventDamageSource(), GetTriggerUnit())
+            damageDepth++
+            jfDamageRuns++
+            damageBy.runGeneric()
+            damageBy.run(GetEventDamageSource().getTypeId())
+            damaged.run(GetTriggerUnit().getTypeId())
+            damageDepth--
+    // вложенный урон синхронный: в таймере глубина всегда 0 (если обработчик упал, не уменьшив её, — сбросить)
+    doPeriodically(1.) _cb ->
+        damageDepth = 0
+
+/** Юнит типа t наносит урон (GetEventDamageSource) */
+public function onDamageBy(int t, UnitHandler h)
+    listenDamage()
+    damageBy.add(t, h)
+
+public function onDamageBy(int t1, int t2, UnitHandler h)
+    listenDamage()
+    damageBy..add(t1, h)..add(t2, h)
+
+public function onDamageBy(int t1, int t2, int t3, UnitHandler h)
+    listenDamage()
+    damageBy..add(t1, h)..add(t2, h)..add(t3, h)
+
+public function onDamageBy(int t1, int t2, int t3, int t4, UnitHandler h)
+    listenDamage()
+    damageBy..add(t1, h)..add(t2, h)..add(t3, h)..add(t4, h)
+
+/** Юнит типа t получает урон (GetTriggerUnit) */
+public function onDamaged(int t, UnitHandler h)
+    listenDamage()
+    damaged.add(t, h)
+
+public function onDamaged(int t1, int t2, UnitHandler h)
+    listenDamage()
+    damaged..add(t1, h)..add(t2, h)
+
+public function onDamaged(int t1, int t2, int t3, UnitHandler h)
+    listenDamage()
+    damaged..add(t1, h)..add(t2, h)..add(t3, h)
+
+public function onDamaged(int t1, int t2, int t3, int t4, UnitHandler h)
+    listenDamage()
+    damaged..add(t1, h)..add(t2, h)..add(t3, h)..add(t4, h)
+
+/** Любой урон */
+public function onAnyDamage(UnitHandler h)
+    listenDamage()
+    damageBy.generic.add(h)
+
+/** Атака и смерть внутри своих обработчиков (приказ атаковать, убийство уроном, юнит, созданный и сразу умерший)
+    тоже приходят сразу, вложенно: глубже EVENT_DEPTH_MAX не обрабатывать — защита от бесконечной цепочки (зависание) */
+constant EVENT_DEPTH_MAX = 4
+var attackDepth = 0
+var deathDepth = 0
+
 init
     EventListener.add(EVENT_PLAYER_UNIT_ATTACKED) ->
-        attackBy.runGeneric()
-        attackBy.run(GetAttacker().getTypeId())
-        attacked.run(GetTriggerUnit().getTypeId())
+        if attackDepth >= EVENT_DEPTH_MAX
+            depthBlocked++
+        if attackDepth < EVENT_DEPTH_MAX and not runaway("attack", GetAttacker(), GetTriggerUnit())
+            attackDepth++
+            attackBy.runGeneric()
+            attackBy.run(GetAttacker().getTypeId())
+            attacked.run(GetTriggerUnit().getTypeId())
+            attackDepth--
     EventListener.add(EVENT_PLAYER_UNIT_DEATH) ->
-        deathOf.runGeneric()
-        deathOf.run(GetDyingUnit().getTypeId())
-        killBy.run(GetKillingUnit().getTypeId())
+        if deathDepth >= EVENT_DEPTH_MAX
+            depthBlocked++
+        if deathDepth < EVENT_DEPTH_MAX and not runaway("death", GetKillingUnit(), GetDyingUnit())
+            deathDepth++
+            deathOf.runGeneric()
+            deathOf.run(GetDyingUnit().getTypeId())
+            killBy.run(GetKillingUnit().getTypeId())
+            deathDepth--
+    // вложенные события синхронны: в таймере глубина всегда 0 (если обработчик упал, не уменьшив её, — сбросить)
+    doPeriodically(1.) _cb ->
+        attackDepth = 0
+        deathDepth = 0
+    // счётчик сторожа: кадр прошёл — цепочки нет
+    doPeriodically(0.03) _cb ->
+        burst = 0

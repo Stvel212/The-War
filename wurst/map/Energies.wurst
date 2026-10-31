@@ -9,6 +9,7 @@ import GameTimer
 import StringUtils
 import MapGlobals
 import AbilitiesEnergy
+import EnergyData
 import ClosureEvents
 
 /*
@@ -21,62 +22,14 @@ import ClosureEvents
       бойцов, шанс сильного удара; Вода — генератор энергии на последних 9% здоровья разом лечится и бьёт вокруг.
     Уровни хранятся в профиле строкой (ProfileData.energies, «5,0,12,…»); всё синхронно (клики окна — синхронные). */
 
-public constant ENERGY_KINDS = 8
-public constant ENERGY_MAX_LEVEL = 40
-public constant ENERGY_GOLD = 0
-public constant ENERGY_LUMBER = 1
-public constant ENERGY_WATER = 2
-public constant ENERGY_FIRE = 3
-public constant ENERGY_EARTH = 4
-public constant ENERGY_WIND = 5
-public constant ENERGY_THUNDER = 6
-public constant ENERGY_ELECTRICITY = 7
-
-/** Цена активации по числу пройденных уровней PvE: 0, 1, 2+ (Just Fight: 100, 90, 75 заслуг по прогрессу PvE) */
-constant activateCosts = [100, 90, 75]
-constant LEVEL_COST = 10
-/** Шанс открыть новую энергию при 0..7 уже открытых, % */
-constant activateChance = [50, 44, 38, 32, 25, 19, 13, 7]
-constant energyNames = ["Gold", "Lumber", "Water", "Fire", "Earth", "Wind", "Thunder", "Electricity"]
-constant energyIcons = ["BTNChestOfGold", "BTNBundleOfLumber", "BTNSummonWaterElemental", "BTNImmolationOn",
-    "BTNEarthquake", "BTNCyclone", "BTNThunderclap", "BTNChainLightning"]
-
 /** Вода: лечит генератор, когда здоровья меньше WATER_THRESHOLD, не чаще раза в WATER_COOLDOWN с */
 constant WATER_THRESHOLD = 0.09
 constant WATER_COOLDOWN = 60.
 constant WATER_RADIUS = 600.
-/** Огонь: шанс сильного удара */
-constant FIRE_CHANCE = 20
 
 /** Уровни энергий: [pid * ENERGY_KINDS + вид] */
 int array levels
 real array waterReadyAt
-
-public function energyName(int kind) returns string
-    return energyNames[kind]
-
-public function energyIcon(int kind) returns string
-    return "ReplaceableTextures\\CommandButtons\\" + energyIcons[kind] + ".blp"
-
-/** Что даёт энергия kind на уровне level (для подсказок) */
-public function energyEffect(int kind, int level) returns string
-    switch kind
-        case ENERGY_GOLD
-            return "+" + 5 * level + " starting gold"
-        case ENERGY_LUMBER
-            return "+" + 5 * level + " starting lumber"
-        case ENERGY_WATER
-            return "your Energy Generator below 9% HP instantly heals " + min(100, 3 * level) + "% max HP and deals as much damage around (60 s cooldown)"
-        case ENERGY_FIRE
-            return FIRE_CHANCE + "% chance for attacks of your units to deal +" + 5 * level + "% damage"
-        case ENERGY_EARTH
-            return "+" + (0.15 * level).toString(2) + " armor to your units"
-        case ENERGY_WIND
-            return "+" + (0.5 * level).toString(1) + "% attack speed to your units"
-        case ENERGY_THUNDER
-            return "+" + (0.3 * level).toString(1) + " HP regeneration to your units"
-        default
-            return "+" + (0.5 * level).toString(1) + "% attack damage to your units"
 
 // ---- состояние ----
 
@@ -93,11 +46,6 @@ public function player.activeEnergies() returns int
 public function player.energyActivateCost() returns int
     return activateCosts[min(2, this.profile().pveBeaten)]
 
-public function energyActivateChance(int active) returns int
-    return active < ENERGY_KINDS ? activateChance[active] : 0
-
-public function energyLevelCost(int level) returns int
-    return LEVEL_COST * level
 
 /** Разобрать уровни из профиля («5,0,12,…») */
 function readProfile(player p)
@@ -273,22 +221,6 @@ function waterCheck()
 
 // ---- кнопки энергий на генераторе (PvE, как в Just Fight) ----
 
-/** Подсказки кнопок по уровням (у всех одинаковые: уровень кнопки = уровень энергии) */
-function initGeneratorTooltips()
-    for kind = 0 to ENERGY_KINDS - 1
-        let id = energyAbility(kind)
-        for level = 1 to ENERGY_MAX_LEVEL
-            BlzSetAbilityTooltip(id, "|cff00ffffEnergy - " + energyName(kind) + " [Level " + level + "]|r", level - 1)
-            var s = "|cffffff00Current:|n" + energyEffect(kind, level) + "|r"
-            if level < ENERGY_MAX_LEVEL
-                s += "|n|n|cffc0c0c0Next level:|n" + energyEffect(kind, level + 1) + "|nClick to level up: |cff00ffff"
-                    + energyLevelCost(level) + "|r energy|r"
-            BlzSetAbilityExtendedTooltip(id, s + "|n|cffc0c0c0Works only in PvE mode. Max level: " + ENERGY_MAX_LEVEL + "|r", level - 1)
-    BlzSetAbilityTooltip(ENERGY_ACTIVATE, "|cff00ffffActivate Energy|r", 0)
-    BlzSetAbilityExtendedTooltip(ENERGY_ACTIVATE, "Randomly activates one of the energies you do not have yet: Gold, Lumber, Water, "
-        + "Fire, Earth, Wind, Thunder or Electricity.|n|cffc0c0c0Costs " + activateCosts[0] + " energy (" + activateCosts[1] + " after 1 beaten PvE level, "
-        + activateCosts[2] + " after 2). The chance drops with every active energy; energy is spent even if none responds.|r", 0)
-
 /** Кнопки генератора игрока p — по его энергиям: активные энергии с их уровнем и «Activate», пока есть закрытые */
 function refreshGenerator(player p)
     let pid = p.getId()
@@ -320,7 +252,6 @@ init
             startBonus()
     doPeriodically(1.) cb ->
         waterCheck()
-    initGeneratorTooltips()
     // генераторы ставятся при выборе режима, профили грузятся когда угодно: синхронизировать и при старте, и при
     // каждом изменении профиля
     onProfileChange(p -> refreshGenerator(p))

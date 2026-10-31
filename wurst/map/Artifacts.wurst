@@ -244,12 +244,12 @@ function artHp_DamageA(unit caster)
 // ============================================================
 
 function artTotemHA(unit caster)
-    CreateUnit(caster.getOwner(), 'o00K', GetSpellTargetX(), GetSpellTargetY(), 0.0).setTimedLife(10.0, 'BHwe')
-    let t = GetSpellTargetUnit()
-    t.addAbility('A0AJ')
+    // тотем ставится в точку (цели-юнита у каста нет): уровень ауры лечения 'A0AJ' (по зарядам предмета) — самому тотему
+    let totem = CreateUnit(caster.getOwner(), 'o00K', GetSpellTargetX(), GetSpellTargetY(), 0.0)
+    totem.setTimedLife(10.0, 'BHwe')
     let charges = Artifact.charges(caster, 'I00R')
     if charges > 0
-        t.setAbilityLevel('A0AJ', charges)
+        totem.setAbilityLevel('A0AJ', charges)
 
 // ============================================================
 // Артефакт: ArmorMinusA — способность 'A0AN'
@@ -440,7 +440,8 @@ function artTrainA(unit caster)
 
 function artTeleport1A(unit caster)
     let t = GetSpellTargetUnit()
-    if IsUnitPaused(t) or t.getAbilityLevel('A0C4') != 0 or t.getAbilityLevel('A0GP') != 0
+    // наёмники в зоне инкома (ждут раунда на паузе) не телепортируются
+    if IsUnitPaused(t) or naimGroup.has(t) or t.getAbilityLevel('A0C4') != 0 or t.getAbilityLevel('A0GP') != 0
         return
     // цель на 6 с неуязвима, обездвижена и помечена 'A0BX' (её заберёт Teleport2A); игроку выделяется маяк
     t..addAbility('Avul')..addAbility('A0BX')..setMoveSpeed(1.0)
@@ -461,7 +462,7 @@ function artTeleport2A(unit caster)
     let p = caster.getOwner()
     let target = vec2(GetSpellTargetX(), GetSpellTargetY())
     // сначала собираем группу, потом переносим — не двигаем юнитов прямо во время перебора
-    let g = unitsInRange(caster.getPos(), 200.0, (u) -> u.getAbilityLevel('A0BX') == 1 and u.isAllyOf(p))
+    let g = unitsInRange(caster.getPos(), 200.0, (u) -> u.getAbilityLevel('A0BX') == 1 and u.isAllyOf(p) and not naimGroup.has(u))
     addEffect("Abilities\\Spells\\Human\\MassTeleport\\MassTeleportCaster.mdl", caster.getPos()).destr()
     g.forEachFrom() u ->
         addEffect("Abilities\\Spells\\Human\\MassTeleport\\MassTeleportCaster.mdl", target).destr()

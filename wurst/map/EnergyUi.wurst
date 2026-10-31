@@ -2,6 +2,7 @@ package EnergyUi
 import TableUi
 import Profile
 import Energies
+import EnergyData
 import BaseShortcuts
 import SkinsUi
 

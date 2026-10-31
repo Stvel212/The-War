@@ -1,5 +1,7 @@
 package UnitsPve
 import AbilityObjEditing
+import BuffObjEditing
+import ObjectIds
 
 /*
     Объекты PvE — копии Just Fight 5.6 (те же числа: константы геймплея у карт одинаковые):
@@ -61,6 +63,117 @@ function barrage(int id, int targets)
 		..setArtCaster("Abilities\\Spells\\Human\\HolyBolt\\HolyBoltSpecialArt.mdl")
 		..setEditorSuffix("(PvE)")
 
+/** Бафф аур Злого Бога (Just Fight: на основе 'BHad', значок Забытого) */
+function forgottenBuff(int id, string name, string text)
+	new BuffDefinition(id, 'BHad')
+		..setTooltipNormal(name)
+		..setTooltipNormalExtended(text)
+		..setIconNormal(1, "ReplaceableTextures\\CommandButtons\\BTNForgottenOne.blp")
+		..setEditorSuffix("(PvE)")
+
+/** Общее у аур Злого Бога: на всю карту, уровни 1-3 (Just Fight: предметы I02E… с зарядами — уровень способности) */
+function forgottenAura(AbilityDefinition a, string name, string targets, int buffId)
+	a
+		..setName(name)
+		..setLevels(3)
+		..setItemAbility(false)
+		..setRace(Race.Creeps)
+		..setEditorSuffix("(PvE)")
+	for lvl = 1 to 3
+		a
+			..setAreaofEffect(lvl, 100000.0)
+			..setTargetsAllowed(lvl, targets)
+			..setBuffs(lvl, buffId.toRawCode())
+
+constant FORGOTTEN_TARGETS = "ground,ward,player,air,self,nonhero"
+
+/** Злой Бог усиливает монстров по ходу волн (Just Fight IL11IlI) — ауры на всю карту для своих:
+    APU1 регенерация 4/8/12, APU2 скорость 15/30/45%, APU3 вампиризм 10/20/30%, APU4 урон 10/20/30%,
+    APU5 броня 3/6/9, APU6 скорость атаки 10/20/30%. APR4-6 — «Сопротивление» Забытого на уровнях 4-6 (S014/S016/S017,
+    только описание). Демонизация уровня 5 (A0MC/A0F9/A0MD/A05B): APDA броня +18 (аура на себя), APDH +864 HP,
+    APDD +28 урона, APDS +80% скорости атаки */
+@compiletime function create_w3a_PveForgottenAuras()
+	forgottenBuff('BPU1', "Forsaken", "Influenced by the Forgotten: increased life regeneration.")
+	forgottenBuff('BPU2', "Forsaken", "Influenced by the Forgotten: increased movement speed.")
+	forgottenBuff('BPU3', "Forsaken", "Influenced by the Forgotten: increased life steal.")
+	forgottenBuff('BPU4', "Forsaken", "Influenced by the Forgotten: increased attack damage.")
+	forgottenBuff('BPU5', "Forsaken", "Influenced by the Forgotten: increased armor.")
+	forgottenBuff('BPU6', "Forsaken", "Influenced by the Forgotten: increased attack speed.")
+	let regen = new AbilityDefinitionUnholyAuracreep('APU1')
+	forgottenAura(regen, "Forgotten (Regeneration)", FORGOTTEN_TARGETS, 'BPU1')
+	regen..setMovementSpeedIncrease(1, 0.0)
+	for lvl = 1 to 3
+		regen.setLifeRegenerationIncrease(lvl, 4.0 * lvl)
+	let speed = new AbilityDefinitionUnholyAuracreep('APU2')
+	forgottenAura(speed, "Forgotten (Movement Speed)", FORGOTTEN_TARGETS, 'BPU2')
+	speed..setLifeRegenerationIncrease(1, 0.0)
+	for lvl = 1 to 3
+		speed.setMovementSpeedIncrease(lvl, 0.15 * lvl)
+	let vampire = new AbilityDefinitionVampiricAuracreep('APU3')
+	forgottenAura(vampire, "Forgotten (Vampire)", "ground,ward,player,air,self", 'BPU3')
+	for lvl = 1 to 3
+		vampire.setAttackDamageStolen(lvl, 0.1 * lvl)
+	let damage = new AbilityDefinitionAuraWarDrumsKodobeast('APU4')
+	forgottenAura(damage, "Forgotten (Attack Damage)", FORGOTTEN_TARGETS, 'BPU4')
+	for lvl = 1 to 3
+		damage
+			..setAttackDamageIncrease(lvl, 0.1 * lvl)
+			..setMeleeBonus(lvl, true)
+			..setRangedBonus(lvl, true)
+	let armor = new AbilityDefinitionAuraDevotionCreep('APU5')
+	forgottenAura(armor, "Forgotten (Armor)", FORGOTTEN_TARGETS, 'BPU5')
+	for lvl = 1 to 3
+		armor.setArmorBonus(lvl, 3.0 * lvl)
+	let attackSpeed = new AbilityDefinitionAuraEnduranceCreep('APU6')
+	forgottenAura(attackSpeed, "Forgotten (Attack Speed)", FORGOTTEN_TARGETS, 'BPU6')
+	attackSpeed..setMovementSpeedIncrease(1, 0.0)
+	for lvl = 1 to 3
+		attackSpeed.setAttackSpeedIncrease(lvl, 0.1 * lvl)
+	// «Сопротивление» Забытого: у дьявола на героях меньше длительность (сам эффект — уровни способности дьявола)
+	for i = 0 to 2
+		let buffId = 'BPR4' + i
+		let resist = i == 0 ? 60 : (i == 1 ? 80 : 90)
+		forgottenBuff(buffId, "Devil's Coil - Resistance", "The Forgotten has been hit by the devil too many times, and has evolved resistance, which will reduce the duration of the devil by " + resist + "%!")
+		new AbilityDefinitionAuraEnduranceCreep('APR4' + i)
+			..setName("Devil's Coil - Resistance")
+			..setAreaofEffect(1, 100000.0)
+			..setTargetsAllowed(1, "ground,vulnerable,air,ward,invulnerable,hero,friend,self")
+			..setBuffs(1, buffId.toRawCode())
+			..setAttackSpeedIncrease(1, 0.0)
+			..setMovementSpeedIncrease(1, 0.0)
+			..setArtTarget("")
+			..setEditorSuffix("(PvE " + (4 + i) + ")")
+	// демонизация (уровень 5)
+	new BuffDefinition('BPDA', 'BNdh')
+		..setArtTarget("")
+		..setTooltipNormal("Demonize")
+		..setTooltipNormalExtended("Infected by Hell: every monster has a 20% chance to be demonized when born — +18 armor, +864 max HP, +28 attack damage, +80% attack speed.")
+		..setIconNormal(1, "ReplaceableTextures\\CommandButtons\\BTNCripple.blp")
+		..setTargetAttachmentPoint0("")
+		..setEditorSuffix("(PvE)")
+	new AbilityDefinitionAuraDevotionCreep('APDA')
+		..setName("Demonize")
+		..setAreaofEffect(1, 0.0)
+		..setBuffs(1, "BPDA")
+		..setArmorBonus(1, 18.0)
+		..setTargetsAllowed(1, "self")
+		..setArtTarget("Abilities\\Spells\\NightElf\\SpiritOfVengeance\\SpiritOfVengeanceOrbs6.mdl")
+		..setTooltipNormal(1, "")
+		..setTooltipNormalExtended(1, "")
+		..setEditorSuffix("(PvE +18)")
+	new AbilityDefinitionMaxLifeBonusGreater('APDH')
+		..setMaxLifeGained(1, 864)
+		..setItemAbility(false)
+		..setEditorSuffix("(PvE +864)")
+	new AbilityDefinitionAttackBonusPlus1('APDD')
+		..setAttackBonus(1, 28)
+		..setItemAbility(false)
+		..setEditorSuffix("(PvE +28)")
+	new AbilityDefinitionAttackSpeedIncrease('APDS')
+		..setAttackSpeedIncrease(1, 0.8)
+		..setItemAbility(false)
+		..setEditorSuffix("(PvE +80%)")
+
 /** Забытый: неподвижный герой с атакой по площади 800, броня Укреплённая, без регенерации и награды */
 function forgotten(int id, string name, string suffix, int hp, int armor, int str, int agi, int intel, string abilities, real scale)
 	new HeroDefinition(id, 'Harf')
@@ -87,7 +200,7 @@ function forgotten(int id, string name, string suffix, int hp, int armor, int st
 		..setPrimaryAttribute("INT")
 		..setHeroAbilities("")
 		..setNormalAbilities(abilities)
-		..setAttack1ProjectileArt("Abilities\\Weapons\\FarseerMissile\\FarseerMissile.mdl")
+		..setAttack1ProjectileArt("Abilities\\Spells\\NightElf\\CorrosiveBreath\\CorrosiveBreathMissile.mdl")
 		..setAttack1ProjectileSpeed(1800)
 		..setAttack1ProjectileHomingEnabled(true)
 		..setAttack1WeaponType(WeaponType.Missile)

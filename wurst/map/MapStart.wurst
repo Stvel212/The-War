@@ -30,7 +30,8 @@ import public Main
 import public Scoreboard
 import public Synergy
 import public Energies
-import public CreepCast
+import public PveJfSupport
+import public PveJfTriggers
 import public EnergyUi
 import public ModeSelect
 import public ArthasJf

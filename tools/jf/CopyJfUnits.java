@@ -9,7 +9,7 @@ import java.util.regex.*;
  * другой юнит), поэтому всё получает новые ID вида ?J?? (первая буква юнита сохраняется: заглавная — герой).
  * Ссылки на улучшения и требования Just Fight очищаются (их в The War нет).
  *
- *   java CopyJfUnits <каталог экспорта> <список ID юнитов> <выход .wurst> <выход соответствий> <выход путей файлов> <каталог stdlib objediting>
+ *   java CopyJfUnits <каталог экспорта> <список ID юнитов> <выход .wurst> <выход соответствий> <выход путей файлов> <каталог stdlib objediting> [список ID для триггеров]
  */
 public class CopyJfUnits {
     static final Pattern START = Pattern.compile("^@compiletime function create_(w3[uah])_([A-Za-z0-9]{4})\\(\\)");
@@ -40,21 +40,11 @@ public class CopyJfUnits {
             }
             if (cur != null) { cur.text = sb.toString(); blocks.put(cur.id, cur); }
         }
-        // замыкание по ссылкам
-        Deque<String> queue = new ArrayDeque<>();
-        for (String s : Files.readAllLines(Paths.get(a[1]))) if (!s.isBlank()) queue.add(s.trim());
+        // замыкание по ссылкам: сначала юниты волн, затем (вторым проходом, чтобы ID первых не сдвигались) объекты,
+        // которые нужны только перенесённым триггерам Just Fight (необязательный 7-й аргумент — список ID)
         Set<String> take = new LinkedHashSet<>();
-        while (!queue.isEmpty()) {
-            String id = queue.poll();
-            Block b = blocks.get(id);
-            // изменённый стандартный объект ('hmpr' на основе 'hmpr') — не копия: на него ссылаются как на основу
-            if (b == null || isStandard(b) || !take.add(id)) continue;
-            for (String line : b.text.split("\n")) {
-                if (CLEAR.matcher(line).find() || CLEAR_RAW.matcher(line).find() || START.matcher(line).find()) continue;
-                Matcher t = TOKEN.matcher(line);
-                while (t.find()) if (blocks.containsKey(t.group(1)) && !take.contains(t.group(1))) queue.add(t.group(1));
-            }
-        }
+        closure(blocks, Files.readAllLines(Paths.get(a[1])), take);
+        if (a.length > 6) closure(blocks, Files.readAllLines(Paths.get(a[6])), take);
         // новые ID
         Map<String, String> ren = new LinkedHashMap<>();
         int nu = 0, na = 0, nh = 0;
@@ -66,11 +56,11 @@ public class CopyJfUnits {
                 default: ren.put(id, "BJ" + code(nh++));
             }
         }
+        ren.putAll(WAR_OBJECTS);
         StringBuilder out = new StringBuilder();
         out.append("package UnitsPveJf\n");
-        boolean raw = take.stream().anyMatch(i -> blocks.get(i).text.contains("createObjectDefinition"));
-        out.append(raw ? "import ObjEditingNatives\n" : "").append("import AbilityObjEditing\nimport BuffObjEditing\n\n");
-        out.append("// Юниты волн PvE Just Fight 5.6.2, которых нет в The War, со способностями и баффами — копия объектов Just Fight\n");
+        out.append("import AbilityObjEditing\nimport BuffObjEditing\n\n");
+        out.append("// Юниты волн PvE Just Fight 5.6.2 со способностями и баффами — копия объектов Just Fight\n");
         out.append("// под новыми ID (?J??). Сгенерировано tools/jf/gen_pve_waves.sh (CopyJfUnits.java); руками не править.\n\n");
         Set<String> assets = new TreeSet<>();
         for (String id : take) {
@@ -79,6 +69,8 @@ public class CopyJfUnits {
             StringBuilder sb = new StringBuilder();
             for (String line : blocks.get(id).text.split("\n")) {
                 if (line.startsWith("//")) continue;
+                // объект в «сыром» виде: переменная def дальше не читается
+                line = line.replace("let def = createObjectDefinition(", "let _def = createObjectDefinition(");
                 if (CLEAR.matcher(line).find()) line = line.replaceAll("\\(\"[^\"]*\"\\)\\s*$", "(\"\")").replaceAll("\\((\\d+), \"[^\"]*\"\\)\\s*$", "($1, \"\")");
                 else if (CLEAR_RAW.matcher(line).find()) line = line.replaceAll(", \"[^\"]*\"\\)\\s*$", ", \"\")");
                 Matcher t = TOKEN.matcher(line);
@@ -88,6 +80,15 @@ public class CopyJfUnits {
                 line = r.toString();
                 // stdlib The War: где параметр — целое, а в экспорте «7.0» — целое; иконка баффа — по уровню
                 line = fixIntArgs(line, cls);
+                // отскок/сплеш атаки — только по уязвимым: бараки The War неуязвимы, а отскок Тёмного охотника выбирал их
+                line = AREA_TARGETS.matcher(line).replaceAll(mm -> mm.group(2).contains("vulnerable") ? Matcher.quoteReplacement(mm.group())
+                    : Matcher.quoteReplacement(mm.group(1) + mm.group(2) + ",vulnerable\")"));
+                for (Map.Entry<String, String> wm : WAR_MODELS.entrySet()) line = line.replace("\"" + wm.getKey() + "\"", "\"" + wm.getValue() + "\"");
+                if (FULL_MANA.contains(id)) {
+                    Matcher mm = MANA_MAX.matcher(blocks.get(id).text);
+                    if (mm.find()) line = line.replaceAll("\\.\\.setManaInitialAmount\\(\\d+\\)", "..setManaInitialAmount(" + mm.group(1) + ")");
+                    line = line.replaceAll("\\(Spawns with \\d+ MP\\)", "(Spawns with full MP)");
+                }
                 if (blocks.get(id).kind.equals("w3h")) line = line.replaceAll("\\.\\.setIconNormal\\(\"", "..setIconNormal(1, \"");
                 // пути файлов — как в Just Fight (до переноса), по ним скрипт достаёт импорт
                 Matcher as = ASSET.matcher(line);
@@ -95,6 +96,10 @@ public class CopyJfUnits {
                 // импортированные модели Just Fight лежат в корне архива — в The War они в imports/models
                 line = ROOT_MODEL.matcher(line).replaceAll(mm -> Matcher.quoteReplacement(mm.group(1) + "models\\\\" + mm.group(2) + ".mdx"));
                 sb.append(line).append('\n');
+                // требования базы (Berserk — улучшение троллей 'Robk' и т.п.) монстры не исследуют — без этого способность
+                // выключена и не применяется
+                if (cls.startsWith("AbilityDefinition") && line.contains("new " + cls + "(") && !blocks.get(id).text.contains("..setRequirements("))
+                    sb.append("\t..setRequirements(\"\")\n");
             }
             out.append(sb.toString().replaceAll("\n{3,}", "\n\n"));
         }
@@ -106,6 +111,36 @@ public class CopyJfUnits {
         System.out.println("copied " + take.size() + " objects (units " + nu + ", abilities " + na + ", buffs " + nh + "), " + assets.size() + " asset paths");
     }
 
+    /** Объекты Just Fight, вместо которых — объекты The War: маркер «летающий» A09S (飞行单位判断) = «Класс (Воздух)»
+        A00W у воздушных юнитов The War — по нему триггеры Just Fight и бойцы The War узнают воздушные цели */
+    static final Map<String, String> WAR_OBJECTS = Map.of("A09S", "A00W");
+    /** Юниты Just Fight, появляющиеся в The War с полной маной (Nether / Underworld Dragon: дыхание за 60 MP — сразу) */
+    static final Set<String> FULL_MANA = Set.of("n01M", "n01N");
+    /** Встроенные модели, которые в The War заменены импортом (как у своих юнитов): путь Just Fight -> путь The War */
+    static final Map<String, String> WAR_MODELS = Map.of(
+        "Units\\\\Critters\\\\ChaosSpaceOrc\\\\ChaosSpaceOrc.mdl", "models\\\\SpaceOrcMarineVG.mdl",
+        // импорт Just Fight ссылается на текстуры Skin02-05, которых нет ни в карте, ни в игре — встроенная модель
+        "WaterElemental.mdl", "units\\\\human\\\\WaterElemental\\\\WaterElemental.mdl");
+    static final Pattern MANA_MAX = Pattern.compile("\\.\\.setManaMaximum\\((\\d+)\\)");
+
+    /** Добавить в take объекты из ids (строки «ID  # комментарий») и всё, на что они ссылаются */
+    static void closure(Map<String, Block> blocks, List<String> ids, Set<String> take) {
+        Deque<String> queue = new ArrayDeque<>();
+        for (String s : ids) { s = s.replaceAll("#.*", "").trim(); if (!s.isEmpty()) queue.add(s); }
+        while (!queue.isEmpty()) {
+            String id = queue.poll();
+            Block b = blocks.get(id);
+            // изменённый стандартный объект ('hmpr' на основе 'hmpr') — не копия: на него ссылаются как на основу
+            if (b == null || isStandard(b) || WAR_OBJECTS.containsKey(id) || !take.add(id)) continue;
+            for (String line : b.text.split("\n")) {
+                if (CLEAR.matcher(line).find() || CLEAR_RAW.matcher(line).find() || START.matcher(line).find()) continue;
+                Matcher t = TOKEN.matcher(line);
+                while (t.find()) if (blocks.containsKey(t.group(1)) && !take.contains(t.group(1))) queue.add(t.group(1));
+            }
+        }
+    }
+
+    static final Pattern AREA_TARGETS = Pattern.compile("(\\.\\.setAttack[12]AreaofEffectTargets\\(\")([^\"]*)\"\\)");
     static final Pattern DEF = Pattern.compile("new ([A-Za-z0-9]*Definition[A-Za-z0-9]*)\\(");
     static final Pattern CALL = Pattern.compile("\\.\\.(set[A-Za-z0-9]+)\\(((?:-?\\d+, )?)(-?\\d+)\\.0+\\)");
     static final Pattern CLASS = Pattern.compile("^public class ([A-Za-z0-9]+)(?: extends ([A-Za-z0-9]+))?");
@@ -132,7 +167,18 @@ public class CopyJfUnits {
     }
 
     /** «..setX(1, 7.0)» -> «..setX(1, 7)», если в stdlib у метода класса (или предка) последний параметр int */
+    static final Pattern INT_CALL = Pattern.compile("\\.\\.(set[A-Za-z0-9]+)\\(((?:-?\\d+, )?)(-?\\d+)\\)");
+
     static String fixIntArgs(String line, String cls) {
+        // «..setUprootedWeapons(1, 1)»: в экспорте число, а в stdlib параметр — строка (список) -> «"1"»
+        Matcher s = INT_CALL.matcher(line);
+        if (s.find()) {
+            int params = s.group(2).isEmpty() ? 1 : 2;
+            for (String c = cls; c != null; c = parent.get(c)) {
+                String t = lastType.get(c + "." + s.group(1) + "/" + params);
+                if (t != null) return t.equals("string") ? line.substring(0, s.start()) + ".." + s.group(1) + "(" + s.group(2) + "\"" + s.group(3) + "\")" + line.substring(s.end()) : line;
+            }
+        }
         Matcher m = CALL.matcher(line);
         if (!m.find()) return line;
         int params = m.group(2).isEmpty() ? 1 : 2;

@@ -55,6 +55,21 @@ function multiboardIcon(int row, int col, string icon)
         ..setIcon(icon)
         ..release()
 
+/** PvEvP: стати игрока a (1..8 в таблице — a - 1) видны только его команде (и зрителям) — у остальных «-» */
+function shownTo(int a) returns bool
+    let me = localPlayer.getId()
+    return not isPvevp() or me > 7 or localPlayer.isLeftTeam() == players[a].isLeftTeam()
+
+function playerItem(int a, int row, int col, string value)
+    multiboardItem(row, col, shownTo(a) ? value : "-")
+
+function playerIcon(int a, int row, int col, string icon)
+    udg_Board.getItem(row, col)
+        ..setStyle(not shownTo(a), shownTo(a))
+        ..setValue("-")
+        ..setIcon(icon)
+        ..release()
+
 /*
     Всё, что показывается, кешируется: ячейки и текст переписываются только когда значение изменилось. Иначе каждые
     0.5 с для 8 игроков склеивались бы новые строки — в JASS строки интернируются и не освобождаются, таблица строк
@@ -125,21 +140,21 @@ function updatePlayerRow(int a)
     if cur > 1000
         if income[a] != lastIncome[a]
             lastIncome[a] = income[a]
-            multiboardItem(row, 1, "|cff33FF33+" + income[a] + "|r")
+            playerItem(a, row, 1, "|cff33FF33+" + income[a] + "|r")
         if forceChanged or powerItem[a] != lastForceItem[a]
             lastForceItem[a] = powerItem[a]
-            multiboardItem(row, 2, cur + "/|cffF00080" + powerItem[a] + "|r")
+            playerItem(a, row, 2, cur + "/|cffF00080" + powerItem[a] + "|r")
         let r000 = GetPlayerTechCount(p, 'R000', false)
         if wispCount[a] != lastWisp[a] or r000 != lastR000[a]
             lastWisp[a] = wispCount[a]
             lastR000[a] = r000
-            multiboardItem(row, 3, "|cff00FFFF" + wispCount[a] + "|r/|cffFFA500" + r000 + "|r")
+            playerItem(a, row, 3, "|cff00FFFF" + wispCount[a] + "|r/|cffFFA500" + r000 + "|r")
     let r001 = GetPlayerTechCount(p, 'R001', false)
     let r002 = GetPlayerTechCount(p, 'R002', false)
     if r001 != lastR001[a] or r002 != lastR002[a]
         lastR001[a] = r001
         lastR002[a] = r002
-        multiboardItem(row, 4, "|cffFFA500" + r002 + "|r/|cff00FF00" + r001 + "|r")
+        playerItem(a, row, 4, "|cffFFA500" + r002 + "|r/|cff00FF00" + r001 + "|r")
 
 function updateResourceText(int a)
     let p = players[a]
@@ -194,12 +209,12 @@ function multiboardUpdate()
                     ..release()
             if boom[a] != lastBoom[a]
                 lastBoom[a] = boom[a]
-                multiboardIcon(row, 5, boom[a] ? "icons\\BTNY.blp" : "ReplaceableTextures\\CommandButtons\\BTNCancel.blp")
+                playerIcon(a, row, 5, boom[a] ? "icons\\BTNY.blp" : "ReplaceableTextures\\CommandButtons\\BTNCancel.blp")
             if isPve()
                 updateGenerator(a, row)
             else if rock[a] != lastRock[a]
                 lastRock[a] = rock[a]
-                multiboardIcon(row, 6, rock[a] ? "icons\\BTNY.blp" : "ReplaceableTextures\\CommandButtons\\BTNCancel.blp")
+                playerIcon(a, row, 6, rock[a] ? "icons\\BTNY.blp" : "ReplaceableTextures\\CommandButtons\\BTNCancel.blp")
         updateResourceText(a)
     if isPve()
         updateEvilGod()
@@ -295,9 +310,14 @@ function buildBoard()
         if row != 0
             let p = players[a - 1]
             textCell(row, 0, "|c00" + colorCode[a - 1] + p.getName() + "|r", 0.10)
-            textCell(row, 1, "|cff33FF33+" + income[a - 1] + "|r", 0.05)
-            textCell(row, 2, power[a - 1] + "/" + powerItem[a - 1], 0.05)
-            textCell(row, 3, wispCount[a - 1] + "/" + GetPlayerTechCount(players[a], 'R000', false), 0.05)
+            // строки собираются у всех одинаково, у кого показать «-» — решается только при выводе
+            let shown = shownTo(a - 1)
+            let incomeText = "|cff33FF33+" + income[a - 1] + "|r"
+            let powerText = power[a - 1] + "/" + powerItem[a - 1]
+            let gradesText = wispCount[a - 1] + "/" + GetPlayerTechCount(players[a], 'R000', false)
+            textCell(row, 1, shown ? incomeText : "-", 0.05)
+            textCell(row, 2, shown ? powerText : "-", 0.05)
+            textCell(row, 3, shown ? gradesText : "-", 0.05)
             textCell(row, 4, "", 0.05)
             iconCell(row, 5, boom[a] ? "" : "ReplaceableTextures\\CommandButtons\\BTNCancel.blp", 0.04)
             if isPve()

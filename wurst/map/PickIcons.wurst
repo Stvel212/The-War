@@ -136,10 +136,12 @@ function pickTypeAt(player p, vec2 pos) returns int
 init
     // наведение на иконку → её описание в окне UnitHoverTooltip; картинки наведения не знают, поэтому по
     // движению мыши (событие синхронное — показ только у самого игрока)
-    EventListener.add(EVENT_PLAYER_MOUSE_MOVE) ->
-        let p = EventData.getTriggerPlayer()
-        let typeId = pickTypeAt(p, EventData.getMouseWorldPos())
-        showHoverText(p, typeId != 0 ? describeType(typeId) : "")
+    // слежение за мышью — не сразу, а через DETECT_DELAY после инициализации (WC3 3.0 падал вскоре после старта)
+    doAfter(DETECT_DELAY) ->
+        EventListener.add(EVENT_PLAYER_MOUSE_MOVE) ->
+            let p = EventData.getTriggerPlayer()
+            let typeId = pickTypeAt(p, EventData.getMouseWorldPos())
+            showHoverText(p, typeId != 0 ? describeType(typeId) : "")
     CreateTrigger()
         ..registerTimerExpireEvent(roundTimer)
         ..addAction(function onRoundTimer)

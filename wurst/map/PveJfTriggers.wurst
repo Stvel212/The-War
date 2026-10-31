@@ -1,0 +1,3945 @@
+package PveJfTriggers
+import PveJfSupport
+import UnitEvents
+import ClosureEvents
+import ClosureTimers
+import Preloader
+// Триггеры юнитов Just Fight 5.6.2 (war3map.j) для копий юнитов Just Fight (UnitsPveJf): способности, которые
+// в Just Fight делает скрипт карты. Сгенерировано tools/jf/gen_pve_waves.sh (PortJfTriggers.java, JassToWurst.java);
+// руками не править. Каждый триггер — функция с условием в начале, подписка в jfRegisterTriggers
+// (UnitEvents, EventListener.onCast, onUnitEnter) — её вызывают старты PvE и PvEvP.
+
+unit jfLastUnit = null
+int array jfI111
+int array upgradeNJ4B
+unit array playerHero
+hashtable jfL = InitHashtable()
+int array upgradeNJ3E
+int array upgradeEJ0C
+int array upgradeOJ54
+int array upgradeAir
+int bountyGold = 0
+unit jfLLIlII = null
+unit jfLLIlLI = null
+int array jfLLllI
+int array unitTypeByPointValue
+force array jflII1
+int array attackUpgradeCounter
+int array upgradeAir2
+int array summonUpgrade
+int bountyUnitType = 0
+int array upgradeNJ44
+bool kingKongDamageRunning = false
+bool kingKongKillRunning = false
+bool trollBerserkerDamageRunning = false
+bool jfDamagenJ2MRunning = false
+bool snapDragonGreenDamageRunning = false
+bool jfDamagenJ2PRunning = false
+bool infernalStoneAttackedRunning = false
+bool underworldBlackDragonDeathRunning = false
+bool goblinEngineerDamageRunning = false
+bool explodingBloatbatDamageRunning = false
+bool underworldBlackDragonDamageRunning = false
+
+function unitsInRange(real value, vec2 pos, boolexpr filter) returns group
+    let g = CreateGroup()
+    g.enumUnitsInRange(pos, value, filter)
+    filter.destr()
+    return g
+
+function forceOfPlayer(player p) returns force
+    let players = CreateForce()
+    ForceAddPlayer(players, p)
+    return players
+
+function unitWoodCost(int n) returns int
+    if IsHeroUnitId(n)
+        return 100
+    return GetUnitWoodCost(n)
+
+// ============================================================
+// Триггер Just Fight: King Kong ('oJ5K') — наносит урон
+// ============================================================
+
+@noinline
+function kingKongDamage()
+    let source = GetEventDamageSource()
+    let target = GetTriggerUnit()
+    if kingKongDamageRunning
+        return
+    if target.isType(UNIT_TYPE_HERO)
+        return
+    kingKongDamageRunning = true
+    if source.getHP() / source.getMaxHP() <= 0.38
+        bountyGold = 5
+    else
+        bountyGold = 3
+    if GetRandomInt(1, 100) <= bountyGold
+        source.damageTarget(target, 10000.0, true, false, ATTACK_TYPE_CHAOS, DAMAGE_TYPE_ENHANCED, WEAPON_TYPE_WHOKNOWS)
+        var pos = target.getPos()
+        flashEffect("Abilities\\Spells\\Other\\Volcano\\VolcanoDeath.mdl", pos)
+        pos = source.getPos()
+        let tag = jfTextTag("Bingo！", pos, 0, 10.0, 75.0, 75.0, 75.0, 0)
+        var n = 0
+        var value = 10.0
+        doPeriodically(0.01) cb ->
+            n = n + 1
+            if n <= 21
+                value = value + 0.5
+                SetTextTagTextBJ(tag, "Bingo!", value)
+            else if n <= 41
+                value = value - 0.5
+                SetTextTagTextBJ(tag, "Bingo!", value)
+            else
+                destroy cb
+        tag.jfSetVelocity(64, 90)
+        tag.setPermanent(false)
+        tag.setLifespan(5.0)
+        tag.setFadepoint(2.0)
+    kingKongDamageRunning = false
+
+// ============================================================
+// Триггер Just Fight: King Kong ('oJ5K') — убивает
+// ============================================================
+
+@noinline
+function kingKongKill()
+    let dying = GetDyingUnit()
+    let killer = GetKillingUnit()
+    if kingKongKillRunning
+        return
+    kingKongKillRunning = true
+    let pos = killer.getPos()
+    killer.setHP(killer.getHP() + dying.getMaxHP() * 0.1)
+    flashEffect("Abilities\\Spells\\Human\\Heal\\HealTarget.mdl", pos)
+    kingKongKillRunning = false
+
+// ============================================================
+// Триггер Just Fight: Paladin ('hJ26') — наносит урон
+// ============================================================
+
+@noinline
+function paladinDamage()
+    let source = GetEventDamageSource()
+    if source.getMana().toInt() != 60
+        return
+    let pos = source.getPos()
+    var g = unitsInRange(500.0, pos, Condition(function paladinDamageFilter))
+    g = jfRandomSubGroup(1, g)
+    if g.size() > 0
+        for u in g
+            source.issueTargetOrder("holybolt", u)
+    g.destr()
+
+function paladinDamageFilter() returns bool
+    return GetFilterUnit().isAllyOf(GetEventDamageSource().getOwner()) and GetFilterUnit().isAlive() and GetFilterUnit().getMaxHP() - GetFilterUnit().getHP() >= 600.0
+
+// ============================================================
+// Триггер Just Fight: Paladin ('hJ26') — получает урон
+// ============================================================
+
+@noinline
+function paladinDamaged()
+    let target = GetTriggerUnit()
+    target.issueImmediateOrder("divineshield")
+
+// ============================================================
+// Триггер Just Fight: Soul Eater Banshee ('uJ69') — атакует
+// ============================================================
+
+@noinline
+function soulEaterBansheeAttack()
+    let a = GetAttacker()
+    a.issueImmediateOrder("waterelemental")
+
+// ============================================================
+// Триггер Just Fight: Soul Eater Banshee (способность 'AJ6E') — применяет способность
+// ============================================================
+
+@noinline
+function soulEaterBansheeCast(unit caster)
+    let pos = caster.getPos()
+    var g = unitsInRange(700.0, pos, Condition(function soulEaterBansheeCastFilter))
+    g = jfRandomSubGroup(2, g)
+    if g.size() > 0
+        for u in g
+            let u2 = createUnit(caster.getOwner(), 'eJ6O', pos, bj_UNIT_FACING.fromDeg())
+            u2.setTimedLife(8.0, 'BHwe')
+            u2.addAbility('AJ8C')
+            u2.issueTargetOrder("possession", u)
+    g.destr()
+    caster.remove()
+
+function soulEaterBansheeCastFilter() returns bool
+    return not GetFilterUnit().isAllyOf(GetTriggerUnit().getOwner()) and GetFilterUnit().isAlive() and GetFilterUnit().isType(UNIT_TYPE_GIANT) and GetFilterUnit().getAbilityLevel('Avul') == 0 and GetFilterUnit().getMaxMana() == 0.0 and GetFilterUnit().getAbilityLevel('AJ6I') == 0
+
+// ============================================================
+// Триггер Just Fight: 'AJ8C' — применяет способность
+// ============================================================
+
+@noinline
+function jfCastAJ8C()
+    let u = GetSpellTargetUnit()
+    doAfter(1.0) ->
+        jfAttackLane(u)
+
+// ============================================================
+// Триггер Just Fight: Priestess of the Moon ('eJ0K') — наносит урон
+// ============================================================
+
+@noinline
+function priestessOfTheMoonDamage()
+    let source = GetEventDamageSource()
+    let target = GetTriggerUnit()
+    if source.getMana().toInt() != 60
+        return
+    source.setMana(0)
+    jfDestroyEffectLater(1.8, addEffect("Abilities\\Spells\\NightElf\\Starfall\\StarfallCaster.mdl", source, "origin"))
+    var pos = target.getPos()
+    let g = unitsInRange(200.0, pos, Condition(function priestessOfTheMoonDamageFilter))
+    for u in g
+        pos = u.getPos()
+        let u2 = createUnit(source.getOwner(), 'eJ6L', pos, bj_UNIT_FACING.fromDeg())
+        u2.addAbility('AJ8R')
+        u2.issueTargetOrder("thunderbolt", u)
+        u2.setTimedLife(2.0, 'BHwe')
+    g.destr()
+
+function priestessOfTheMoonDamageFilter() returns bool
+    return not GetFilterUnit().isAllyOf(GetEventDamageSource().getOwner()) and GetFilterUnit().isAlive() and GetFilterUnit().getAbilityLevel('Avul') == 0
+
+// ============================================================
+// Триггер Just Fight: Shrimp Queen ('nJ4C') — появляется
+// ============================================================
+
+@noinline
+function shrimpQueenEnter()
+    let entering = GetTriggerUnit()
+    if entering.getTypeId() != 'nJ4C'
+        return
+    doPeriodically(12.0) cb ->
+        if entering.isAlive()
+            let pos = entering.getPos()
+            let pos2 = pos.polarOffset((GetUnitFacing(entering) + 180.0).fromDeg(), 130.0)
+            let u = createUnit(entering.getOwner(), 'eJ6P', pos2, GetUnitFacing(entering).fromDeg())
+            u.setTimedLife(5.0, 'BHwe')
+        else
+            destroy cb
+
+// ============================================================
+// Триггер Just Fight: Archimonde (способность 'AJ4F') — урон
+// ============================================================
+
+@noinline
+function archimondeDamage()
+    let source = GetEventDamageSource()
+    let target = GetTriggerUnit()
+    if source.getAbilityLevel('AJ4F') <= 0 or source.getMana().toInt() < 40
+        return
+    let pos = target.getPos()
+    source.issuePointOrder("rainofchaos", pos)
+
+// ============================================================
+// Триггер Just Fight: 'BJ0Q' — смерть
+// ============================================================
+
+@noinline
+function jfDeathBJ0Q()
+    let dying = GetDyingUnit()
+    let killer = GetKillingUnit()
+    if dying.isType(UNIT_TYPE_TAUREN) or not dying.isType(UNIT_TYPE_GIANT) or not killer.hasAbility('BJ0Q') or dying.isType(UNIT_TYPE_SUMMONED) or dying.isIllusion()
+        return
+    bountyUnitType = dying.getTypeId()
+    bounty()
+    bountyGold = bountyGold div 2
+    let tag = jfTextTag("+" + bountyGold, killer, 0, 10, 100, 78.43, 0.0, 0)
+    killer.getOwner().addGold(bountyGold)
+    tag.jfSetVelocity(64.0, 90)
+    tag.setVisibility(false)
+    let players = forceOfPlayer(killer.getOwner())
+    tag.jfShowForce(true, players)
+    players.destr()
+    tag.setPermanent(false)
+    tag.setLifespan(2.0)
+    tag.setFadepoint(1.0)
+    flashEffect("Abilities\\Spells\\Items\\ResourceItems\\ResourceEffectTarget.mdl", killer, "chest")
+
+// ============================================================
+// Триггер Just Fight: 'AJ43' — атака
+// ============================================================
+
+@noinline
+function jfAttackAJ43()
+    let a = GetAttacker()
+    if a.getAbilityLevel('AJ43') != 1
+        return
+    a.issueImmediateOrder("stomp")
+
+// ============================================================
+// Триггер Just Fight: Naisha the Huntress ('eJ0C') — появляется
+// ============================================================
+
+@noinline
+function naishaTheHuntressEnter()
+    let entering = GetTriggerUnit()
+    if entering.getTypeId() != 'eJ0C'
+        return
+    if upgradeEJ0C[entering.getOwner().getId() + 1] >= 5
+        entering.addAbility('AJ7B')
+        entering.addAbility('AJ7J')
+        addEffect("Abilities\\Spells\\NightElf\\SpiritOfVengeance\\SpiritOfVengeanceBirthMissile.mdl", entering, "weapon")
+
+// ============================================================
+// Триггер Just Fight: Living Puppet ('nJ44') — появляется
+// ============================================================
+
+@noinline
+function livingPuppetEnter()
+    let entering = GetTriggerUnit()
+    if entering.getTypeId() != 'nJ44' or upgradeNJ44[entering.getOwner().getId() + 1] < 2
+        return
+    if upgradeNJ44[entering.getOwner().getId() + 1] == 2
+        entering.addAbility('AJ8F')
+    else if upgradeNJ44[entering.getOwner().getId() + 1] == 3
+        entering.addAbility('AJ8G')
+    else if upgradeNJ44[entering.getOwner().getId() + 1] == 4
+        entering.addAbility('AJ8H')
+    else
+        entering.addAbility('AJ8I')
+
+// ============================================================
+// Триггер Just Fight: Elite Raider ('oJ54') — появляется
+// ============================================================
+
+@noinline
+function eliteRaiderEnter()
+    let entering = GetTriggerUnit()
+    if entering.getTypeId() != 'oJ54'
+        return
+    if upgradeOJ54[entering.getOwner().getId() + 1] >= 3
+        entering.addAbility('AJ7H')
+        entering.addAbility('AJ7G')
+        entering.addAbility('AJ7I')
+
+// ============================================================
+// Триггер Just Fight: 'nJ3E' — появляется
+// ============================================================
+
+@noinline
+function jfEnternJ3E()
+    let entering = GetTriggerUnit()
+    if entering.getTypeId() != 'nJ3E'
+        return
+    addEffect("Abilities\\Spells\\Undead\\AbsorbMana\\AbsorbManaBirthMissile.mdl", entering, "weapon,left")
+    if upgradeNJ3E[entering.getOwner().getId() + 1] >= 5
+        entering.setAbilityLevel('AJ3D', 5)
+        entering.setAbilityLevel('AJ3C', 5)
+        entering.setAbilityLevel('AJ3E', 5)
+    else
+        entering.setAbilityLevel('AJ3D', upgradeNJ3E[entering.getOwner().getId() + 1])
+        entering.setAbilityLevel('AJ3C', upgradeNJ3E[entering.getOwner().getId() + 1])
+        entering.setAbilityLevel('AJ3E', upgradeNJ3E[entering.getOwner().getId() + 1])
+
+// ============================================================
+// Триггер Just Fight: Chimera Electricity (способность 'A00W') — появляется
+// ============================================================
+
+@noinline
+function chimeraElectricityEnter()
+    let entering = GetTriggerUnit()
+    if entering.getAbilityLevel('A00W') != 1
+        return
+    if upgradeAir[entering.getOwner().getId() + 1] >= 1
+        entering.addAbility('AJ87')
+        entering.addAbility('AJ86')
+    if upgradeAir2[entering.getOwner().getId() + 1] >= 1
+        entering.addAbility('AJ9C')
+
+// ============================================================
+// Триггер Just Fight: Sea Elemental ('nJ4B') — появляется
+// ============================================================
+
+@noinline
+function seaElementalEnter()
+    let entering = GetTriggerUnit()
+    if entering.getTypeId() != 'nJ4B'
+        return
+    if ModuloInteger(upgradeNJ4B[entering.getOwner().getId() + 1], 2) > 0
+        entering.addAbility('AJ8Q')
+        entering.addAbility('AJ8S')
+        entering.setVertexColor(255, 0, 0, 255)
+    else
+        entering.addAbility('AJ75')
+        entering.addAbility('AJ79')
+        entering.setVertexColor(0, 255, 0, 255)
+
+// ============================================================
+// Триггер Just Fight: Troll Berserker ('oJ51'), Elite Troll Headhunter ('oJ52') — атакует
+// ============================================================
+
+@noinline
+function trollBerserkerAttack()
+    let a = GetAttacker()
+    if a.getAbilityLevel('AJ7C') != 0 or a.getAbilityLevel('AJ7D') != 0
+        return
+    if GetRandomInt(1, 4) <= 1
+        if a.getTypeId() == 'oJ51'
+            a.addAbility('AJ7E')
+            a.addAbility('AJ7C')
+            a.addAbility('AJ77')
+            a.addAbility('AJ88')
+            doAfter(5.0) ->
+                if a.getHP() >= 1.0
+                    a.removeAbility('AJ7E')
+                    a.removeAbility('AJ7C')
+                    a.removeAbility('AJ88')
+                    a.removeAbility('AJ77')
+        else
+            a.addAbility('AJ7F')
+            a.addAbility('AJ7D')
+            a.addAbility('AJ77')
+            a.addAbility('AJ89')
+            doAfter(5.0) ->
+                if a.getHP() >= 1.0
+                    a.removeAbility('AJ7F')
+                    a.removeAbility('AJ7D')
+                    a.removeAbility('AJ89')
+                    a.removeAbility('AJ77')
+
+// ============================================================
+// Триггер Just Fight: Troll Berserker ('oJ51'), Elite Troll Headhunter ('oJ52') — наносит урон
+// ============================================================
+
+@noinline
+function trollBerserkerDamage()
+    let source = GetEventDamageSource()
+    let target = GetTriggerUnit()
+    if trollBerserkerDamageRunning
+        return
+    trollBerserkerDamageRunning = true
+    if source.getHP() / source.getMaxHP() >= 0.5
+        if source.getAbilityLevel('AJ55') == 0
+            source.addAbility('AJ55')
+        if source.getTypeId() == 'oJ51'
+            source.setHP(source.getHP() - 4.0)
+            source.damageTarget(target, 4.0, true, false, ATTACK_TYPE_NORMAL, DAMAGE_TYPE_ENHANCED, WEAPON_TYPE_WHOKNOWS)
+        else
+            source.setHP(source.getHP() - 10.0)
+            source.damageTarget(target, 10.0, true, false, ATTACK_TYPE_NORMAL, DAMAGE_TYPE_ENHANCED, WEAPON_TYPE_WHOKNOWS)
+    else if source.getAbilityLevel('AJ55') == 1
+        source.removeAbility('AJ55')
+    trollBerserkerDamageRunning = false
+
+// ============================================================
+// Триггер Just Fight: 'uJ5R' — появляется
+// ============================================================
+
+@noinline
+function jfEnteruJ5R()
+    let entering = GetTriggerUnit()
+    if entering.getTypeId() != 'uJ5R'
+        return
+    let pos = entering.getPos()
+    createUnit(entering.getOwner(), 'uJ7I', pos, GetUnitFacing(entering).fromDeg())
+
+// ============================================================
+// Триггер Just Fight: Sorceress ('hJ1J') — наносит урон
+// ============================================================
+
+@noinline
+function sorceressDamage()
+    let source = GetEventDamageSource()
+    let target = GetTriggerUnit()
+    if source.getMana() != 60.0
+        return
+    let pos = target.getPos()
+    source.issuePointOrder("impale", pos)
+
+// ============================================================
+// Триггер Just Fight: Sorceress (способность 'AJ1P') — применяет способность
+// ============================================================
+
+@noinline
+function sorceressCast(unit caster)
+    let pos = EventData.getSpellTargetPos()
+    caster.issuePointOrder("impale", pos)
+    let pos2 = caster.getPos()
+    let u = createUnit(caster.getOwner(), 'eJ6M', pos2, GetUnitFacing(caster).fromDeg())
+    u.setTimedLife(1.0, 'BHwe')
+    u.addAbility('AJ8X')
+    u.issuePointOrder("carrionswarm", pos)
+
+// ============================================================
+// Триггер Just Fight: Cavalryman ('hJ1I') — наносит урон
+// ============================================================
+
+@noinline
+function cavalrymanDamage()
+    let source = GetEventDamageSource()
+    if GetRandomInt(1, 10) <= 3
+        if source.getAbilityLevel('AJ76') != 1
+            source.addAbility('AJ76')
+            source.addAbility('AJ6Q')
+            let pos = source.getPos()
+            flashEffect("Abilities\\Spells\\Other\\Incinerate\\FireLordDeathExplode.mdl", pos)
+            jfDestroyEffectLater(2.0, addEffect("Abilities\\Spells\\Orc\\Bloodlust\\BloodlustTarget.mdl", source, "weapon"))
+            doAfter(2.0) ->
+                if source.getHP() >= 1.0
+                    source.removeAbility('AJ76')
+                    source.removeAbility('AJ6Q')
+
+// ============================================================
+// Триггер Just Fight: 'oJ59', Tauren Chieftain ('oJ5A') — атакует
+// ============================================================
+
+@noinline
+function jfAttackoJ59()
+    let a = GetAttacker()
+    let target = GetTriggerUnit()
+    if GetRandomInt(1, 4) == 1
+        let pos = target.getPos()
+        var g = unitsInRange(250.0, pos, Condition(function jfAttackoJ59Filter))
+        g = jfRandomSubGroup(3, g)
+        if a.getTypeId() == 'oJ59'
+            a.setAnimation("attack slam")
+            for u in g
+                let u2 = u
+                doAfter(0.46) ->
+                    if not a.isType(UNIT_TYPE_DEAD) and a.getHP() > 0.405
+                        a.damageTarget(u2, 40.0, true, false, ATTACK_TYPE_NORMAL, DAMAGE_TYPE_ENHANCED, WEAPON_TYPE_WHOKNOWS)
+        else
+            a.setAnimation("attack slam")
+            for u3 in g
+                let pos2 = target.getPos()
+                let u4 = u3
+                doAfter(0.46) ->
+                    if not a.isType(UNIT_TYPE_DEAD) and a.getHP() > 0.405
+                        a.damageTarget(u4, 80.0, true, false, ATTACK_TYPE_NORMAL, DAMAGE_TYPE_ENHANCED, WEAPON_TYPE_WHOKNOWS)
+                        flashEffect("Abilities\\Spells\\Human\\Thunderclap\\ThunderClapCaster.mdl", pos2)
+
+function jfAttackoJ59Filter() returns bool
+    return GetFilterUnit().isEnemyOf(GetAttacker().getOwner()) and not GetFilterUnit().isType(UNIT_TYPE_DEAD) and GetFilterUnit().getHP() > 0.405 and GetFilterUnit().getAbilityLevel('Avul') == 0
+
+// ============================================================
+// Триггер Just Fight: Tauren Chieftain ('oJ5A') — его атакуют
+// ============================================================
+
+@noinline
+function taurenChieftainAttacked()
+    let target = GetTriggerUnit()
+    if target.getAbilityLevel('AJ74') == 1
+        return
+    if target.getHP() / target.getMaxHP() <= 0.3
+        target.addAbility('AJ8A')
+        target.addAbility('AJ74')
+        doAfter(3.0) ->
+            target.removeAbility('AJ8A')
+        let pos = target.getPos()
+        flashEffect("Abilities\\Spells\\Items\\TomeOfRetraining\\TomeOfRetrainingCaster.mdl", pos)
+
+// ============================================================
+// Триггер Just Fight: Orc Brute ('oJ4Z') — атакует
+// ============================================================
+
+@noinline
+function orcBruteAttack()
+    let a = GetAttacker()
+    if a.getHP() / a.getMaxHP() <= 0.38 and a.getAbilityLevel('AJ53') != 2
+        a.issueImmediateOrder("berserk")
+
+// ============================================================
+// Триггер Just Fight: Orc Brute (способность 'AJ52') — применяет способность
+// ============================================================
+
+@noinline
+function orcBruteCast(unit caster)
+    caster.setAbilityLevel('AJ53', 2)
+    let u = caster
+    doAfter(3.0) ->
+        u.setAbilityLevel('AJ53', 1)
+
+// ============================================================
+// Триггер Just Fight: Orc Brute ('oJ4Z') — наносит урон
+// ============================================================
+
+@noinline
+function orcBruteDamage()
+    let source = GetEventDamageSource()
+    var value = source.getHP() / source.getMaxHP()
+    value = 1.0 - value
+    value = 100.0 * value
+    bountyGold = value.toInt() div 10
+    bountyGold = bountyGold + 1
+    if source.getAbilityLevel('AJ54') != bountyGold
+        source.setAbilityLevel('AJ54', bountyGold)
+
+// ============================================================
+// Триггер Just Fight: Frost Archer ('hJ19') — атакует
+// ============================================================
+
+@noinline
+function frostArcherAttack()
+    let a = GetAttacker()
+    if a.getMana() == 60.0
+        a.addAbility('AJ6N')
+        a.setMana(0)
+    else
+        a.removeAbility('AJ6N')
+
+// ============================================================
+// Триггер Just Fight: Frost Archer ('hJ19') — наносит урон
+// ============================================================
+
+@noinline
+function frostArcherDamage()
+    let target = GetTriggerUnit()
+    if target.isType(UNIT_TYPE_HERO)
+        return
+    if target.getAbilityLevel('AJ97') == 0 and target.getHP() > 1.0
+        target.addAbility('AJ97')
+        doAfter(0.5) ->
+            if target.getHP() > 1.0
+                target.removeAbility('AJ97')
+
+// ============================================================
+// Триггер Just Fight: 'eJ0A', Elite Archer ('eJ0B') — атакует
+// ============================================================
+
+@noinline
+function jfAttackeJ0A()
+    let a = GetAttacker()
+    if a.getMana() == 60.0
+        a.setMana(0)
+        a.addAbility('AJ5R')
+        a.issueImmediateOrder("stop")
+        jfAttackLane(a)
+        let pos = a.getPos()
+        flashEffect("Abilities\\Spells\\Items\\SpellShieldAmulet\\SpellShieldCaster.mdl", pos)
+
+// ============================================================
+// Триггер Just Fight: 'eJ0A', Elite Archer ('eJ0B') — наносит урон
+// ============================================================
+
+@noinline
+function jfDamageeJ0A()
+    let source = GetEventDamageSource()
+    source.removeAbility('AJ5R')
+
+// ============================================================
+// Триггер Just Fight: Murloc Hunter ('nJ2E') — смерть
+// ============================================================
+
+@noinline
+function murlocHunterDeath()
+    let dying = GetDyingUnit()
+    if dying.isType(UNIT_TYPE_SUMMONED)
+        return
+    var pos = dying.getPos()
+    let u = createUnit(dying.getOwner(), 'nJ75', pos, GetUnitFacing(dying).fromDeg())
+    u.setTimedLife(60, 'BHwe')
+    pos = u.getPos()
+    flashEffect("Objects\\Spawnmodels\\Naga\\NagaDeath\\NagaDeath.mdl", pos)
+
+// ============================================================
+// Триггер Just Fight: Murloc Guard ('nJ75') — смерть
+// ============================================================
+
+@noinline
+function murlocGuardDeath()
+    let dying = GetDyingUnit()
+    if dying.isType(UNIT_TYPE_SUMMONED)
+        return
+    var pos = dying.getPos()
+    let u = createUnit(dying.getOwner(), 'nJ6D', pos, GetUnitFacing(dying).fromDeg())
+    u.setTimedLife(60, 'BHwe')
+    pos = u.getPos()
+    flashEffect("Objects\\Spawnmodels\\Naga\\NagaDeath\\NagaDeath.mdl", pos)
+
+// ============================================================
+// Триггер Just Fight: 'oJ53', Elite Raider ('oJ54') — атакует
+// ============================================================
+
+@noinline
+function jfAttackoJ53()
+    let a = GetAttacker()
+    let target = GetTriggerUnit()
+    if a.getAbilityLevel('AJ56') != 1
+        return
+    if GetRandomInt(1, 10) <= 3
+        a.removeAbility('AJ56')
+        if a.getTypeId() == 'oJ53'
+            a.getOwner().addGold(3)
+            target.getOwner().addGold(-3)
+            attackUpgradeCounter[a.getOwner().getId() + 1] = attackUpgradeCounter[a.getOwner().getId() + 1] + 3
+            DisplayTextToPlayer(a.getOwner(), 0, 0, "|cff80ff00Raider:|r |cffffff00Boss, I've got 3 gold for you!|r")
+        else
+            a.getOwner().addGold(5)
+            target.getOwner().addGold(-5)
+            attackUpgradeCounter[a.getOwner().getId() + 1] = attackUpgradeCounter[a.getOwner().getId() + 1] + 5
+            DisplayTextToPlayer(a.getOwner(), 0, 0, "|cff80ff00Elite Raider:|r |cffffff00Boss, I've got 5 gold for you!|r")
+
+// ============================================================
+// Триггер Just Fight: Lord of Hell ('uJ60'), Death Knight ('uJ5Z'), Lord of Hell ('uJ7L'), Death Knight ('uJ7K'), Alienated Hell Lord ('uJ7O') — атакует
+// ============================================================
+
+@noinline
+function lordOfHellAttack()
+    let a = GetAttacker()
+    if a.getMana() / 1.0 != 60.0 or a.getHP() / a.getMaxHP() > 0.35
+        return
+    a.issueImmediateOrder("waterelemental")
+
+// ============================================================
+// Триггер Just Fight: Death Knight (способность 'AJ62') — применяет способность
+// ============================================================
+
+@noinline
+function deathKnightCast(unit caster)
+    if caster.getHP() < 1.0
+        return
+    caster.setHP(caster.getMaxHP())
+    let pos = caster.getPos()
+    flashEffect("Abilities\\Spells\\Undead\\DeathCoil\\DeathCoilSpecialArt.mdl", pos)
+
+// ============================================================
+// Триггер Just Fight: Fire Phoenix ('hJ1B') — атакует
+// ============================================================
+
+@noinline
+function firePhoenixAttack()
+    let a = GetAttacker()
+    if a.getMana() / 1.0 != 60.0
+        return
+    a.issueImmediateOrder("waterelemental")
+
+// ============================================================
+// Триггер Just Fight: Fire Phoenix (способность 'AJ1F') — применяет способность
+// ============================================================
+
+@noinline
+function firePhoenixCast(unit caster)
+    caster.setAbilityLevel('AJ1G', 2)
+    flashEffect("Abilities\\Spells\\Human\\MarkOfChaos\\MarkOfChaosTarget.mdl", caster, "overhead")
+    let u = caster
+    doAfter(5.0) ->
+        u.setAbilityLevel('AJ1G', 1)
+
+// ============================================================
+// Триггер Just Fight: Mountain King ('hJ12'), Avatar ('hJ1C'), Alienated God ('hJ72') — наносит урон
+// ============================================================
+
+@noinline
+function mountainKingDamage()
+    let source = GetEventDamageSource()
+    if source.getMana() != 60.0
+        return
+    source.issueImmediateOrder("creepthunderclap")
+
+// ============================================================
+// Триггер Just Fight: Shadow Hunter ('oJ5D'), Shadow Killer ('oJ5E'), Alienated Shadow Killer ('oJ7G') — наносит урон
+// ============================================================
+
+@noinline
+function shadowHunterDamage()
+    let source = GetEventDamageSource()
+    if source.getMana() != 60.0
+        return
+    let pos = source.getPos()
+    let g = unitsInRange(700.0, pos, Condition(function shadowHunterDamageFilter))
+    if g.size() >= 1
+        source.issueTargetOrder("healingwave", FirstOfGroup(g))
+    g.destr()
+
+function shadowHunterDamageFilter() returns bool
+    return GetFilterUnit().isAllyOf(GetEventDamageSource().getOwner()) and not GetFilterUnit().isType(UNIT_TYPE_DEAD) and GetFilterUnit().getHP() > 0.405 and GetFilterUnit().getHP() / GetFilterUnit().getMaxHP() <= 0.6
+
+// ============================================================
+// Триггер Just Fight: Captain (способность 'AJ14') — атака
+// ============================================================
+
+@noinline
+function captainAttack()
+    vec2 pos
+    let a = GetAttacker()
+    if a.getAbilityLevel('AJ14') != 1
+        return
+    a.removeAbility('AJ14')
+    if a.getTypeId() == 'hJ13'
+        for i = 1 to 3
+            pos = a.getPos()
+            let u = createUnit(a.getOwner(), 'hJ6U', pos, bj_UNIT_FACING.fromDeg())
+            u.setTimedLife(360.0, 'BHwe')
+            pos = u.getPos()
+            flashEffect("Abilities\\Spells\\Human\\MassTeleport\\MassTeleportCaster.mdl", pos)
+    else if a.getTypeId() == 'hJ14'
+        for j = 1 to 3
+            pos = a.getPos()
+            let u2 = createUnit(a.getOwner(), 'hJ0V', pos, bj_UNIT_FACING.fromDeg())
+            u2.setTimedLife(360.0, 'BHwe')
+            pos = u2.getPos()
+            flashEffect("Abilities\\Spells\\Human\\MassTeleport\\MassTeleportCaster.mdl", pos)
+
+// ============================================================
+// Триггер Just Fight: Marauder ('oJ5F') — появляется
+// ============================================================
+
+@noinline
+function marauderEnter()
+    let entering = GetTriggerUnit()
+    if entering.getTypeId() != 'oJ5F'
+        return
+    entering.setVertexColor(255, 255, 255, 155)
+
+// ============================================================
+// Триггер Just Fight: Marauder ('oJ5F') — смерть
+// ============================================================
+
+@noinline
+function marauderDeath()
+    let dying = GetDyingUnit()
+    if dying.isType(UNIT_TYPE_SUMMONED)
+        return
+    let pos = dying.getPos()
+    let u = createUnit(dying.getOwner(), 'oJ5F', pos, GetUnitFacing(dying).fromDeg())
+    u.setTimedLife(7.0, 'BHwe')
+    dying.remove()
+    flashEffect("Abilities\\Spells\\Human\\Resurrect\\ResurrectTarget.mdl", pos)
+
+// ============================================================
+// Триггер Just Fight: Scorching Archer ('nJ2D'), Fire Archer ('nJ2C') — появляется
+// ============================================================
+
+@noinline
+function scorchingArcherEnter()
+    let entering = GetTriggerUnit()
+    if entering.getTypeId() != 'nJ2D' and entering.getTypeId() != 'nJ2C'
+        return
+    addEffect("Abilities\\Spells\\Human\\FlameStrike\\FlameStrikeDamageTarget.mdl", entering, "weapon")
+
+// ============================================================
+// Триггер Just Fight: Calamity ('uJ5W') — наносит урон
+// ============================================================
+
+@noinline
+function calamityDamage()
+    let source = GetEventDamageSource()
+    let target = GetTriggerUnit()
+    let pos = target.getPos()
+    source.issuePointOrder("devourmagic", pos)
+
+// ============================================================
+// Триггер Just Fight: Calamity (способность 'AJ5W') — применяет способность
+// ============================================================
+
+@noinline
+function calamityCast(unit caster)
+    caster.setMana(caster.getMaxMana() * 100 * 0.01)
+
+// ============================================================
+// Триггер Just Fight: Furion ('eJ0F') — атакует
+// ============================================================
+
+@noinline
+function furionAttack()
+    let a = GetAttacker()
+    let target = GetTriggerUnit()
+    if target.getAbilityLevel('AJ6W') != 0 or a.getMana() != 60.0
+        return
+    a.setMana(0)
+    target.addAbility('AJ6W')
+    jfDestroyEffectLater(5.0, addEffect("Abilities\\Spells\\Items\\OrbCorruption\\OrbCorruptionSpecialArt.mdl", target, "chest"))
+    doAfter(5.0) ->
+        if target.getHP() > 1.0
+            target.removeAbility('AJ6W')
+
+// ============================================================
+// Триггер Just Fight: 'eJ07' — атакует
+// ============================================================
+
+@noinline
+function jfAttackeJ07()
+    let a = GetAttacker()
+    let target = GetTriggerUnit()
+    if target.getAbilityLevel('AJ6U') != 0 or a.getMana() != 60.0
+        return
+    a.setMana(0)
+    target.addAbility('AJ6U')
+    jfDestroyEffectLater(5.0, addEffect("Abilities\\Spells\\NightElf\\FaerieFire\\FaerieFireTarget.mdl", target, "overhead"))
+    doAfter(5.0) ->
+        if target.getHP() > 1.0
+            target.removeAbility('AJ6U')
+
+// ============================================================
+// Триггер Just Fight: Jaina (способность 'AJ2D'), Master Jaina (способность 'AJ2F') — урон
+// ============================================================
+
+@noinline
+function jainaDamage()
+    let source = GetEventDamageSource()
+    let target = GetTriggerUnit()
+    if source.getAbilityLevel('AJ2D') <= 0 and source.getAbilityLevel('AJ2F') <= 0 or source.getMana().toInt() < 60
+        return
+    source.issueTargetOrder("thunderbolt", target)
+
+// ============================================================
+// Триггер Just Fight: Ice Elemental ('hJ6W'), Ice Elemental ('hJ6X'), Ice Elemental ('hJ70'), Ice Elemental ('hJ71') — смерть
+// ============================================================
+
+@noinline
+function iceElementalDeath()
+    let dying = GetDyingUnit()
+    let killer = GetKillingUnit()
+    if not killer.isType(UNIT_TYPE_GIANT) and not killer.isType(UNIT_TYPE_TAUREN)
+        return
+    let pos = killer.getPos()
+    let u = createUnit(dying.getOwner(), 'eJ6O', pos, bj_UNIT_FACING.fromDeg())
+    u.setTimedLife(6.0, 'BHwe')
+    if dying.getTypeId() == 'hJ6W'
+        u.addAbility('AJ2D')
+    else
+        u.addAbility('AJ2F')
+    u.issueTargetOrder("thunderbolt", killer)
+
+// ============================================================
+// Триггер Just Fight: Jaina (способность 'AJ2D'), Master Jaina (способность 'AJ2F') — применяет способность
+// ============================================================
+
+@noinline
+function jainaCast(unit caster)
+    let u = GetSpellTargetUnit()
+    let n = GetSpellAbilityId()
+    let u2 = caster
+    var n2 = 0
+    doPeriodically(1.0) cb ->
+        n2 = n2 + 1
+        if n2 <= 5
+            if n == 'AJ2D'
+                u2.damageTarget(u, 80.0, true, false, ATTACK_TYPE_NORMAL, DAMAGE_TYPE_FIRE, WEAPON_TYPE_WHOKNOWS)
+            else
+                u2.damageTarget(u, 180.0, true, false, ATTACK_TYPE_NORMAL, DAMAGE_TYPE_FIRE, WEAPON_TYPE_WHOKNOWS)
+        else
+            destroy cb
+    let pos = caster.getPos()
+    if caster.getAbilityLevel('AJ2B') == 1
+        if GetSpellAbilityId() == 'AJ2D'
+            if caster.getTypeId() == 'hJ6Y'
+                createUnit(caster.getOwner(), 'hJ70', pos, GetUnitFacing(caster).fromDeg())
+            else
+                createUnit(caster.getOwner(), 'hJ6W', pos, GetUnitFacing(caster).fromDeg())
+        else if caster.getTypeId() == 'hJ6Z'
+            createUnit(caster.getOwner(), 'hJ71', pos, GetUnitFacing(caster).fromDeg())
+        else
+            createUnit(caster.getOwner(), 'hJ6X', pos, GetUnitFacing(caster).fromDeg())
+        caster.setAbilityLevel('AJ2B', 3)
+    else
+        caster.decAbilityLevel('AJ2B')
+
+// ============================================================
+// Триггер Just Fight: 'eJ07', Windows 8 ('nJ73'), Demon Hunter (способность 'AJ06'), 'AJ6Y', 'AJ8E', 'AJ6O' — атака
+// ============================================================
+
+@noinline
+function jfAttackeJ072()
+    let a = GetAttacker()
+    let target = GetTriggerUnit()
+    if a.getMana() / 1.0 != 60.0 or a.getTypeId() != 'eJ07' and a.getTypeId() != 'nJ73' and a.getAbilityLevel('AJ06') != 1 and a.getAbilityLevel('AJ6Y') != 1 and a.getAbilityLevel('AJ8E') != 1 and a.getAbilityLevel('AJ6O') != 1
+        return
+    a.issueTargetOrder("faeriefire", target)
+    a.issueImmediateOrder("waterelemental")
+    a.issueTargetOrder("doom", target)
+
+// ============================================================
+// Триггер Just Fight: War God ('HJ6J') — получает урон
+// ============================================================
+
+@noinline
+function warGodDamaged()
+    let target = GetTriggerUnit()
+    if not IsUnitInForce(target, jflII1[1]) or target.getHP() > 1800.0 or jfI111[1] <= 0
+        return
+    jfI111[1] = jfI111[1] - 1
+    DisplayTextToForce(GetPlayersAll(), "|cff80ff00Team Sky" + "|r |cffff80ffused up 1 Holy Light!|r")
+    let pos = jfLLIlII.getPos()
+    flashEffect("Abilities\\Spells\\Human\\Resurrect\\ResurrectTarget.mdl", pos)
+    jfLLIlII.setHP(jfLLIlII.getHP() + 18000.0)
+
+// ============================================================
+// Триггер Just Fight: War God ('HJ6J') — получает урон
+// ============================================================
+
+@noinline
+function warGodDamaged2()
+    let target = GetTriggerUnit()
+    if not IsUnitInForce(target, jflII1[2]) or target.getHP() > 1800.0 or jfI111[2] <= 0
+        return
+    jfI111[2] = jfI111[2] - 1
+    DisplayTextToForce(GetPlayersAll(), "|cff80ff00Team Earth" + "|r |cffff80ffused up 1 Holy Light!|r")
+    let pos = jfLLIlLI.getPos()
+    flashEffect("Abilities\\Spells\\Human\\Resurrect\\ResurrectTarget.mdl", pos)
+    jfLLIlLI.setHP(jfLLIlLI.getHP() + 18000.0)
+
+// ============================================================
+// Триггер Just Fight: 'uJ68' — смерть
+// ============================================================
+
+@noinline
+function jfDeathuJ68()
+    let dying = GetDyingUnit()
+    let pos = dying.getPos()
+    let g = unitsInRange(500.0, pos, Condition(function jfDeathuJ68Filter))
+    var n = g.size()
+    n = n * 2
+    if n == 0
+        n = 2
+    g.destr()
+    let u = createUnit(dying.getOwner(), 'uJ7J', pos, GetUnitFacing(dying).fromDeg())
+    u.setTimedLife(n.toReal(), 'BHwe')
+    let u2 = createUnit(dying.getOwner(), 'uJ7J', pos, GetUnitFacing(dying).fromDeg())
+    u2.setTimedLife(n.toReal(), 'BHwe')
+
+function jfDeathuJ68Filter() returns bool
+    return GetFilterUnit().getOwner() == GetTriggerUnit().getOwner() and GetFilterUnit().isAlive() and GetTriggerUnit().getTypeId() == 'uJ68'
+
+// ============================================================
+// Триггер Just Fight: Avatar ('hJ1C') — появляется
+// ============================================================
+
+@noinline
+function avatarEnter()
+    let entering = GetTriggerUnit()
+    if entering.getTypeId() != 'hJ1C'
+        return
+    let pos = entering.getPos()
+    flashEffect("Abilities\\Spells\\Human\\Avatar\\AvatarCaster.mdl", pos)
+
+// ============================================================
+// Триггер Just Fight: Great Devil ('eJ0J'), Demon Hunter ('eJ05'), Great Devil ('eJ6R'), Demon Hunter ('eJ6S'), Alienated Demon ('eJ6T') — атакует
+// ============================================================
+
+@noinline
+function greatDevilAttack()
+    let a = GetAttacker()
+    if a.getMana() != 60.0
+        return
+    a.issueImmediateOrder("waterelemental")
+
+// ============================================================
+// Триггер Just Fight: Demon Hunter (способность 'AJ06') — применяет способность
+// ============================================================
+
+@noinline
+function demonHunterCast(unit caster)
+    if caster.getTypeId() != 'eJ0J' and caster.getTypeId() != 'eJ05' and caster.getTypeId() != 'eJ6R' and caster.getTypeId() != 'eJ6S' and caster.getTypeId() != 'eJ6T'
+        return
+    let pos = caster.getPos()
+    let u = jfDummy(caster.getOwner(), pos)
+    u.jfDummyLife(1.0)
+    u.jfDummyAbility('AJ6M')
+    IssueTargetOrderById(u, 852274, caster)
+
+// ============================================================
+// Триггер Just Fight: 'eJ08', Grizzly Bear ('eJ0E') — атакует
+// ============================================================
+
+@noinline
+function jfAttackeJ08()
+    let a = GetAttacker()
+    if a.getMana() / 1.0 != 60.0
+        return
+    a.issueImmediateOrder("roar")
+
+// ============================================================
+// Триггер Just Fight: Murloc Hunter ('nJ2E') — наносит урон
+// ============================================================
+
+@noinline
+function murlocHunterDamage()
+    let source = GetEventDamageSource()
+    let target = GetTriggerUnit()
+    if source.getMana() != 60.0
+        return
+    if not target.hasAbility('BNpa') and not target.hasAbility('BNpm')
+        source.issueTargetOrder("parasite", target)
+
+// ============================================================
+// Триггер Just Fight: Sorceress ('hJ1J') — конец применения
+// ============================================================
+
+@noinline
+function sorceressCastEnd()
+    let caster = GetTriggerUnit()
+    if caster.getTypeId() != 'hJ1J'
+        return
+    if GetEventDamageSource().getAbilityLevel('AJ5N') != 1
+        jfDestroyEffectLater(7.0, addEffect("Abilities\\Weapons\\PhoenixMissile\\Phoenix_Missile_mini.mdl", caster, "left,hand"))
+        jfDestroyEffectLater(7.0, addEffect("Abilities\\Weapons\\PhoenixMissile\\Phoenix_Missile_mini.mdl", caster, "right,hand"))
+        caster.addAbility('AJ5N')
+        doAfter(7.0) ->
+            if caster.getHP() > 1.0
+                caster.removeAbility('AJ5N')
+
+// ============================================================
+// Триггер Just Fight: Ghoul Poltergeist ('uJ5O') — получает урон
+// ============================================================
+
+@noinline
+function ghoulPoltergeistDamaged()
+    let target = GetTriggerUnit()
+    target.issueTargetOrder("bloodlust", target)
+
+// ============================================================
+// Триггер Just Fight: Ghoul Poltergeist (способность 'AJ5Q') — применяет способность
+// ============================================================
+
+@noinline
+function ghoulPoltergeistCast(unit caster)
+    GetSpellTargetUnit().setVertexColor(0, 0, 0, 255)
+    caster.addAbility('Amim')
+    GetSpellTargetUnit().setPathing(false)
+    let u = GetSpellTargetUnit()
+    doAfter(2.5) ->
+        u.setVertexColor(255, 55, 55, 255)
+        u.removeAbility('Amim')
+        u.setPathing(true)
+
+// ============================================================
+// Триггер Just Fight: Huge Abomination ('uJ5Q') — смерть
+// ============================================================
+
+@noinline
+function hugeAbominationDeath()
+    let dying = GetDyingUnit()
+    let killer = GetKillingUnit()
+    if killer.isType(UNIT_TYPE_HERO)
+        return
+    var value = killer.getHP() * 0.5
+    if value > 600.0
+        value = 600.0
+    dying.damageTarget(killer, value, true, false, ATTACK_TYPE_NORMAL, DAMAGE_TYPE_FIRE, WEAPON_TYPE_WHOKNOWS)
+    let pos = killer.getPos()
+    flashEffect("Objects\\Spawnmodels\\Demon\\DemonLargeDeathExplode\\DemonLargeDeathExplode.mdl", pos)
+
+// ============================================================
+// Триггер Just Fight: Huge Abomination ('uJ5Q') — смерть
+// ============================================================
+
+@noinline
+function hugeAbominationDeath2()
+    let dying = GetDyingUnit()
+    let pos = dying.getPos()
+    for i = 1 to 2
+        let u = createUnit(dying.getOwner(), 'nJ74', pos, GetUnitFacing(dying).fromDeg())
+        u.setTimedLife(60, 'BHwe')
+    flashEffect("Units\\Undead\\Abomination\\AbominationExplosion.mdl", pos)
+
+// ============================================================
+// Триггер Just Fight: Plague Carrier ('uJ67') — смерть
+// ============================================================
+
+@noinline
+function plagueCarrierDeath()
+    let dying = GetDyingUnit()
+    let pos = dying.getPos()
+    jfDestroyEffectLater(3.0, addEffect("Abilities\\Spells\\Undead\\PlagueCloud\\PlagueCloudCaster.mdl", pos))
+    let g = unitsInRange(300.0, pos, Condition(function plagueCarrierDeathFilter))
+    for u in g
+        dying.damageTarget(u, 100.0, true, false, ATTACK_TYPE_MAGIC, DAMAGE_TYPE_NORMAL, WEAPON_TYPE_WHOKNOWS)
+    g.destr()
+    dying.remove()
+
+function plagueCarrierDeathFilter() returns bool
+    return not GetFilterUnit().isType(UNIT_TYPE_DEAD) and GetFilterUnit().getHP() > 0.405 and GetFilterUnit().isEnemyOf(GetDyingUnit().getOwner()) and (GetFilterUnit().isType(UNIT_TYPE_GIANT) or GetFilterUnit().isType(UNIT_TYPE_TAUREN))
+
+// ============================================================
+// Триггер Just Fight: 'nJ2M' — наносит урон
+// ============================================================
+
+@noinline
+function jfDamagenJ2M()
+    let source = GetEventDamageSource()
+    let target = GetTriggerUnit()
+    if jfDamagenJ2MRunning
+        return
+    jfDamagenJ2MRunning = true
+    if source.getAbilityLevel('AJ2U') == 1
+        source.setAbilityLevel('AJ2U', 6)
+        source.damageTarget(target, 100.0, true, false, ATTACK_TYPE_MAGIC, DAMAGE_TYPE_NORMAL, WEAPON_TYPE_WHOKNOWS)
+        let pos = target.getPos()
+        flashEffect("Abilities\\Spells\\Other\\Monsoon\\MonsoonBoltTarget.mdl", pos)
+    source.decAbilityLevel('AJ2U')
+    jfDamagenJ2MRunning = false
+
+// ============================================================
+// Триггер Just Fight: Dark Caster ('uJ61') — убивает
+// ============================================================
+
+@noinline
+function darkCasterKill()
+    let dying = GetDyingUnit()
+    let killer = GetKillingUnit()
+    if dying.isType(UNIT_TYPE_HERO) or dying.isType(UNIT_TYPE_SUMMONED) or dying.isIllusion()
+        return
+    jfDestroyEffectLater(0.0, addEffect("Abilities\\Spells\\Undead\\AnimateDead\\AnimateDeadTarget.mdl", dying, "origin"))
+    let pos = dying.getPos()
+    let u = createUnit(killer.getOwner(), jfCopyType(dying), pos, GetUnitFacing(dying).fromDeg())
+    u.addAbility('Aloc')
+    u.setVertexColor(55, 55, 55, 150)
+    if u.getTypeId() == 'eJ05'
+        u.setMana(0)
+    doAfter(10.0) ->
+        u.remove()
+    dying.remove()
+
+// ============================================================
+// Триггер Just Fight: 'eJ0D' — его атакуют
+// ============================================================
+
+@noinline
+function jfAttackedeJ0D()
+    let a = GetAttacker()
+    let target = GetTriggerUnit()
+    if not a.isType(UNIT_TYPE_MELEE_ATTACKER)
+        return
+    if GetRandomInt(1, 10) <= 4
+        let pos = a.getPos()
+        let u = jfDummy(target.getOwner(), pos)
+        u.jfDummyAbility('AJ70')
+        u.jfDummyLife(1.0)
+        u.issueTargetOrder("creepthunderbolt", a)
+
+// ============================================================
+// Триггер Just Fight: Ancient Medusa ('nJ2S') — появляется
+// ============================================================
+
+@noinline
+function ancientMedusaEnter()
+    let entering = GetTriggerUnit()
+    if entering.getTypeId() != 'nJ2S'
+        return
+    let t = CreateTimer()
+    SaveUnitHandle(jfL, t.getHandleId(), -1587459251, entering)
+    TimerStart(t, 1.0, false, function ancientMedusaEnterHelper)
+
+function ancientMedusaEnterHelper()
+    var pos = LoadUnitHandle(jfL, GetExpiredTimer().getHandleId(), -1587459251).getPos()
+    let g = unitsInRange(700.0, pos, Condition(function ancientMedusaEnterFilter))
+    for u in g
+        pos = u.getPos()
+        let u2 = jfDummy(u.getOwner(), pos)
+        u2.jfDummyAbility('AJ6X')
+        u2.jfDummyLife(1.0)
+        u2.issueTargetOrder("antimagicshell", u)
+    g.destr()
+    FlushChildHashtable(jfL, GetExpiredTimer().getHandleId())
+    GetExpiredTimer().destr()
+
+function ancientMedusaEnterFilter() returns bool
+    return GetFilterUnit().isAllyOf(LoadUnitHandle(jfL, GetExpiredTimer().getHandleId(), -1587459251).getOwner()) and GetFilterUnit().isType(UNIT_TYPE_GIANT) and not GetFilterUnit().isType(UNIT_TYPE_DEAD) and GetFilterUnit().getHP() > 0.405 and not GetFilterUnit().hasAbility('Bams')
+
+// ============================================================
+// Триггер Just Fight: Medusa ('nJ2R') — появляется
+// ============================================================
+
+@noinline
+function medusaEnter()
+    let entering = GetTriggerUnit()
+    if entering.getTypeId() != 'nJ2R'
+        return
+    let pos = entering.getPos()
+    let u = jfDummy(entering.getOwner(), pos)
+    u.jfDummyAbility('AJ6X')
+    u.jfDummyLife(1.0)
+    u.issueTargetOrder("antimagicshell", entering)
+
+// ============================================================
+// Триггер Just Fight: 'nJ2X' — атакует
+// ============================================================
+
+@noinline
+function jfAttacknJ2X()
+    let a = GetAttacker()
+    if a.getMana() != 60.0 or a.getHP() / a.getMaxHP() > 0.15 or a.getHP() < 1.0
+        return
+    a.setHP(a.getHP() + 666.0)
+    let pos = a.getPos()
+    flashEffect("Objects\\Spawnmodels\\Naga\\NagaDeath\\NagaDeath.mdl", pos)
+    a.setMana(0)
+
+// ============================================================
+// Триггер Just Fight: 'BJ0M' — атака
+// ============================================================
+
+@noinline
+function jfAttackBJ0M()
+    let a = GetAttacker()
+    let target = GetTriggerUnit()
+    if not target.hasAbility('BJ0M')
+        return
+    if a.isType(UNIT_TYPE_RANGED_ATTACKER)
+        playerHero[target.getOwner().getId() + 1].damageTarget(a, 8.0, true, false, ATTACK_TYPE_NORMAL, DAMAGE_TYPE_ENHANCED, WEAPON_TYPE_WHOKNOWS)
+    else
+        playerHero[target.getOwner().getId() + 1].damageTarget(a, 15.0, true, false, ATTACK_TYPE_NORMAL, DAMAGE_TYPE_ENHANCED, WEAPON_TYPE_WHOKNOWS)
+
+// ============================================================
+// Триггер Just Fight: Snap Dragon Green ('nJ2G'), Snap Dragon Red ('nJ2H') — наносит урон
+// ============================================================
+
+@noinline
+function snapDragonGreenDamage()
+    int n
+    let source = GetEventDamageSource()
+    let target = GetTriggerUnit()
+    if snapDragonGreenDamageRunning
+        return
+    if target.isType(UNIT_TYPE_HERO)
+        return
+    snapDragonGreenDamageRunning = true
+    if source.getTypeId() == 'nJ2G'
+        n = (target.getMaxHP().toInt() - target.getHP().toInt()) div 25
+        if n >= 40
+            n = 40
+    else
+        n = (target.getMaxHP().toInt() - target.getHP().toInt()) div 12
+        if n >= 90
+            n = 90
+    UnitDamageTarget(source, target, n.toReal(), true, true, ATTACK_TYPE_MELEE, DAMAGE_TYPE_NORMAL, WEAPON_TYPE_WHOKNOWS)
+    let pos = target.getPos()
+    flashEffect("Abilities\\Spells\\Other\\CrushingWave\\CrushingWaveDamage.mdl", pos)
+    let tag = jfTextTag("+" + n + "！", source, 0, 10, 100, 0.0, 0.0, 0)
+    tag.jfSetVelocity(60.0, 90)
+    tag.setPermanent(false)
+    tag.setLifespan(3.0)
+    tag.setFadepoint(2.0)
+    snapDragonGreenDamageRunning = false
+
+// ============================================================
+// Триггер Just Fight: Naga Myrmidon ('nJ2I'), 'nJ2J' — атакует
+// ============================================================
+
+@noinline
+function nagaMyrmidonAttack()
+    vec2 pos
+    let a = GetAttacker()
+    if a.getHP() < 1.0
+        return
+    if a.getTypeId() == 'nJ2I'
+        if a.getAbilityLevel('AJ2R') == 7
+            pos = a.getPos()
+            flashEffect("Abilities\\Spells\\Other\\CrushingWave\\CrushingWaveDamage.mdl", pos)
+            a.setHP(a.getHP() + a.getMaxHP() / 10.0)
+            a.setAbilityLevel('AJ2R', 1)
+        else
+            a.incAbilityLevel('AJ2R')
+    else if a.getAbilityLevel('AJ2R') == 5
+        pos = a.getPos()
+        flashEffect("Abilities\\Spells\\Other\\CrushingWave\\CrushingWaveDamage.mdl", pos)
+        a.setHP(a.getHP() + a.getMaxHP() / 10.0)
+        a.setAbilityLevel('AJ2R', 1)
+    else
+        a.incAbilityLevel('AJ2R')
+
+// ============================================================
+// Триггер Just Fight: Naga Banshee ('nJ76'), 'nJ2M' — наносит урон
+// ============================================================
+
+@noinline
+function nagaBansheeDamage()
+    let source = GetEventDamageSource()
+    if source.getMana() != 60.0
+        return
+    let pos = source.getPos()
+    let g = unitsInRange(700.0, pos, Condition(function nagaBansheeDamageFilter))
+    if g.size() >= 1
+        source.issueTargetOrder("frostarmor", g.getRandom())
+        g.destr()
+
+function nagaBansheeDamageFilter() returns bool
+    return GetFilterUnit().isAllyOf(GetEventDamageSource().getOwner()) and GetFilterUnit().isType(UNIT_TYPE_GIANT) and GetFilterUnit().isType(UNIT_TYPE_MELEE_ATTACKER) and not GetFilterUnit().isType(UNIT_TYPE_DEAD) and GetFilterUnit().getHP() > 0.405 and not GetFilterUnit().hasAbility('BJ0N')
+
+// ============================================================
+// Триггер Just Fight: Naga Banshee (способность 'AJ6R'), 'AJ2V' — применяет способность
+// ============================================================
+
+@noinline
+function nagaBansheeCast()
+    if GetSpellAbilityId() == 'AJ6R'
+        if GetSpellTargetUnit().getAbilityLevel('AJ6S') == 0
+            GetSpellTargetUnit().addAbility('AJ6S')
+            let u = GetSpellTargetUnit()
+            doAfter(15.0) ->
+                u.removeAbility('AJ6S')
+    else if GetSpellTargetUnit().getAbilityLevel('AJ6T') == 0
+        GetSpellTargetUnit().addAbility('AJ6T')
+        let u2 = GetSpellTargetUnit()
+        doAfter(24.0) ->
+            u2.removeAbility('AJ6T')
+
+// ============================================================
+// Триггер Just Fight: Hydra ('nJ2N') — атакует
+// ============================================================
+
+@noinline
+function hydraAttack()
+    let a = GetAttacker()
+    if a.getMana() == 60.0
+        a.addAbility('AJ2W')
+        a.setMana(0)
+    else
+        a.removeAbility('AJ2W')
+
+// ============================================================
+// Триггер Just Fight: Nine headed Hydra ('nJ2O') — атакует
+// ============================================================
+
+@noinline
+function nineHeadedHydraAttack()
+    let a = GetAttacker()
+    if a.getMana() == 60.0
+        a.addAbility('AJ8P')
+        a.setMana(0)
+    else
+        a.removeAbility('AJ8P')
+
+// ============================================================
+// Триггер Just Fight: 'nJ2P', Elite Wind Serpent ('nJ2Q') — наносит урон
+// ============================================================
+
+@noinline
+function jfDamagenJ2P()
+    let source = GetEventDamageSource()
+    let target = GetTriggerUnit()
+    if jfDamagenJ2PRunning
+        return
+    if target.isType(UNIT_TYPE_HERO)
+        return
+    jfDamagenJ2PRunning = true
+    if GetRandomInt(1, 100) <= 25
+        int n
+        if target.getAbilityLevel('A00W') == 0
+            if source.getTypeId() == 'nJ2P'
+                n = target.getMaxHP().toInt() div 20
+            else
+                n = target.getMaxHP().toInt() div 15
+        else if source.getTypeId() == 'nJ2P'
+            n = target.getMaxHP().toInt() div 20
+        else
+            n = target.getMaxHP().toInt() div 7
+        UnitDamageTarget(source, target, n.toReal(), true, true, ATTACK_TYPE_PIERCE, DAMAGE_TYPE_NORMAL, WEAPON_TYPE_WHOKNOWS)
+        let pos = target.getPos()
+        flashEffect("Abilities\\Spells\\Other\\Cleave\\CleaveDamageTarget.mdl", pos)
+        let tag = jfTextTag("+" + n + "！", source, 0, 10, 100, 0.0, 0.0, 0)
+        tag.jfSetVelocity(60.0, 90)
+        tag.setPermanent(false)
+        tag.setLifespan(3.0)
+        tag.setFadepoint(2.0)
+    jfDamagenJ2PRunning = false
+
+// ============================================================
+// Триггер Just Fight: Medusa ('nJ2R'), Ancient Medusa ('nJ2S'), Alienated Ancient Medusa ('nJ7E') — атакует
+// ============================================================
+
+@noinline
+function medusaAttack()
+    let a = GetAttacker()
+    let target = GetTriggerUnit()
+    if a.getMana() != 60.0
+        return
+    a.issueTargetOrder("forkedlightning", target)
+
+// ============================================================
+// Триггер Just Fight: Medusa ('nJ2R'), Ancient Medusa ('nJ2S') — атакует
+// ============================================================
+
+@noinline
+function medusaAttack2()
+    let a = GetAttacker()
+    let target = GetTriggerUnit()
+    if GetRandomInt(1, 100) <= 20
+        let pos = target.getPos()
+        let u = jfDummy(a.getOwner(), pos)
+        u.jfDummyAbility('AJ73')
+        u.issueTargetOrder("purge", target)
+        u.jfDummyLife(1.0)
+
+// ============================================================
+// Триггер Just Fight: любой юнит — атака
+// ============================================================
+
+@noinline
+function jfAttack()
+    let a = GetAttacker()
+    if a.hasAbility('BJ0E')
+        if a.getAbilityLevel('AJ8D') != 1
+            a.addAbility('AJ8D')
+    else
+        a.removeAbility('AJ8D')
+
+// ============================================================
+// Триггер Just Fight: Demon Hunter (способность 'AJ06') — применяет способность
+// ============================================================
+
+@noinline
+function demonHunterCast2(unit caster)
+    if caster.getTypeId() != 'uJ5T' and caster.getTypeId() != 'uJ5U'
+        return
+    if caster.getTypeId() == 'uJ5T'
+        bountyGold = 1
+    else
+        bountyGold = 2
+    var pos = caster.getPos()
+    let g = unitsInRange(500.0, pos, Condition(function demonHunterCast2Filter))
+    if g.size() >= 1
+        for u in g
+            if u.getAbilityLevel('AJ6A') <= 3
+                pos = u.getPos()
+                let u2 = createUnit(caster.getOwner(), 'uJ7H', pos, bj_UNIT_FACING.fromDeg())
+                if g.size() == 1
+                    u2.addAbility('AJ7Z')
+                    u2.setTimedLife(23.0, 'BHwe')
+                else if g.size() == 2
+                    u2.addAbility('AJ80')
+                    u2.setTimedLife(26.0, 'BHwe')
+                else if g.size() == 3
+                    u2.addAbility('AJ81')
+                    u2.setTimedLife(29.0, 'BHwe')
+                else
+                    u2.addAbility('AJ82')
+                    u2.setTimedLife(32.0, 'BHwe')
+                flashEffect("Abilities\\Spells\\Undead\\RaiseSkeletonWarrior\\RaiseSkeleton.mdl", pos)
+                u.incAbilityLevel('AJ6A')
+    for i = 1 to bountyGold
+        pos = caster.getPos()
+        let u3 = createUnit(caster.getOwner(), 'uJ7H', pos, bj_UNIT_FACING.fromDeg())
+        u3.setTimedLife(20.0, 'BHwe')
+        if g.size() == 1
+            u3.addAbility('AJ7Z')
+            u3.setTimedLife(23.0, 'BHwe')
+        else if g.size() == 2
+            u3.addAbility('AJ80')
+            u3.setTimedLife(26.0, 'BHwe')
+        else if g.size() == 3
+            u3.addAbility('AJ81')
+            u3.setTimedLife(29.0, 'BHwe')
+        else if g.size() == 4
+            u3.addAbility('AJ82')
+            u3.setTimedLife(32.0, 'BHwe')
+        pos = u3.getPos()
+        flashEffect("Abilities\\Spells\\Undead\\RaiseSkeletonWarrior\\RaiseSkeleton.mdl", pos)
+    g.destr()
+
+function demonHunterCast2Filter() returns bool
+    return GetFilterUnit().isAllyOf(GetTriggerUnit().getOwner()) and GetFilterUnit().isType(UNIT_TYPE_GIANT) and GetFilterUnit().getTypeId() == 'uJ65' and not GetFilterUnit().isType(UNIT_TYPE_DEAD) and GetFilterUnit().getHP() > 0.405
+
+// ============================================================
+// Триггер Just Fight: Master Druid ('eJ0L') — наносит урон
+// ============================================================
+
+@noinline
+function masterDruidDamage()
+    let source = GetEventDamageSource()
+    if source.getMana() != 60.0
+        return
+    let pos = source.getPos()
+    var g = unitsInRange(600.0, pos, Condition(function masterDruidDamageFilter))
+    if g.size() >= 1
+        source.issueTargetOrder("rejuvination", g.getRandom())
+    else
+        g.destr()
+        g = unitsInRange(600.0, pos, Condition(function masterDruidDamageFilter2))
+        if g.size() >= 1
+            source.issueTargetOrder("rejuvination", g.getRandom())
+        else
+            g = unitsInRange(600.0, pos, Condition(function masterDruidDamageFilter3))
+            if g.size() >= 1
+                source.issueTargetOrder("rejuvination", g.getRandom())
+        g.destr()
+
+function masterDruidDamageFilter() returns bool
+    return GetFilterUnit().isAllyOf(GetEventDamageSource().getOwner()) and GetFilterUnit().isType(UNIT_TYPE_GIANT) and GetFilterUnit().isType(UNIT_TYPE_MELEE_ATTACKER) and GetFilterUnit().getMaxHP() >= 1000.0 and not GetFilterUnit().isType(UNIT_TYPE_DEAD) and GetFilterUnit().getHP() > 0.405 and GetFilterUnit().getHP() / GetFilterUnit().getMaxHP() <= 0.8 and not GetFilterUnit().hasAbility('Brej')
+
+function masterDruidDamageFilter2() returns bool
+    return GetFilterUnit().isAllyOf(GetEventDamageSource().getOwner()) and GetFilterUnit().isType(UNIT_TYPE_GIANT) and not GetFilterUnit().isType(UNIT_TYPE_DEAD) and GetFilterUnit().getHP() > 0.405 and GetFilterUnit().getHP() / GetFilterUnit().getMaxHP() <= 0.8 and not GetFilterUnit().hasAbility('Brej')
+
+function masterDruidDamageFilter3() returns bool
+    return GetFilterUnit().isAllyOf(GetEventDamageSource().getOwner()) and GetFilterUnit().isType(UNIT_TYPE_GIANT) and GetFilterUnit().isType(UNIT_TYPE_RANGED_ATTACKER) and not GetFilterUnit().isType(UNIT_TYPE_DEAD) and GetFilterUnit().getHP() > 0.405 and GetFilterUnit().getHP() / GetFilterUnit().getMaxHP() <= 0.8 and not GetFilterUnit().hasAbility('Brej')
+
+// ============================================================
+// Триггер Just Fight: Axe King (способность 'AJ5I') — атака
+// ============================================================
+
+@noinline
+function axeKingAttack()
+    let target = GetTriggerUnit()
+    if target.getAbilityLevel('AJ5I') != 1
+        return
+    if GetRandomInt(1, 10) <= 1
+        target.removeAbility('AJ5I')
+        target.setAnimation("Spin")
+        var pos = target.getPos()
+        let g = unitsInRange(220.0, pos, Condition(function axeKingAttackFilter))
+        for u in g
+            target.damageTarget(u, 100.0, true, false, ATTACK_TYPE_MELEE, DAMAGE_TYPE_NORMAL, WEAPON_TYPE_WHOKNOWS)
+            pos = u.getPos()
+            flashEffect("Abilities\\Spells\\Other\\Stampede\\StampedeMissileDeath.mdl", pos)
+        g.destr()
+        doAfter(2.0) ->
+            if target.getHP() > 1.0
+                target.addAbility('AJ5I')
+
+function axeKingAttackFilter() returns bool
+    return (GetFilterUnit().isType(UNIT_TYPE_GIANT) or GetFilterUnit().isType(UNIT_TYPE_TAUREN)) and GetFilterUnit().isEnemyOf(GetTriggerUnit().getOwner()) and not GetFilterUnit().isType(UNIT_TYPE_DEAD) and GetFilterUnit().getHP() > 0.405
+
+// ============================================================
+// Триггер Just Fight: Axe King ('oJ5G') — его атакуют
+// ============================================================
+
+@noinline
+function axeKingAttacked()
+    let target = GetTriggerUnit()
+    if target.getAbilityLevel('AJ5H') != 1 or target.getHP() <= 1.0
+        return
+    if target.getHP() / target.getMaxHP() <= 0.38
+        target.issueImmediateOrder("roar")
+        doAfter(3.0) ->
+            if target.getHP() > 1.0
+                target.removeAbility('AJ5H')
+
+// ============================================================
+// Триггер Just Fight: Unknown Undead ('nJ2Y'), Nameless Horror ('nJ1E') — его атакуют
+// ============================================================
+
+@noinline
+function unknownUndeadAttacked()
+    let target = GetTriggerUnit()
+    if target.getHP() <= 1.0
+        return
+    if target.getHP() / target.getMaxHP() <= 0.5 and target.getAbilityLevel('AJ7L') != 1 and target.getAbilityLevel('AJ7M') != 1
+        if target.getTypeId() == 'nJ2Y'
+            target.addAbility('AJ7L')
+            target.removeAbility('AJ32')
+        else
+            target.addAbility('AJ7M')
+            target.removeAbility('AJ1L')
+        let pos = target.getPos()
+        flashEffect("Abilities\\Spells\\Orc\\FeralSpirit\\feralspirittarget.mdl", pos)
+
+// ============================================================
+// Триггер Just Fight: Unknown Undead ('nJ2Y'), Nameless Horror ('nJ1E') — атакует
+// ============================================================
+
+@noinline
+function unknownUndeadAttack()
+    let a = GetAttacker()
+    let target = GetTriggerUnit()
+    if target.getHP() <= 1.0
+        return
+    if a.getHP() / a.getMaxHP() > 0.5 and (a.getAbilityLevel('AJ7L') == 1 or a.getAbilityLevel('AJ7M') == 1)
+        if a.getTypeId() == 'nJ2Y'
+            a.removeAbility('AJ7L')
+            a.addAbility('AJ32')
+        else
+            a.removeAbility('AJ7M')
+            a.addAbility('AJ1L')
+
+// ============================================================
+// Триггер Just Fight: Voidwalker ('nJ1G'), Elder Voidwalker ('nJ1H') — наносит урон
+// ============================================================
+
+@noinline
+function voidwalkerDamage()
+    let source = GetEventDamageSource()
+    let target = GetTriggerUnit()
+    if source.getMana() != 60.0 or target.hasAbility('BJ1E')
+        return
+    source.issueImmediateOrder("waterelemental")
+
+// ============================================================
+// Триггер Just Fight: Voidwalker ('nJ1G'), Elder Voidwalker ('nJ1H') — начало применения
+// ============================================================
+
+@noinline
+function voidwalkerCastStart()
+    vec2 pos
+    group g
+    let caster = GetTriggerUnit()
+    if caster.getTypeId() != 'nJ1G' and caster.getTypeId() != 'nJ1H'
+        return
+    if caster.getTypeId() == 'nJ1G'
+        caster.addAbility('AJ7O')
+        doAfter(2.0) ->
+            caster.removeAbility('AJ7O')
+        pos = caster.getPos()
+        let u = jfDummy(caster.getOwner(), pos)
+        u.jfDummyAbility('AJ7N')
+        u.jfDummyLife(3.0)
+        g = jfRandomSubGroup(1, unitsInRange(500.0, pos, Condition(function voidwalkerCastStartFilter)))
+        for u2 in g
+            u.issueTargetOrder("magicleash", u2)
+        g.destr()
+    else if caster.getTypeId() == 'nJ1H'
+        caster.addAbility('AJ7Q')
+        doAfter(4.0) ->
+            caster.removeAbility('AJ7Q')
+        pos = caster.getPos()
+        let u3 = jfDummy(caster.getOwner(), pos)
+        u3.jfDummyAbility('AJ7P')
+        u3.jfDummyLife(5.0)
+        g = jfRandomSubGroup(1, unitsInRange(500.0, pos, Condition(function voidwalkerCastStartFilter2)))
+        for u4 in g
+            u3.issueTargetOrder("magicleash", u4)
+        g.destr()
+
+function voidwalkerCastStartFilter() returns bool
+    return GetFilterUnit().isEnemyOf(GetTriggerUnit().getOwner()) and GetFilterUnit().isAlive() and not GetFilterUnit().hasAbility('Bmlc')
+
+function voidwalkerCastStartFilter2() returns bool
+    return GetFilterUnit().isEnemyOf(GetTriggerUnit().getOwner()) and GetFilterUnit().isAlive() and not GetFilterUnit().hasAbility('Bmlc')
+
+// ============================================================
+// Триггер Just Fight: Great Voidwalker ('nJ1K') — атакует
+// ============================================================
+
+@noinline
+function greatVoidwalkerAttack()
+    unit u
+    let a = GetAttacker()
+    let target = GetTriggerUnit()
+    let pos = target.getPos()
+    let g = unitsInRange(300.0 * 1.0, pos, null)
+    for u2 in g
+        if u2.isType(UNIT_TYPE_SUMMONED) and not u2.isType(UNIT_TYPE_DEAD) and u2.getHP() > 0.405 and u2.getAbilityLevel('Avul') == 0 and u2.getAbilityLevel('AJ6I') == 0 and u2.isEnemyOf(a.getOwner()) and u2.getHP() < 600.0 and a.getMana() == 60.0
+            a.setMana(0.0)
+            flashEffect("Abilities\\Spells\\Human\\ControlMagic\\ControlMagicTarget.mdl", u2, "overhead")
+            u2.setOwner(a.getOwner(), true)
+            u = a
+            jfAttackLane(u)
+            u = u2
+            jfAttackLane(u)
+    g.destr()
+
+// ============================================================
+// Триггер Just Fight: Infernal Stone ('nJ2Z') — его атакуют
+// ============================================================
+
+@noinline
+function infernalStoneAttacked()
+    let target = GetTriggerUnit()
+    if infernalStoneAttackedRunning
+        return
+    if target.getAbilityLevel('AJ6P') == 6
+        return
+    infernalStoneAttackedRunning = true
+    if target.getAbilityLevel('AJ33') == 5
+        target.setAbilityLevel('AJ33', 1)
+        jfDestroyEffectLater(0.5, addEffect("Doodads\\Cinematic\\TownBurningFireEmitterBlue\\TownBurningFireEmitterBlue.mdl", target, "hand"))
+        if target.getAbilityLevel('AJ6P') >= 1
+            target.incAbilityLevel('AJ6P')
+        else
+            target.addAbility('AJ6P')
+    else
+        target.incAbilityLevel('AJ33')
+    infernalStoneAttackedRunning = false
+
+// ============================================================
+// Триггер Just Fight: Night Stalker ('nJ31'), Balnazzar ('nJ47') — появляется
+// ============================================================
+
+@noinline
+function nightStalkerEnter()
+    let entering = GetTriggerUnit()
+    if entering.getTypeId() != 'nJ31' and entering.getTypeId() != 'nJ47'
+        return
+    if entering.getAbilityLevel('AJ7R') == 0
+        entering.addAbility('AJ7R')
+        entering.addAbility('AJ98')
+        doAfter(30.0) ->
+            if entering.getHP() > 1.0
+                entering.removeAbility('AJ7R')
+                entering.removeAbility('AJ98')
+
+// ============================================================
+// Триггер Just Fight: Maiden of Pain ('nJ39'), Queen of Pain ('nJ32') — применяет способность
+// ============================================================
+
+@noinline
+function maidenOfPainCast()
+    let caster = GetTriggerUnit()
+    if caster.getTypeId() != 'nJ39' and caster.getTypeId() != 'nJ32'
+        return
+    if caster.getTypeId() == 'nJ39'
+        GetSpellTargetUnit().addAbility('AJ7S')
+        GetSpellTargetUnit().addAbility('AJ99')
+        let u = GetSpellTargetUnit()
+        doAfter(6.0) ->
+            if u.getHP() > 1.0
+                u.removeAbility('AJ99')
+                u.removeAbility('AJ7S')
+    else
+        GetSpellTargetUnit().addAbility('AJ7T')
+        GetSpellTargetUnit().addAbility('AJ99')
+        let u2 = GetSpellTargetUnit()
+        doAfter(6.0) ->
+            if u2.getHP() > 1.0
+                u2.removeAbility('AJ99')
+                u2.removeAbility('AJ7T')
+
+// ============================================================
+// Триггер Just Fight: Maiden of Pain ('nJ39'), Queen of Pain ('nJ32') — наносит урон
+// ============================================================
+
+@noinline
+function maidenOfPainDamage()
+    let source = GetEventDamageSource()
+    if source.getMana() != 60.0
+        return
+    let pos = source.getPos()
+    let g = unitsInRange(600.0, pos, Condition(function maidenOfPainDamageFilter))
+    if g.size() >= 1
+        source.issueTargetOrder("fingerofdeath", g.getRandom())
+    g.destr()
+
+function maidenOfPainDamageFilter() returns bool
+    return GetFilterUnit().isAllyOf(GetEventDamageSource().getOwner()) and GetFilterUnit().isType(UNIT_TYPE_GIANT) and GetFilterUnit().isType(UNIT_TYPE_MELEE_ATTACKER) and not GetFilterUnit().isType(UNIT_TYPE_DEAD) and GetFilterUnit().getHP() > 0.405 and not GetFilterUnit().isIllusion() and not GetFilterUnit().hasAbility('BJ1F') and GetFilterUnit().getHP() >= 600.0
+
+// ============================================================
+// Триггер Just Fight: Frost Revenant ('nJ3A'), Death Revenant ('nJ3B') — наносит урон
+// ============================================================
+
+@noinline
+function frostRevenantDamage()
+    let source = GetEventDamageSource()
+    let target = GetTriggerUnit()
+    if target.isType(UNIT_TYPE_HERO) or source.getAbilityLevel('AJ7V') == 1
+        return
+    if GetRandomInt(1, 3) <= 1
+        vec2 pos
+        if source.getTypeId() == 'nJ3A'
+            pos = target.getPos()
+            flashEffect("Abilities\\Spells\\Undead\\FreezingBreath\\FreezingBreathTargetArt.mdl", pos)
+            jfDestroyEffectLater(5.0, addEffect("Abilities\\Spells\\Items\\AIob\\AIobTarget.mdl", source, "weapon"))
+            source.addAbility('AJ7V')
+            if target.getAbilityLevel('AJ7U') != 1
+                target.addAbility('AJ7U')
+            doAfter(5.0) ->
+                source.removeAbility('AJ7V')
+                target.removeAbility('AJ7U')
+        else
+            pos = target.getPos()
+            flashEffect("Abilities\\Spells\\Undead\\DeathandDecay\\DeathandDecayTarget.mdl", pos)
+            jfDestroyEffectLater(5.0, addEffect("Abilities\\Spells\\Items\\AIob\\AIobTarget.mdl", source, "weapon"))
+            source.addAbility('AJ7V')
+            source.addAbility('AJ7A')
+            if target.getAbilityLevel('AJ7U') != 1
+                target.addAbility('AJ7U')
+            if target.getAbilityLevel('AJ7W') != 1
+                target.addAbility('AJ7W')
+            doAfter(5.0) ->
+                source.removeAbility('AJ7V')
+                source.removeAbility('AJ7A')
+                target.removeAbility('AJ7U')
+                target.removeAbility('AJ7W')
+
+// ============================================================
+// Триггер Just Fight: Nether Dragon ('nJ3C'), Underworld Dragon ('nJ1L') — атакует
+// ============================================================
+
+@noinline
+function netherDragonAttack()
+    let a = GetAttacker()
+    if a.getMana() != 60.0
+        return
+    a.issueImmediateOrder("berserk")
+
+// ============================================================
+// Триггер Just Fight: Nether Dragon (способность 'AJ3B'), Underworld Dragon (способность 'AJ1R') — применяет способность
+// ============================================================
+
+@noinline
+function netherDragonCast(unit caster)
+    if GetSpellAbilityId() == 'AJ1R'
+        caster.addAbility('AJ7X')
+        let u = caster
+        doAfter(7.0) ->
+            if u.getHP() > 1.0
+                u.removeAbility('AJ7X')
+    else
+        caster.addAbility('AJ7Y')
+        let u2 = caster
+        doAfter(7.0) ->
+            if u2.getHP() > 1.0
+                u2.removeAbility('AJ7Y')
+
+// ============================================================
+// Триггер Just Fight: Underworld Black Dragon ('nJ3D') — наносит урон
+// ============================================================
+
+@noinline
+function underworldBlackDragonDamage()
+    let source = GetEventDamageSource()
+    let target = GetTriggerUnit()
+    if underworldBlackDragonDamageRunning
+        return
+    if target.isType(UNIT_TYPE_HERO) or target.getAbilityLevel('AJ9A') != 0
+        return
+    target.addAbility('AJ9A')
+    jfDestroyEffectLater(5.0, addEffect("Abilities\\Spells\\Orc\\LiquidFire\\Liquidfire.mdl", target, "origin"))
+    doAfter(5.0) ->
+        if target.getHP() > 1.0
+            source.damageTarget(target, 300.0, true, false, ATTACK_TYPE_MELEE, DAMAGE_TYPE_NORMAL, WEAPON_TYPE_WHOKNOWS)
+            let pos = target.getPos()
+            flashEffect("Abilities\\Spells\\Other\\Doom\\DoomDeath.mdl", pos)
+            target.removeAbility('AJ9A')
+
+// ============================================================
+// Триггер Just Fight: Underworld Black Dragon ('nJ3D'), 'AJ9A' — смерть
+// ============================================================
+
+@noinline
+function underworldBlackDragonDeath()
+    let dying = GetDyingUnit()
+    let killer = GetKillingUnit()
+    if underworldBlackDragonDeathRunning
+        return
+    if dying.isType(UNIT_TYPE_HERO) or killer.getTypeId() != 'nJ3D' and dying.getAbilityLevel('AJ9A') != 1
+        return
+    underworldBlackDragonDeathRunning = true
+    underworldBlackDragonDamageRunning = true
+    let pos = dying.getPos()
+    let g = unitsInRange(220.0, pos, Condition(function underworldBlackDragonDeathFilter))
+    flashEffect("Abilities\\Spells\\Other\\Doom\\DoomDeath.mdl", pos)
+    for u in g
+        killer.damageTarget(u, 60.0, true, false, ATTACK_TYPE_MELEE, DAMAGE_TYPE_NORMAL, WEAPON_TYPE_WHOKNOWS)
+    g.destr()
+    underworldBlackDragonDamageRunning = false
+    underworldBlackDragonDeathRunning = false
+
+function underworldBlackDragonDeathFilter() returns bool
+    return (not GetFilterUnit().isType(UNIT_TYPE_DEAD) and GetFilterUnit().getHP() > 0.405 or GetFilterUnit().getAbilityLevel('Avul') == 0) and GetFilterUnit().isEnemyOf(GetKillingUnit().getOwner())
+
+// ============================================================
+// Триггер Just Fight: 'AJ83', Centaur Khan (способность 'AJ3L') — атака
+// ============================================================
+
+@noinline
+function jfAttackAJ83()
+    let target = GetTriggerUnit()
+    if target.getAbilityLevel('AJ83') != 1 and target.getAbilityLevel('AJ3L') != 1
+        return
+    let pos = target.getPos()
+    let u = createUnit(target.getOwner(), 'eJ6O', pos, bj_UNIT_FACING.fromDeg())
+    u.addAbility('AJ72')
+    u.setTimedLife(1.0, 'BHwe')
+    if target.getAbilityLevel('AJ83') == 1
+        u.addItemById(0)
+        target.removeAbility('AJ83')
+    else
+        u.addItemById(0)
+        target.removeAbility('AJ3L')
+
+// ============================================================
+// Триггер Just Fight: 'AJ3N' — урон
+// ============================================================
+
+@noinline
+function jfDamageAJ3N()
+    let source = GetEventDamageSource()
+    if source.getMana() < 60.0 or source.getAbilityLevel('AJ3N') != 1
+        return
+    let pos = source.getPos()
+    let g = unitsInRange(500.0, pos, Condition(function jfDamageAJ3NFilter))
+    for _u in g
+        source.issueTargetOrder("thunderbolt", g.getRandom())
+    g.destr()
+
+function jfDamageAJ3NFilter() returns bool
+    return not GetFilterUnit().isType(UNIT_TYPE_DEAD) and GetFilterUnit().getHP() > 0.405 and GetFilterUnit().isEnemyOf(GetEventDamageSource().getOwner()) and GetFilterUnit().getAbilityLevel('Avul') != 1
+
+// ============================================================
+// Триггер Just Fight: 'AJ3N' — применяет способность
+// ============================================================
+
+@noinline
+function jfCastAJ3N(unit caster)
+    var pos = GetSpellTargetUnit().getPos()
+    flashEffect("Abilities\\Spells\\Other\\Incinerate\\FireLordDeathExplode.mdl", pos)
+    caster.damageTarget(GetSpellTargetUnit(), 120.0, true, false, ATTACK_TYPE_MAGIC, DAMAGE_TYPE_NORMAL, WEAPON_TYPE_WHOKNOWS)
+    if caster.hasAbility('BJ0S')
+        bountyGold = GetRandomInt(1, 4)
+        if bountyGold > 1
+            pos = GetSpellTargetUnit().getPos()
+            let tag = jfTextTag("x" + bountyGold, pos, 0, 13.0, 100, 0.0, 0.0, 0)
+            tag.jfSetVelocity(60.0, 90)
+            tag.setPermanent(false)
+            tag.setLifespan(3.0)
+            tag.setFadepoint(2.0)
+            let u = GetSpellTargetUnit()
+            let u2 = caster
+            let pos2 = GetSpellTargetUnit().getPos()
+            var n = bountyGold
+            doPeriodically(0.3) cb ->
+                n = n - 1
+                if n > 0
+                    u2.damageTarget(u, 120.0, true, false, ATTACK_TYPE_MAGIC, DAMAGE_TYPE_NORMAL, WEAPON_TYPE_WHOKNOWS)
+                    flashEffect("Abilities\\Spells\\Other\\Incinerate\\FireLordDeathExplode.mdl", pos2)
+                else
+                    destroy cb
+
+// ============================================================
+// Триггер Just Fight: 'AJ3O' — атака
+// ============================================================
+
+@noinline
+function jfAttackAJ3O()
+    let a = GetAttacker()
+    let target = GetTriggerUnit()
+    if a.getAbilityLevel('AJ3O') > 6 or a.getAbilityLevel('AJ3O') < 1
+        return
+    if a.getAbilityLevel('AJ3O') == 6
+        let pos = a.getPos()
+        let u = jfDummy(a.getOwner(), pos)
+        u.jfDummyLife(2.0)
+        if a.getTypeId() == 'nJ3N'
+            u.jfDummyAbility('AJ84')
+        else
+            u.jfDummyAbility('AJ85')
+        u.issueTargetOrder("chainlightning", target)
+        a.setAbilityLevel('AJ3O', 1)
+    else
+        a.incAbilityLevel('AJ3O')
+
+// ============================================================
+// Триггер Just Fight: Rexxar (способность 'AJ3Q'), Beastmaster (способность 'AJ3U') — атака
+// ============================================================
+
+@noinline
+function rexxarAttack()
+    let a = GetAttacker()
+    if a.getAbilityLevel('AJ3Q') != 1 and a.getAbilityLevel('AJ3U') != 1 or a.getMana() < 60.0
+        return
+    a.issueImmediateOrder("waterelemental")
+
+// ============================================================
+// Триггер Just Fight: Rexxar (способность 'AJ3P'), Beastmaster (способность 'AJ3T') — появляется
+// ============================================================
+
+@noinline
+function rexxarEnter()
+    let entering = GetTriggerUnit()
+    if entering.getAbilityLevel('AJ3P') != 1 and entering.getAbilityLevel('AJ3T') != 1
+        return
+    entering.issueImmediateOrder("locustswarm")
+
+// ============================================================
+// Триггер Just Fight: Centaur Khan (способность 'AJ3K') — атака
+// ============================================================
+
+@noinline
+function centaurKhanAttack()
+    let a = GetAttacker()
+    if a.getAbilityLevel('AJ3K') != 1 or a.getMana() < 60.0
+        return
+    a.issueImmediateOrder("stomp")
+
+// ============================================================
+// Триггер Just Fight: Maiev ('nJ3T') — его атакуют
+// ============================================================
+
+@noinline
+function maievAttacked()
+    let target = GetTriggerUnit()
+    if target.getHP() / target.getMaxHP() > 0.8 or target.getAbilityLevel('AJ3V') != 1
+        return
+    target.addAbility('AJ94')
+    target.removeAbility('AJ3V')
+    target.addAbility('AJ78')
+    target.issueImmediateOrder("stop")
+    var n = 0
+    doPeriodically(0.1) cb ->
+        n = n + 1
+        if n <= 20
+            if target.getHP() >= 1.0
+                target.setHP(target.getHP() + 10.0)
+            else
+                destroy cb
+        else
+            target.removeAbility('AJ94')
+            jfAttackLane(target)
+            target.removeAbility('AJ78')
+            destroy cb
+    doAfter(14.0) ->
+        if target.getHP() > 1.0
+            target.addAbility('AJ3V')
+
+// ============================================================
+// Триггер Just Fight: Dragon Hawk Rider ('hJ1P') — атакует
+// ============================================================
+
+@noinline
+function dragonHawkRiderAttack()
+    let a = GetAttacker()
+    if a.getMana() != 60.0
+        return
+    let pos = a.getPos()
+    let g = jfRandomSubGroup(1, unitsInRange(880.0, pos, Condition(function dragonHawkRiderAttackFilter)))
+    if g.size() == 1
+        a.issueImmediateOrder("waterelemental")
+    g.destr()
+
+function dragonHawkRiderAttackFilter() returns bool
+    return GetFilterUnit().isEnemyOf(GetAttacker().getOwner()) and GetFilterUnit().isAlive() and not GetFilterUnit().hasAbility('Bmlt') and GetFilterUnit().getAbilityLevel('A00W') == 1
+
+// ============================================================
+// Триггер Just Fight: Dragon Hawk Rider (способность 'AJ1T') — применяет способность
+// ============================================================
+
+@noinline
+function dragonHawkRiderCast(unit caster)
+    let pos = caster.getPos()
+    let u = createUnit(caster.getOwner(), 'eJ6L', pos, bj_UNIT_FACING.fromDeg())
+    u.addAbility('AJ71')
+    u.setTimedLife(6.0, 'BHwe')
+    let g = jfRandomSubGroup(1, unitsInRange(880.0, pos, Condition(function dragonHawkRiderCastFilter)))
+    if g.size() == 1
+        u.issueTargetOrder("magicleash", FirstOfGroup(g))
+    g.destr()
+
+function dragonHawkRiderCastFilter() returns bool
+    return GetFilterUnit().isEnemyOf(GetTriggerUnit().getOwner()) and GetFilterUnit().isAlive() and not GetFilterUnit().hasAbility('Bmlt') and GetFilterUnit().getAbilityLevel('A00W') == 1
+
+// ============================================================
+// Триггер Just Fight: Kodo Beast ('oJ5H') — атакует
+// ============================================================
+
+@noinline
+function kodoBeastAttack()
+    let a = GetAttacker()
+    let target = GetTriggerUnit()
+    if a.getAbilityLevel('AJ5J') != 1 or target.getHP() >= 500.0 or target.getMaxHP() > 1500.0
+        return
+    a.setAnimation("Spell Slam")
+    doAfter(1.0) ->
+        if a.isAlive() and target.isAlive()
+            force players
+            if unitWoodCost(target.getTypeId()) >= 20
+                bountyUnitType = target.getTypeId()
+                bountyOfTarget()
+                if bountyGold != 0
+                    a.getOwner().addGold(bountyGold)
+                    let tag = jfTextTag("+" + bountyGold, target, 0, 10, 100, 78.43, 0.0, 0)
+                    tag.jfSetVelocity(64.0, 90)
+                    tag.setVisibility(false)
+                    players = forceOfPlayer(a.getOwner())
+                    tag.jfShowForce(true, players)
+                    players.destr()
+                    tag.setPermanent(false)
+                    tag.setLifespan(2.0)
+                    tag.setFadepoint(1.0)
+            if not target.isType(UNIT_TYPE_SUMMONED)
+                bountyUnitType = target.getTypeId()
+                bounty()
+                a.getOwner().addGold(bountyGold)
+                if bountyGold != 0
+                    let tag2 = jfTextTag("+" + bountyGold, target, 0, 10, 100, 78.43, 0.0, 0)
+                    tag2.jfSetVelocity(64.0, 90)
+                    tag2.setVisibility(false)
+                    players = forceOfPlayer(a.getOwner())
+                    tag2.jfShowForce(true, players)
+                    players.destr()
+                    tag2.setPermanent(false)
+                    tag2.setLifespan(2.0)
+                    tag2.setFadepoint(1.0)
+            doAfter(target.getHP() / 30.0) ->
+                a.addAbility('AJ5J')
+            a.setHP(a.getHP() + target.getHP())
+            a.removeAbility('AJ5J')
+            target.remove()
+            doAfter(0.1) ->
+                jfAttackLane(a)
+
+// ============================================================
+// Триггер Just Fight: 'oJ5I' — наносит урон
+// ============================================================
+
+@noinline
+function jfDamageoJ5I()
+    let source = GetEventDamageSource()
+    if source.getMana() != 60.0
+        return
+    source.issueImmediateOrder("waterelemental")
+
+// ============================================================
+// Триггер Just Fight: 'AJ5K' — конец применения
+// ============================================================
+
+@noinline
+function jfCastEndAJ5K()
+    let caster = GetTriggerUnit()
+    if GetSpellAbilityId() != 'AJ5K'
+        return
+    let pos = caster.getPos()
+    let pos2 = pos.polarOffset(GetUnitFacing(caster).fromDeg(), 200.0)
+    let u = createUnit(caster.getOwner(), 'oJ7F', pos2, bj_UNIT_FACING.fromDeg())
+    u.setTimedLife(10.0, 'BHwe')
+
+// ============================================================
+// Триггер Just Fight: Spirit Wyvern (способность 'AJ5L') — атака
+// ============================================================
+
+@noinline
+function spiritWyvernAttack()
+    let a = GetAttacker()
+    if a.getAbilityLevel('AJ5L') <= 0
+        return
+    flashEffect("Abilities\\Spells\\Undead\\ReplenishMana\\SpiritTouchTarget.mdl", a, "overhead")
+    if a.getAbilityLevel('AJ5L') == 1
+        if a.getAbilityLevel('AJ8B') != 1
+            a.addAbility('AJ8B')
+        doAfter(1.0) ->
+            a.removeAbility('AJ8B')
+    if a.getAbilityLevel('AJ5L') == 6
+        a.setAbilityLevel('AJ5L', 1)
+    else
+        a.incAbilityLevel('AJ5L')
+
+// ============================================================
+// Триггер Just Fight: King Shrimp ('nJ3U') — убивает
+// ============================================================
+
+@noinline
+function kingShrimpKill()
+    let dying = GetDyingUnit()
+    let killer = GetKillingUnit()
+    if dying.isType(UNIT_TYPE_HERO) or dying.isType(UNIT_TYPE_SUMMONED)
+        return
+    let pos = killer.getPos()
+    let pos2 = pos.polarOffset((GetUnitFacing(killer) + 180.0).fromDeg(), 130.0)
+    killer.setAnimation("spell")
+    let u = createUnit(killer.getOwner(), 'eJ6P', pos2, GetUnitFacing(killer).fromDeg())
+    u.setTimedLife(5.0, 'BHwe')
+
+// ============================================================
+// Триггер Just Fight: 'eJ6P' — смерть
+// ============================================================
+
+@noinline
+function jfDeatheJ6P()
+    let dying = GetDyingUnit()
+    let pos = dying.getPos()
+    if GetRandomInt(1, 2) == 1
+        createUnit(dying.getOwner(), 'nJ78', pos, GetUnitFacing(dying).fromDeg())
+    else
+        jfCreateUnits(2, 'nJ78', dying.getOwner(), pos, GetUnitFacing(dying))
+    dying.remove()
+
+// ============================================================
+// Триггер Just Fight: Furbolg Shaman ('nJ3V') — атакует
+// ============================================================
+
+@noinline
+function furbolgShamanAttack()
+    let a = GetAttacker()
+    let target = GetTriggerUnit()
+    if a.getMana() != 60.0
+        return
+    a.issueTargetOrder("acidbomb", target)
+
+// ============================================================
+// Триггер Just Fight: Furbolg Fighter (способность 'AJ3X') — атака
+// ============================================================
+
+@noinline
+function furbolgFighterAttack()
+    let a = GetAttacker()
+    let target = GetTriggerUnit()
+    if a.getAbilityLevel('AJ3X') < 1
+        return
+    if a.getAbilityLevel('AJ3X') >= 1 and a.getAbilityLevel('AJ3X') <= 20
+        a.incAbilityLevel('AJ3X')
+        if a.getAbilityLevel('AJ3X') == 10
+            addEffect("Abilities\\Spells\\Orc\\TrollBerserk\\HeadhunterWEAPONSRight.mdl", a, "overhead")
+    if GetRandomInt(1, 10) == 2
+        let pos = target.getPos()
+        doAfter(0.2) ->
+            if not a.isType(UNIT_TYPE_DEAD) and a.getHP() > 0.405
+                a.damageTarget(target, 100.0, true, false, ATTACK_TYPE_MELEE, DAMAGE_TYPE_NORMAL, WEAPON_TYPE_WHOKNOWS)
+                flashEffect("Abilities\\Spells\\Orc\\WarStomp\\WarStompCaster.mdl", pos)
+
+// ============================================================
+// Триггер Just Fight: Bear Tribe Warrior ('nJ3X') — появляется
+// ============================================================
+
+@noinline
+function bearTribeWarriorEnter()
+    let entering = GetTriggerUnit()
+    if entering.getTypeId() != 'nJ3X'
+        return
+    let pos = entering.getPos()
+    jfCreateUnits(3, 'nJ79', entering.getOwner(), pos, GetUnitFacing(entering))
+    entering.remove()
+
+// ============================================================
+// Триггер Just Fight: Admiral (способность 'AJ1U') — смерть
+// ============================================================
+
+@noinline
+function admiralDeath()
+    let killer = GetKillingUnit()
+    if killer.getAbilityLevel('AJ1U') < 1 or killer.getAbilityLevel('AJ1U') > 4
+        return
+    killer.incAbilityLevel('AJ1U')
+
+// ============================================================
+// Триггер Just Fight: Warden (способность 'AJ02') — атака
+// ============================================================
+
+@noinline
+function wardenAttack()
+    let a = GetAttacker()
+    if a.getAbilityLevel('AJ02') < 1 or a.getAbilityLevel('AJ02') > 4
+        return
+    a.incAbilityLevel('AJ02')
+    if a.getAbilityLevel('AJ02') == 5
+        a.setAbilityLevel('AJ04', 2)
+        a.removeAbility('AJ03')
+
+// ============================================================
+// Триггер Just Fight: Warden (способность 'AJ02') — смерть
+// ============================================================
+
+@noinline
+function wardenDeath()
+    let killer = GetKillingUnit()
+    if killer.getAbilityLevel('AJ02') < 1
+        return
+    if killer.getAbilityLevel('AJ04') == 2
+        killer.setAbilityLevel('AJ04', 1)
+        killer.addAbility('AJ03')
+    killer.setAbilityLevel('AJ02', 1)
+    killer.removeAbility('AJ01')
+    killer.addAbility('AJ01')
+
+// ============================================================
+// Триггер Just Fight: Void Revenant ('nJ3Z') — атакует
+// ============================================================
+
+@noinline
+function voidRevenantAttack()
+    let a = GetAttacker()
+    let target = GetTriggerUnit()
+    if target.getHP() > 330.0 or target.isType(UNIT_TYPE_HERO) or target.isType(UNIT_TYPE_STRUCTURE)
+        return
+    if GetRandomInt(1, 10) <= 4
+        force players
+        if unitWoodCost(target.getTypeId()) >= 20
+            bountyGold = unitWoodCost(target.getTypeId()) div 20
+            if bountyGold != 0
+                a.getOwner().addGold(bountyGold)
+                let tag = jfTextTag("+" + bountyGold, target, 0, 10, 100, 78.43, 0.0, 0)
+                tag.jfSetVelocity(64.0, 90)
+                tag.setVisibility(false)
+                players = forceOfPlayer(a.getOwner())
+                tag.jfShowForce(true, players)
+                players.destr()
+                tag.setPermanent(false)
+                tag.setLifespan(2.0)
+                tag.setFadepoint(1.0)
+        if not target.isType(UNIT_TYPE_SUMMONED) and not target.isIllusion()
+            bountyUnitType = target.getTypeId()
+            bounty()
+            a.getOwner().addGold(bountyGold)
+            if bountyGold != 0
+                let tag2 = jfTextTag("+" + bountyGold, target, 0, 10, 100, 78.43, 0.0, 0)
+                tag2.jfSetVelocity(64.0, 90)
+                tag2.setVisibility(false)
+                players = forceOfPlayer(a.getOwner())
+                tag2.jfShowForce(true, players)
+                players.destr()
+                tag2.setPermanent(false)
+                tag2.setLifespan(2.0)
+                tag2.setFadepoint(1.0)
+        let pos = target.getPos()
+        flashEffect("Abilities\\Spells\\Items\\TomeOfRetraining\\TomeOfRetrainingCaster.mdl", pos)
+        target.remove()
+        doAfter(0.1) ->
+            jfAttackLane(a)
+
+// ============================================================
+// Триггер Just Fight: Void Revenant ('nJ3Z') — появляется
+// ============================================================
+
+@noinline
+function voidRevenantEnter()
+    let entering = GetTriggerUnit()
+    if entering.getTypeId() != 'nJ3Z'
+        return
+    entering.setVertexColor((100 * 2.55).toInt(), (100 * 2.55).toInt(), (100 * 2.55).toInt(), 255 - (50.0 * 2.55).toInt())
+    addEffect("Abilities\\Weapons\\AvengerMissile\\AvengerMissile.mdl", entering, "weapon")
+    addEffect("Abilities\\Weapons\\AvengerMissile\\AvengerMissile.mdl", entering, "left,hand")
+
+// ============================================================
+// Триггер Just Fight: Flame Tree Demon ('nJ3I'), Shadow Tree Demon ('nJ77') — наносит урон
+// ============================================================
+
+@noinline
+function flameTreeDemonDamage()
+    let source = GetEventDamageSource()
+    let target = GetTriggerUnit()
+    let pos = target.getPos()
+    let g = jfRandomSubGroup(1, unitsInRange(500.0, pos, Condition(function flameTreeDemonDamageFilter)))
+    if g.size() == 1
+        if source.getTypeId() == 'nJ3I'
+            jfLastUnit = createUnit(source.getOwner(), 'nJ7A', pos, bj_UNIT_FACING.fromDeg())
+        else
+            jfLastUnit = createUnit(source.getOwner(), 'nJ7B', pos, bj_UNIT_FACING.fromDeg())
+        jfLastUnit.setTimedLife(2.0, 'BHwe')
+        for u in g
+            jfLastUnit.issueTargetOrder("attackonce", u)
+    g.destr()
+
+function flameTreeDemonDamageFilter() returns bool
+    return GetFilterUnit().isEnemyOf(GetEventDamageSource().getOwner()) and not GetFilterUnit().isType(UNIT_TYPE_DEAD) and GetFilterUnit().getHP() > 0.405 and GetFilterUnit().isType(UNIT_TYPE_GIANT) and GetFilterUnit() != GetTriggerUnit()
+
+// ============================================================
+// Триггер Just Fight: Small Panda (способность 'AJ4D') — атака
+// ============================================================
+
+@noinline
+function smallPandaAttack()
+    let a = GetAttacker()
+    if a.getAbilityLevel('AJ4D') <= 0 or a.getAbilityLevel('AJ4D') >= 30
+        return
+    a.incAbilityLevel('AJ4D')
+    if a.getAbilityLevel('AJ4D') == 20
+        addEffect("Abilities\\Spells\\NightElf\\SpiritOfVengeance\\SpiritOfVengeanceOrbs1.mdl", a, "left,hand")
+    if a.getAbilityLevel('AJ4D') == 30
+        addEffect("Abilities\\Spells\\NightElf\\SpiritOfVengeance\\SpiritOfVengeanceOrbs1.mdl", a, "right,hand")
+
+// ============================================================
+// Триггер Just Fight: Pit Lord ('uJ64'), Pit Lord ('uJ63'), Pit Lord ('uJ7M'), Pit Lord ('uJ7N') — атакует
+// ============================================================
+
+@noinline
+function pitLordAttack()
+    let a = GetAttacker()
+    if a.getMana() != 60.0
+        return
+    a.issueImmediateOrder("waterelemental")
+
+// ============================================================
+// Триггер Just Fight: Pit Lord (способность 'AJ66') — применяет способность
+// ============================================================
+
+@noinline
+function pitLordCast(unit caster)
+    let u = caster
+    var n = 0
+    let pos = caster.getPos()
+    doPeriodically(0.1) cb ->
+        vec2 pos2
+        n = n + 1
+        if n == 1
+            pos2 = pos.polarOffset(GetUnitFacing(u).fromDeg(), 128.0)
+            if u.getTypeId() == 'uJ64' or u.getTypeId() == 'uJ63'
+                jfDestroyEffectLater(1.0, addEffect("Units\\Demon\\Infernal\\InfernalBirth.mdl", pos2))
+            else
+                jfDestroyEffectLater(1.0, addEffect("models\\yunshidabaozha.mdx", pos2))
+        if n == 10
+            pos2 = pos.polarOffset(GetUnitFacing(u).fromDeg(), 128.0)
+            if u.getTypeId() == 'uJ64'
+                jfLastUnit = createUnit(u.getOwner(), 'nJ2V', pos2, bj_UNIT_FACING.fromDeg())
+            else if u.getTypeId() == 'uJ63'
+                jfLastUnit = createUnit(u.getOwner(), 'nJ2Z', pos2, bj_UNIT_FACING.fromDeg())
+            else if u.getTypeId() == 'uJ7M'
+                jfLastUnit = createUnit(u.getOwner(), 'nJ7C', pos2, bj_UNIT_FACING.fromDeg())
+            else if u.getTypeId() == 'uJ7N'
+                jfLastUnit = createUnit(u.getOwner(), 'nJ7D', pos2, bj_UNIT_FACING.fromDeg())
+            jfLastUnit.setTimedLife(30.0, 'BHwe')
+            jfLastUnit = jfDummy(u.getOwner(), pos2)
+            jfLastUnit.jfDummyLife(1.0)
+            if u.getTypeId() == 'uJ64' or u.getTypeId() == 'uJ7M'
+                jfLastUnit.jfDummyAbility('AJ91')
+            else
+                jfLastUnit.jfDummyAbility('AJ92')
+            jfLastUnit.issueImmediateOrder("stomp")
+            destroy cb
+
+// ============================================================
+// Триггер Just Fight: Dark Ranger ('hJ20'), Dark Goddess ('hJ21') — атакует
+// ============================================================
+
+@noinline
+function darkRangerAttack()
+    let a = GetAttacker()
+    if a.getMana() == 60.0
+        if a.getTypeId() == 'hJ20'
+            a.addAbility('AJ8L')
+        else
+            a.addAbility('AJ8M')
+        a.setMana(0)
+    else if a.getTypeId() == 'hJ20'
+        a.removeAbility('AJ8L')
+    else
+        a.removeAbility('AJ8M')
+
+// ============================================================
+// Триггер Just Fight: Dark Ranger ('hJ20'), Dark Goddess ('hJ21') — убивает
+// ============================================================
+
+@noinline
+function darkRangerKill()
+    let dying = GetDyingUnit()
+    let killer = GetKillingUnit()
+    if dying.isType(UNIT_TYPE_SUMMONED)
+        return
+    let pos = dying.getPos()
+    let u = createUnit(killer.getOwner(), 'uJ7H', pos, bj_UNIT_FACING.fromDeg())
+    u.setTimedLife(20.0, 'BHwe')
+
+// ============================================================
+// Триггер Just Fight: 'BJ0G', 'AJ8W' — атака
+// ============================================================
+
+@noinline
+function jfAttackBJ0G()
+    let a = GetAttacker()
+    if a.isType(UNIT_TYPE_SUMMONED) or a.isIllusion() or not a.hasAbility('BJ0G') and a.getAbilityLevel('AJ8W') != 1
+        return
+    if a.hasAbility('BJ0G')
+        a.addAbility('AJ8W')
+    else
+        a.removeAbility('AJ8W')
+
+// ============================================================
+// Триггер Just Fight: 'AJ8W' — смерть
+// ============================================================
+
+@noinline
+function jfDeathAJ8W()
+    let dying = GetDyingUnit()
+    if dying.getAbilityLevel('AJ8W') != 1
+        return
+    let pos = dying.getPos()
+    let u = createUnit(dying.getOwner(), 'uJ7H', pos, bj_UNIT_FACING.fromDeg())
+    u.setTimedLife(20.0, 'BHwe')
+
+// ============================================================
+// Триггер Just Fight: Black Rock Swordsman (способность 'AJ42') — атака
+// ============================================================
+
+@noinline
+function blackRockSwordsmanAttack()
+    let a = GetAttacker()
+    if a.getAbilityLevel('AJ42') != 1 or a.getMana() < 60.0
+        return
+    a.setMana(0.0)
+    let pos = a.getPos()
+    let u = createUnit(a.getOwner(), a.getTypeId(), pos, GetUnitFacing(a).fromDeg())
+    u.setTimedLife(60.0, 'BHwe')
+    u.removeAbility('AJ42')
+    u.addAbility('Aloc')
+    addEffect("models\\Portal.mdx", u, "origin")
+    u.setVertexColor((0.0 * 2.55).toInt(), (0.0 * 2.55).toInt(), (0.0 * 2.55).toInt(), 255 - (50.0 * 2.55).toInt())
+    doAfter(3.0) ->
+        u.remove()
+
+// ============================================================
+// Триггер Just Fight: Black Rock Blademaster (способность 'AJ47') — атака
+// ============================================================
+
+@noinline
+function blackRockBlademasterAttack()
+    let a = GetAttacker()
+    if a.getAbilityLevel('AJ47') != 1 or a.getMana() < 60.0
+        return
+    a.setMana(0.0)
+    let pos = a.getPos()
+    let u = createUnit(a.getOwner(), a.getTypeId(), pos, GetUnitFacing(a).fromDeg())
+    u.setTimedLife(60.0, 'BHwe')
+    u.removeAbility('AJ47')
+    u.addAbility('Aloc')
+    addEffect("models\\Portal.mdx", u, "origin")
+    u.setVertexColor((10.0 * 2.55).toInt(), (0.0 * 2.55).toInt(), (0.0 * 2.55).toInt(), 255 - (50.0 * 2.55).toInt())
+    doAfter(3.0) ->
+        u.remove()
+
+// ============================================================
+// Триггер Just Fight: Machine Gunner ('hJ1V'), Marine ('hJ1W') — атакует
+// ============================================================
+
+@noinline
+function machineGunnerAttack()
+    let a = GetAttacker()
+    if a.getHP() <= 1.0
+        return
+    if a.getHP() / a.getMaxHP() >= 0.7
+        if a.getAbilityLevel('AJ21') != 1
+            a.addAbility('AJ21')
+    else if a.getAbilityLevel('AJ21') == 1
+        a.removeAbility('AJ21')
+
+// ============================================================
+// Триггер Just Fight: Heavy Infantry ('hJ1Z') — атакует
+// ============================================================
+
+@noinline
+function heavyInfantryAttack()
+    let a = GetAttacker()
+    if a.getHP() <= 1.0
+        return
+    if a.getHP() / a.getMaxHP() >= 0.7
+        if a.getAbilityLevel('AJ8K') == 1
+            a.removeAbility('AJ8K')
+            a.removeAbility('AJ8J')
+    else if a.getAbilityLevel('AJ8K') == 0
+        a.addAbility('AJ8J')
+        a.addAbility('AJ8K')
+
+// ============================================================
+// Триггер Just Fight: Goblin Tinker (способность 'AJ25'), Pit Lord (способность 'AJ66') — атака
+// ============================================================
+
+@noinline
+function goblinTinkerAttack()
+    let a = GetAttacker()
+    if a.getAbilityLevel('AJ25') <= 0 and a.getAbilityLevel('AJ66') <= 0 or a.getMana() < 60.0
+        return
+    a.issueImmediateOrder("waterelemental")
+
+// ============================================================
+// Триггер Just Fight: Goblin Tinker (способность 'AJ25') — применяет способность
+// ============================================================
+
+@noinline
+function goblinTinkerCast(unit caster)
+    let pos = caster.getPos()
+    let u = createUnit(caster.getOwner(), 'eJ6O', pos, bj_UNIT_FACING.fromDeg())
+    u.addAbility('AJ6Z')
+    if caster.getTypeId() == 'hJ1X'
+        doAfter(0.59) ->
+            u.removeAbility('AJ6Z')
+    if caster.getTypeId() == 'hJ1Y'
+        doAfter(1.39) ->
+            u.removeAbility('AJ6Z')
+    u.setTimedLife(3.0, 'BHwe')
+
+// ============================================================
+// Триггер Just Fight: Goblin Zeppelin ('nJ37'), Goblin Flying Fortress ('nJ36') — появляется
+// ============================================================
+
+@noinline
+function goblinZeppelinEnter()
+    let entering = GetTriggerUnit()
+    if entering.getTypeId() != 'nJ37' and entering.getTypeId() != 'nJ36'
+        return
+    entering.issueImmediateOrder("manashieldon")
+
+// ============================================================
+// Триггер Just Fight: Goblin Zeppelin ('nJ37'), Goblin Flying Fortress ('nJ36') — атакует
+// ============================================================
+
+@noinline
+function goblinZeppelinAttack()
+    let a = GetAttacker()
+    if a.hasAbility('BJ0P') or a.getMana() < 59.0
+        return
+    a.issueImmediateOrder("manashieldon")
+
+// ============================================================
+// Триггер Just Fight: Goblin Engineer ('nJ33'), Mad Bomber ('nJ34') — наносит урон
+// ============================================================
+
+@noinline
+function goblinEngineerDamage()
+    let source = GetEventDamageSource()
+    let target = GetTriggerUnit()
+    if goblinEngineerDamageRunning
+        return
+    goblinEngineerDamageRunning = true
+    if GetRandomInt(1, 5) == 1
+        let pos = target.getPos()
+        flashEffect("Abilities\\Spells\\Other\\Volcano\\VolcanoDeath.mdl", pos)
+        let g = unitsInRange(200.0, pos, Condition(function goblinEngineerDamageFilter))
+        for u in g
+            if source.getTypeId() == 'nJ33'
+                UnitDamageTarget(source, u, 20.0, true, true, ATTACK_TYPE_SIEGE, DAMAGE_TYPE_NORMAL, WEAPON_TYPE_WHOKNOWS)
+            else
+                UnitDamageTarget(source, u, 30.0, true, true, ATTACK_TYPE_SIEGE, DAMAGE_TYPE_NORMAL, WEAPON_TYPE_WHOKNOWS)
+        if source.getTypeId() == 'nJ33'
+            UnitDamageTarget(source, target, 20.0, true, true, ATTACK_TYPE_SIEGE, DAMAGE_TYPE_NORMAL, WEAPON_TYPE_WHOKNOWS)
+        else
+            UnitDamageTarget(source, target, 30.0, true, true, ATTACK_TYPE_SIEGE, DAMAGE_TYPE_NORMAL, WEAPON_TYPE_WHOKNOWS)
+        g.destr()
+    goblinEngineerDamageRunning = false
+
+function goblinEngineerDamageFilter() returns bool
+    return GetFilterUnit().getAbilityLevel('Avul') == 0 and not GetFilterUnit().isType(UNIT_TYPE_DEAD) and GetFilterUnit().getHP() > 0.405 and GetFilterUnit().isEnemyOf(GetEventDamageSource().getOwner())
+
+// ============================================================
+// Триггер Just Fight: Clockwerk Goblin ('nJ2U'), Goblin Technician ('nJ2W') — атакует
+// ============================================================
+
+@noinline
+function clockwerkGoblinAttack()
+    let a = GetAttacker()
+    if a.getAbilityLevel('AJ2Z') <= 0 or a.getHP() / a.getMaxHP() > 0.4 or a.getHP() < 1.0
+        return
+    a.removeAbility('AJ2Z')
+    doPeriodically(0.6) cb ->
+        if a.getHP() > 0.0 and a.getMaxHP() > 0.0
+            if a.getHP() / a.getMaxHP() <= 0.4 and a.getHP() / a.getMaxHP() > 0.0
+                a.setHP(a.getHP() + 22.0)
+                let pos = a.getPos()
+                flashEffect("Abilities\\Spells\\Human\\FlakCannons\\FlakTarget.mdl", pos)
+            else
+                a.addAbility('AJ2Z')
+                destroy cb
+        else
+            destroy cb
+
+// ============================================================
+// Триггер Just Fight: 'hJ1S' — появляется
+// ============================================================
+
+@noinline
+function jfEnterhJ1S()
+    let entering = GetTriggerUnit()
+    if entering.getTypeId() != 'hJ1S'
+        return
+    entering.getOwner().addGold(-8)
+    let tag = jfTextTag("-8", entering, 0, 10, 100, 78.43, 0.0, 0)
+    tag.jfSetVelocity(64.0, 90)
+    tag.setVisibility(false)
+    let players = forceOfPlayer(entering.getOwner())
+    tag.jfShowForce(true, players)
+    players.destr()
+    tag.setPermanent(false)
+    tag.setLifespan(2.0)
+    tag.setFadepoint(1.0)
+
+// ============================================================
+// Триггер Just Fight: 'nJ40' — убивает
+// ============================================================
+
+@noinline
+function jfKillnJ40()
+    let dying = GetDyingUnit()
+    let killer = GetKillingUnit()
+    if dying.isType(UNIT_TYPE_TAUREN) or dying.isType(UNIT_TYPE_SUMMONED) or dying.isIllusion()
+        return
+    bountyUnitType = dying.getTypeId()
+    bounty()
+    if GetRandomInt(1, 2) == 1
+        bountyGold = bountyGold * 2
+    killer.getOwner().addLumber(bountyGold)
+    if bountyGold > 0
+        let tag = jfTextTag("+" + bountyGold, killer, 0, 10, 0.0, 78.4, 31.4, 0.0)
+        tag.jfSetVelocity(64.0, 90)
+        tag.setVisibility(false)
+        let players = forceOfPlayer(killer.getOwner())
+        tag.jfShowForce(true, players)
+        players.destr()
+        tag.setPermanent(false)
+        tag.setLifespan(2.0)
+        tag.setFadepoint(1.0)
+
+// ============================================================
+// Триггер Just Fight: Mortar Battalion ('hJ1N'), 'hJ1M' — убивает
+// ============================================================
+
+@noinline
+function mortarBattalionKill()
+    let killer = GetKillingUnit()
+    if killer.getHP() < 1.0
+        return
+    if killer.getTypeId() == 'hJ1M' and killer.getAbilityLevel('AJ8Z') < 3
+        if killer.getAbilityLevel('AJ8Z') == 0
+            killer.addAbility('AJ8Z')
+        else
+            killer.incAbilityLevel('AJ8Z')
+    if killer.getTypeId() == 'hJ1N' and killer.getAbilityLevel('AJ8Z') < 5
+        if killer.getAbilityLevel('AJ8Z') == 0
+            killer.addAbility('AJ8Z')
+        else
+            killer.incAbilityLevel('AJ8Z')
+
+// ============================================================
+// Триггер Just Fight: Alchemist ('hJ6V'), Master Alchemist ('hJ1U') — убивает
+// ============================================================
+
+@noinline
+function alchemistKill()
+    let dying = GetDyingUnit()
+    let killer = GetKillingUnit()
+    if dying.isType(UNIT_TYPE_TAUREN) or dying.isType(UNIT_TYPE_SUMMONED) or dying.isIllusion()
+        return
+    bountyUnitType = dying.getTypeId()
+    bounty()
+    let tag = jfTextTag("+" + bountyGold, killer, 0, 10, 100, 78.43, 0.0, 0)
+    killer.getOwner().addGold(bountyGold)
+    tag.jfSetVelocity(64.0, 90)
+    tag.setVisibility(false)
+    let players = forceOfPlayer(killer.getOwner())
+    tag.jfShowForce(true, players)
+    players.destr()
+    tag.setPermanent(false)
+    tag.setLifespan(2.0)
+    tag.setFadepoint(1.0)
+    flashEffect("Abilities\\Spells\\Items\\ResourceItems\\ResourceEffectTarget.mdl", killer, "chest")
+
+// ============================================================
+// Триггер Just Fight: Master Alchemist ('hJ1U') — атакует
+// ============================================================
+
+@noinline
+function masterAlchemistAttack()
+    let a = GetAttacker()
+    let target = GetTriggerUnit()
+    if a.getAbilityLevel('AJ7K') != 0
+        return
+    if target.getHP() / target.getMaxHP() <= 0.3
+        a.addAbility('AJ7K')
+        doAfter(3.0) ->
+            a.removeAbility('AJ7K')
+
+// ============================================================
+// Триггер Just Fight: Skeleton General ('uJ62') — появляется
+// ============================================================
+
+@noinline
+function skeletonGeneralEnter()
+    let entering = GetTriggerUnit()
+    if entering.getTypeId() != 'uJ62'
+        return
+    let pos = entering.getPos()
+    let g = unitsInRange(400.0, pos, Condition(function skeletonGeneralEnterFilter))
+    for u in g
+        addEffect("Abilities\\Spells\\Human\\MagicSentry\\MagicSentryCaster.mdl", u, "overhead")
+        if u.getAbilityLevel('AJ8O') == 0
+            u.addAbility('AJ8O')
+    g.destr()
+
+function skeletonGeneralEnterFilter() returns bool
+    return GetFilterUnit().getOwner() == GetTriggerUnit().getOwner() and (GetFilterUnit().getTypeId() == 'nJ2B' or GetFilterUnit().getTypeId() == 'nJ2C' or GetFilterUnit().getTypeId() == 'nJ2D')
+
+// ============================================================
+// Триггер Just Fight: 'BJ1B' — атака
+// ============================================================
+
+@noinline
+function jfAttackBJ1B()
+    let target = GetTriggerUnit()
+    if not target.hasAbility('BJ1B') or target.getAbilityLevel('AJ6V') != 0
+        return
+    target.addAbility('AJ6V')
+    jfDestroyEffectLater(1.5, addEffect("Abilities\\Spells\\Items\\AIda\\AIdaTarget.mdl", target, "overhead"))
+
+// ============================================================
+// Триггер Just Fight: Hellfire (способность 'AJ49') — атака
+// ============================================================
+
+@noinline
+function hellfireAttack()
+    let target = GetTriggerUnit()
+    if target.getAbilityLevel('AJ49') < 1 or target.getAbilityLevel('AJ49') >= 13 or target.getHP() < 1.0
+        return
+    target.incAbilityLevel('AJ49')
+
+// ============================================================
+// Триггер Just Fight: Balnazzar (способность 'AJ4A') — атака
+// ============================================================
+
+@noinline
+function balnazzarAttack()
+    let target = GetTriggerUnit()
+    if target.getAbilityLevel('AJ4A') != 1 or target.getHP() / target.getMaxHP() > 0.25
+        return
+    target.removeAbility('AJ4A')
+    target.addAbility('AJ8N')
+    jfDestroyEffectLater(3.0, addEffect("Abilities\\Spells\\Items\\VampiricPotion\\VampPotionCaster.mdl", target, "chest"))
+    doAfter(3.0) ->
+        target.removeAbility('AJ8N')
+    doAfter(30.0) ->
+        target.addAbility('AJ4A')
+
+// ============================================================
+// Триггер Just Fight: Wandering Swordsman (способность 'AJ4E') — атака
+// ============================================================
+
+@noinline
+function wanderingSwordsmanAttack()
+    let a = GetAttacker()
+    if a.getAbilityLevel('AJ4E') != 1 or a.getHP() < 900.0 or a.hasAbility('Broa')
+        return
+    a.issueImmediateOrder("roar")
+
+// ============================================================
+// Триггер Just Fight: Wandering Swordsman (способность 'AJ4E') — применяет способность
+// ============================================================
+
+@noinline
+function wanderingSwordsmanCast(unit caster)
+    let u = caster
+    doAfter(6.0) ->
+        if u.getHP() > 1.0 and u.hasAbility('Broa')
+            if summonUpgrade[u.getOwner().getId() + 1] < 3
+                u.damageTarget(u, 680.0, true, false, ATTACK_TYPE_HERO, DAMAGE_TYPE_NORMAL, WEAPON_TYPE_WHOKNOWS)
+            else
+                u.damageTarget(u, 340.0, true, false, ATTACK_TYPE_HERO, DAMAGE_TYPE_NORMAL, WEAPON_TYPE_WHOKNOWS)
+
+// ============================================================
+// Триггер Just Fight: Medicine Maker ('hJ23') — атакует
+// ============================================================
+
+@noinline
+function medicineMakerAttack()
+    let a = GetAttacker()
+    if a.getMana() >= 60.0
+        let pos = a.getPos()
+        var g = unitsInRange(500.0, pos, Condition(function medicineMakerAttackFilter))
+        g = jfRandomSubGroup(1, g)
+        if g.size() > 0
+            for u in g
+                let u2 = createUnit(a.getOwner(), 'eJ6N', pos, bj_UNIT_FACING.fromDeg())
+                u2.issueTargetOrder("attack", u)
+                u2.setTimedLife(1.0, 'BHwe')
+            a.setMana(0.0)
+        g.destr()
+    else
+        bountyGold = GetRandomInt(10, 13)
+        a.setMana(a.getMana() + bountyGold.toReal())
+
+function medicineMakerAttackFilter() returns bool
+    return GetFilterUnit().isAllyOf(GetAttacker().getOwner()) and GetFilterUnit().getHP() / GetFilterUnit().getMaxHP() <= 0.84
+
+// ============================================================
+// Триггер Just Fight: 'eJ6N' — наносит урон
+// ============================================================
+
+@noinline
+function jfDamageeJ6N()
+    let target = GetTriggerUnit()
+    if target.getHP() < 1.0
+        return
+    target.setHP(target.getHP() + target.getMaxHP() * 0.16)
+
+// ============================================================
+// Триггер Just Fight: Blood Mage ('hJ27'), Flame Mage ('hJ28') — атакует
+// ============================================================
+
+@noinline
+function bloodMageAttack()
+    vec2 pos
+    let a = GetAttacker()
+    let target = GetTriggerUnit()
+    if a.getMana() >= 60.0
+        pos = a.getPos()
+        let u = createUnit(a.getOwner(), 'eJ6Q', pos, bj_UNIT_FACING.fromDeg())
+        u.addAbility('AJ95')
+        if a.getTypeId() == 'hJ28'
+            u.incAbilityLevel('AJ95')
+            u.setTimedLife(0.35, 'BHwe')
+        else
+            u.setTimedLife(0.15, 'BHwe')
+        a.setMana(0)
+    if a.getAbilityLevel('AJ96') == 0 and not target.isType(UNIT_TYPE_HERO)
+        pos = target.getPos()
+        let g = unitsInRange(300.0, pos, Condition(function bloodMageAttackFilter))
+        if g.size() > 0
+            let u2 = g.getRandom()
+            a.addAbility('AJ96')
+            jfDestroyEffectLater(2, addEffect("Abilities\\Spells\\Other\\Drain\\ManaDrainTarget.mdl", a, "chest"))
+            jfDestroyEffectLater(2, addEffect("Abilities\\Spells\\Other\\Drain\\ManaDrainCaster.mdl", u2, "chest"))
+            a.setMana(a.getMana() + u2.getMana())
+            u2.setMana(0.0)
+            if a.getTypeId() == 'hJ28'
+                doAfter(15.0) ->
+                    a.removeAbility('AJ96')
+            else
+                doAfter(24.0) ->
+                    a.removeAbility('AJ96')
+        g.destr()
+
+function bloodMageAttackFilter() returns bool
+    return not GetFilterUnit().isAllyOf(GetAttacker().getOwner()) and GetFilterUnit().isAlive() and GetFilterUnit().isType(UNIT_TYPE_GIANT) and GetFilterUnit().getAbilityLevel('Avul') == 0 and GetFilterUnit().getMana() >= 30.0 and GetFilterUnit().getAbilityLevel('AJ6I') == 0
+
+// ============================================================
+// Триггер Just Fight: 'BJ0J' — атака
+// ============================================================
+
+@noinline
+function jfAttackBJ0J()
+    let a = GetAttacker()
+    if not a.hasAbility('BJ0J') or a.getAbilityLevel('AJ8T') != 0
+        return
+    if a.getHP() <= 180.0 and a.getHP() >= 1.0
+        a.setHP(a.getHP() + 400.0)
+        a.addAbility('AJ8T')
+        flashEffect("Abilities\\Spells\\Other\\Incinerate\\FireLordDeathExplode.mdl", a, "origin")
+
+// ============================================================
+// Триггер Just Fight: Prophet (способность 'AJ2K'), Seer (способность 'AJ2M') — атака
+// ============================================================
+
+@noinline
+function prophetAttack()
+    let a = GetAttacker()
+    if a.getMana() < 60.0 or a.getAbilityLevel('AJ2K') != 1 and a.getAbilityLevel('AJ2M') != 1
+        return
+    a.issueImmediateOrder("spiritwolf")
+
+// ============================================================
+// Триггер Just Fight: 'BJ0K', 'BJ0L' — атака
+// ============================================================
+
+@noinline
+function jfAttackBJ0K()
+    let a = GetAttacker()
+    if not a.hasAbility('BJ0K') and not a.hasAbility('BJ0L') or a.getAbilityLevel('AJ8U') != 0 or a.getHP() < 1.0
+        return
+    if a.hasAbility('BJ0L')
+        if a.getHP() <= 460.0
+            a.addAbility('AJ8U')
+            a.incAbilityLevel('AJ8U')
+            jfDestroyEffectLater(2.0, addEffect("Abilities\\Spells\\Orc\\Purge\\PurgeBuffTarget.mdl", a, "origin"))
+    else if a.getHP() <= 320.0
+        a.addAbility('AJ8U')
+        jfDestroyEffectLater(2.0, addEffect("Abilities\\Spells\\Orc\\Purge\\PurgeBuffTarget.mdl", a, "origin"))
+
+// ============================================================
+// Триггер Just Fight: 'AJ8U' — атака
+// ============================================================
+
+@noinline
+function jfAttackAJ8U()
+    let a = GetAttacker()
+    if a.getAbilityLevel('AJ8U') <= 0
+        return
+    if a.getAbilityLevel('AJ8U') == 2
+        if a.getHP() > 460.0
+            a.removeAbility('AJ8U')
+    else if a.getHP() > 320.0
+        a.removeAbility('AJ8U')
+
+// ============================================================
+// Триггер Just Fight: Spirit Walker ('oJ5L') — атакует
+// ============================================================
+
+@noinline
+function spiritWalkerAttack()
+    let a = GetAttacker()
+    if a.getMana() < 60.0
+        return
+    a.issueTargetOrder("spiritlink", a)
+
+// ============================================================
+// Триггер Just Fight: Spirit Walker (способность 'AJ5O') — применяет способность
+// ============================================================
+
+@noinline
+function spiritWalkerCast(unit caster)
+    if caster.getTypeId() != 'oJ5L'
+        return
+    var pos = caster.getPos()
+    caster.issueTargetOrder("spiritlink", caster)
+    var g = unitsInRange(500.0, pos, Condition(function spiritWalkerCastFilter))
+    if g.size() > 3
+        g = jfRandomSubGroup(3, g)
+    if g.size() > 0
+        for u in g
+            pos = u.getPos()
+            let u2 = jfDummy(caster.getOwner(), pos)
+            u2.jfDummyAbility('AJ5O')
+            u2.issueTargetOrder("spiritlink", u)
+            u2.jfDummyLife(1.0)
+    g.destr()
+
+function spiritWalkerCastFilter() returns bool
+    return GetFilterUnit().isAllyOf(GetTriggerUnit().getOwner()) and not GetFilterUnit().isType(UNIT_TYPE_DEAD) and GetFilterUnit().getHP() > 0.405 and not GetFilterUnit().hasAbility('Bspl') and GetFilterUnit().isType(UNIT_TYPE_GIANT) and GetFilterUnit() != GetTriggerUnit() and GetFilterUnit().getAbilityLevel('AJ6I') == 0
+
+// ============================================================
+// Триггер Just Fight: Tree Elf Guardian ('eJ0M') — наносит урон
+// ============================================================
+
+@noinline
+function treeElfGuardianDamage()
+    let source = GetEventDamageSource()
+    let target = GetTriggerUnit()
+    if source.getMana() < 60.0 or target.hasAbility('BEer') or not target.isType(UNIT_TYPE_GROUND) or target.isType(UNIT_TYPE_HERO)
+        return
+    source.setMana(0)
+    let pos = source.getPos()
+    let u = createUnit(source.getOwner(), 'eJ6O', pos, bj_UNIT_FACING.fromDeg())
+    u.setTimedLife(6.2, 'BHwe')
+    u.addAbility('AJ90')
+    u.issueTargetOrder("magicleash", target)
+    jfDestroyEffectLater(6.0, addEffect("Abilities\\Spells\\Items\\ClarityPotion\\ClarityTarget.mdl", source, "chest"))
+    let n = (target.getMaxHP() * (0.3 / 12.0)).toInt()
+    var n2 = 0
+    doPeriodically(0.5) cb ->
+        n2 = n2 + 1
+        if n2 <= 12 and source.getHP() > 0.1
+            source.setHP(source.getHP() + n.toReal())
+        else
+            destroy cb
+
+// ============================================================
+// Триггер Just Fight: 'AJ6C' — применяет способность
+// ============================================================
+
+@noinline
+function jfCastAJ6C()
+    let u = GetSpellTargetUnit()
+    doAfter(5.3) ->
+        jfAttackLane(u)
+
+// ============================================================
+// Триггер Just Fight: Dark Bone Dragon ('uJ6A') — наносит урон
+// ============================================================
+
+@noinline
+function darkBoneDragonDamage()
+    let target = GetTriggerUnit()
+    if target.isType(UNIT_TYPE_DEAD) or target.getAbilityLevel('AJ9B') != 0 or target.getTypeId() == 'uJ6A' or target.isType(UNIT_TYPE_HERO) or target.isType(UNIT_TYPE_STRUCTURE)
+        return
+    target.addAbility('AJ9B')
+
+// ============================================================
+// Триггер Just Fight: 'AJ9B' — смерть
+// ============================================================
+
+@noinline
+function jfDeathAJ9B()
+    let dying = GetDyingUnit()
+    if dying.getAbilityLevel('AJ9B') != 1
+        return
+    let pos = dying.getPos()
+    let g = unitsInRange(600.0, pos, Condition(function jfDeathAJ9BFilter))
+    if g.size() > 0
+        let u = g.getRandom()
+        if u.getAbilityLevel('AJ8V') == 0
+            u.addAbility('AJ8V')
+        else
+            u.incAbilityLevel('AJ8V')
+        jfDestroyEffectLater(2, addEffect("Abilities\\Spells\\Undead\\ReplenishMana\\ReplenishManaCaster.mdl", u, "chest"))
+    g.destr()
+
+function jfDeathAJ9BFilter() returns bool
+    return GetFilterUnit().getTypeId() == 'uJ6A' and GetFilterUnit().getHP() >= 1.0 and GetFilterUnit().getAbilityLevel('AJ8V') < 8
+
+// ============================================================
+// Триггер Just Fight: Raging Element ('nJ48') — применяет способность
+// ============================================================
+
+@noinline
+function ragingElementCast()
+    let caster = GetTriggerUnit()
+    if caster.getTypeId() != 'nJ48' or GetSpellAbilityId() != 'AJ4B'
+        return
+    let pos = caster.getPos()
+    let u = createUnit(caster.getOwner(), caster.getTypeId(), pos, GetUnitFacing(caster).fromDeg())
+    u.setHP(caster.getHP())
+    caster.removeAbility('AJ4C')
+
+// ============================================================
+// Триггер Just Fight: Raging Element ('nJ48') — наносит урон
+// ============================================================
+
+@noinline
+function ragingElementDamage()
+    let source = GetEventDamageSource()
+    if source.getAbilityLevel('AJ4C') <= 0
+        return
+    if source.getAbilityLevel('AJ4C') <= 7
+        if source.getHP() > 1.0
+            source.incAbilityLevel('AJ4C')
+    else
+        source.issueImmediateOrder("waterelemental")
+
+// ============================================================
+// Триггер Just Fight: Devil s Daughter ('nJ4E') — атакует
+// ============================================================
+
+@noinline
+function devilSDaughterAttack()
+    let a = GetAttacker()
+    if a.getMana() < 60.0
+        return
+    a.issueImmediateOrder("waterelemental")
+
+// ============================================================
+// Триггер Just Fight: Devil s Daughter ('nJ4E') — применяет способность
+// ============================================================
+
+@noinline
+function devilSDaughterCast()
+    let caster = GetTriggerUnit()
+    if caster.getTypeId() != 'nJ4E' or GetSpellAbilityId() != 'AJ4G'
+        return
+    caster.addAbility('AJ8Y')
+    doAfter(3.5) ->
+        if caster.getHP() > 1.0
+            caster.removeAbility('AJ8Y')
+
+// ============================================================
+// Триггер Just Fight: Shadow Spirit (способность 'AJ0P') — урон
+// ============================================================
+
+@noinline
+function shadowSpiritDamage()
+    let target = GetTriggerUnit()
+    if target.getAbilityLevel('AJ0P') != 1 or GetEventDamage() > 1800.0
+        return
+    target.removeAbility('AJ0P')
+    target.addAbility('Avul')
+    flashEffect("Abilities\\Spells\\NightElf\\FaerieDragonInvis\\FaerieDragon_Invis.mdl", target, "chest")
+    doAfter(0.2) ->
+        target.removeAbility('Avul')
+    doAfter(6.5) ->
+        target.addAbility('AJ0P')
+
+// ============================================================
+// Триггер Just Fight: Nanorobot ('nJ4F') — появляется
+// ============================================================
+
+@noinline
+function nanorobotEnter()
+    let entering = GetTriggerUnit()
+    if entering.getTypeId() != 'nJ4F'
+        return
+    entering.setAbilityLevel('AJ4H', 20)
+
+// ============================================================
+// Триггер Just Fight: Nanorobot (способность 'AJ4H') — урон
+// ============================================================
+
+@noinline
+function nanorobotDamage()
+    let target = GetTriggerUnit()
+    if target.getAbilityLevel('AJ4H') <= 0 or target.isType(UNIT_TYPE_DEAD)
+        return
+    if target.getAbilityLevel('AJ4H') == 1
+        target.removeAbility('AJ4H')
+    else if GetEventDamage() >= 10
+        target.decAbilityLevel('AJ4H')
+    if not target.isType(UNIT_TYPE_DEAD) and target.getHP() > 0.405
+        doAfter(0.01) ->
+            if not target.isType(UNIT_TYPE_DEAD) and target.getHP() > 0.405
+                target.setHP(target.getMaxHP())
+
+// ============================================================
+// Триггер Just Fight: Nine headed Demon Snake ('nJ4G') — смерть
+// ============================================================
+
+@noinline
+function nineHeadedDemonSnakeDeath()
+    force players
+    let dying = GetDyingUnit()
+    let killer = GetKillingUnit()
+    if dying.getMana() == 60.0
+        var pos = dying.getPos()
+        let g = unitsInRange(500.0, pos, Condition(function nineHeadedDemonSnakeDeathFilter))
+        if g.size() > 0
+            let u = g.getRandom()
+            bountyUnitType = u.getTypeId()
+            pos = dying.getPos()
+            let u2 = createUnit(dying.getOwner(), dying.getTypeId(), pos, GetUnitFacing(dying).fromDeg())
+            addEffect("Abilities\\Spells\\Demon\\ReviveDemon\\ReviveDemon.mdl", pos)
+            u2.setHP(u.getHP())
+            u2.setMana(0)
+            bounty()
+            dying.getOwner().addGold(bountyGold)
+            let tag = jfTextTag("+" + bountyGold, u, 0, 10, 100, 78.43, 0.0, 0)
+            tag.jfSetVelocity(64.0, 90)
+            tag.setVisibility(false)
+            players = forceOfPlayer(dying.getOwner())
+            tag.jfShowForce(true, players)
+            players.destr()
+            tag.setPermanent(false)
+            tag.setLifespan(2.0)
+            tag.setFadepoint(1.0)
+            pos = u.getPos()
+            addEffect("Objects\\Spawnmodels\\Undead\\UndeadLargeDeathExplode\\UndeadLargeDeathExplode.mdl", pos)
+            u.remove()
+        else if killer.getTypeId() != 'HJ6J' or killer.getTypeId() != 'HJ6K'
+            bountyGold = 10
+            killer.getOwner().addGold(bountyGold)
+            let tag2 = jfTextTag("+" + bountyGold, dying, 0, 10, 100, 78.43, 0.0, 0)
+            tag2.jfSetVelocity(64.0, 90)
+            tag2.setVisibility(false)
+            players = forceOfPlayer(killer.getOwner())
+            tag2.jfShowForce(true, players)
+            players.destr()
+            tag2.setPermanent(false)
+            tag2.setLifespan(2.0)
+            tag2.setFadepoint(1.0)
+        g.destr()
+    else if killer.getTypeId() != 'HJ6J' or killer.getTypeId() != 'HJ6K'
+        bountyGold = 10
+        killer.getOwner().addGold(bountyGold)
+        let tag3 = jfTextTag("+" + bountyGold, dying, 0, 10, 100, 78.43, 0.0, 0)
+        tag3.jfSetVelocity(64.0, 90)
+        tag3.setVisibility(false)
+        players = forceOfPlayer(killer.getOwner())
+        tag3.jfShowForce(true, players)
+        players.destr()
+        tag3.setPermanent(false)
+        tag3.setLifespan(2.0)
+        tag3.setFadepoint(1.0)
+
+function nineHeadedDemonSnakeDeathFilter() returns bool
+    return not GetFilterUnit().isType(UNIT_TYPE_DEAD) and GetFilterUnit().getHP() > 0.405 and GetFilterUnit().isEnemyOf(GetTriggerUnit().getOwner()) and GetFilterUnit().getAbilityLevel('Avul') != 1 and GetFilterUnit().getHP() < 500.0 and not GetFilterUnit().isType(UNIT_TYPE_HERO) and not GetFilterUnit().isType(UNIT_TYPE_STRUCTURE)
+
+// ============================================================
+// Триггер Just Fight: 'BJ11' — атака
+// ============================================================
+
+@noinline
+function jfAttackBJ11()
+    let a = GetAttacker()
+    if a.hasAbility('BJ1G') or not a.hasAbility('BJ11')
+        return
+    if a.getHP() <= 440.0 and a.getHP() > 1.0
+        a.addAbility('AJ93')
+
+// ============================================================
+// Триггер Just Fight: 'BJ1G' — атака
+// ============================================================
+
+@noinline
+function jfAttackBJ1G()
+    let a = GetAttacker()
+    if not a.hasAbility('BJ1G')
+        return
+    if a.getHP() > 440.0
+        a.removeAbility('AJ93')
+
+// ============================================================
+// Триггер Just Fight: Exploding Bloatbat ('nJ4J') — наносит урон
+// ============================================================
+
+@noinline
+function explodingBloatbatDamage()
+    let source = GetEventDamageSource()
+    let target = GetTriggerUnit()
+    if explodingBloatbatDamageRunning
+        return
+    explodingBloatbatDamageRunning = true
+    let pos = target.getPos()
+    let g = unitsInRange(500.0, pos, Condition(function explodingBloatbatDamageFilter))
+    if g.size() > 0
+        let u = g.getRandom()
+        source.issueTargetOrder("unstableconcoction", u)
+    g.destr()
+    explodingBloatbatDamageRunning = false
+
+function explodingBloatbatDamageFilter() returns bool
+    return GetFilterUnit().isEnemyOf(GetEventDamageSource().getOwner()) and GetFilterUnit().isType(UNIT_TYPE_GIANT) and GetFilterUnit().isAlive() and GetFilterUnit().getAbilityLevel('A00W') == 1
+
+// ============================================================
+// Триггер Just Fight: Exploding Bloatbat (способность 'AJ4L') — применяет способность
+// ============================================================
+
+@noinline
+function explodingBloatbatCast(unit caster)
+    let value = caster.getHP()
+    var n = 0
+    let u = caster
+    let u2 = GetSpellTargetUnit()
+    let u3 = caster
+    doPeriodically(0.1) cb ->
+        n = n + 1
+        if not u.isAlive()
+            u3.damageTarget(u2, value, true, false, ATTACK_TYPE_CHAOS, DAMAGE_TYPE_NORMAL, WEAPON_TYPE_WHOKNOWS)
+            destroy cb
+        else if n >= 20
+            destroy cb
+
+// ============================================================
+// Триггер Just Fight: Nine headed Demon Snake ('nJ4G') — наносит урон
+// ============================================================
+
+@noinline
+function nineHeadedDemonSnakeDamage()
+    let source = GetEventDamageSource()
+    bountyGold = 20
+    source.setMana(source.getMana() + bountyGold.toReal())
+
+// ============================================================
+// Триггер Just Fight: Self Exploding Goblin (способность 'AJ4M') — урон
+// ============================================================
+
+@noinline
+function selfExplodingGoblinDamage()
+    let source = GetEventDamageSource()
+    let target = GetTriggerUnit()
+    if source.getAbilityLevel('AJ4M') <= 0 or source.getHP() < 1.0
+        return
+    source.issueTargetOrder("selfdestruct", target)
+
+// ============================================================
+// Триггер Just Fight: Goblin Experimental Boat ('nJ4L') — наносит урон
+// ============================================================
+
+@noinline
+function goblinExperimentalBoatDamage()
+    let source = GetEventDamageSource()
+    let target = GetTriggerUnit()
+    if source.getMana() < 1.0
+        return
+    let n = source.getMana().toInt() * 6
+    source.setMana(0)
+    playerHero[source.getOwner().getId() + 1].damageTarget(target, n.toReal(), true, false, ATTACK_TYPE_NORMAL, DAMAGE_TYPE_ENHANCED, WEAPON_TYPE_WHOKNOWS)
+    let tag = jfTextTag("+" + n + "！", source, 0, 10, 50.0, 100.0, 0.0, 0)
+    tag.jfSetVelocity(60.0, 90)
+    tag.setPermanent(false)
+    tag.setLifespan(3.0)
+    tag.setFadepoint(2.0)
+
+// ============================================================
+// Триггер Just Fight: Gnoll Guard (способность 'AJ4N') — урон
+// ============================================================
+
+@noinline
+function gnollGuardDamage()
+    let source = GetEventDamageSource()
+    if source.getAbilityLevel('AJ4N') != 1
+        return
+    source.setAbilityLevel('AJ4N', 2)
+
+// ============================================================
+// Триггер Just Fight: Gnoll Guard (способность 'AJ4N') — урон
+// ============================================================
+
+@noinline
+function gnollGuardDamage2()
+    let target = GetTriggerUnit()
+    if target.getAbilityLevel('AJ4N') <= 1
+        return
+    if target.getAbilityLevel('AJ4N') < 10
+        target.incAbilityLevel('AJ4N')
+    else
+        target.setAbilityLevel('AJ4N', 1)
+
+// ============================================================
+// Триггер Just Fight: Gnoll Leader (способность 'AJ4P') — атака
+// ============================================================
+
+@noinline
+function gnollLeaderAttack()
+    let a = GetAttacker()
+    if a.getAbilityLevel('AJ4P') != 1
+        return
+    a.issueImmediateOrder("roar")
+
+// ============================================================
+// Триггер Just Fight: Gnoll Leader (способность 'AJ4Q') — применяет способность
+// ============================================================
+
+@noinline
+function gnollLeaderCast(unit caster)
+    if not caster.isType(UNIT_TYPE_DEAD) and caster.getHP() > 0.405
+        caster.setAbilityLevel('AJ4P', 2)
+    let u = caster
+    doAfter(5.0) ->
+        if not u.isType(UNIT_TYPE_DEAD) and u.getHP() > 0.405
+            u.setAbilityLevel('AJ4P', 1)
+
+// ============================================================
+// Триггер Just Fight: Gnoll Soul Walker ('eJ0R') — смерть
+// ============================================================
+
+@noinline
+function gnollSoulWalkerDeath()
+    let dying = GetDyingUnit()
+    let killer = GetKillingUnit()
+    if not killer.isType(UNIT_TYPE_GIANT) and not killer.isType(UNIT_TYPE_TAUREN)
+        return
+    let pos = dying.getPos()
+    let u = createUnit(dying.getOwner(), jfCopyType(killer), pos, GetUnitFacing(dying).fromDeg())
+    u.setTimedLife(30.0, 'BHwe')
+    u.setHP(killer.getHP())
+    jfDestroyEffectLater(2, addEffect("Abilities\\Spells\\Orc\\Purge\\PurgeBuffTarget.mdl", u, "chest"))
+    if killer.getTypeId() == 'nJ4R'
+        doAfter(30.0) ->
+            u.remove()
+
+// ============================================================
+// Триггер Just Fight: Panda (способность 'AJ4S'), Pandaren Brewmaster (способность 'AJ4U') — урон
+// ============================================================
+
+@noinline
+function pandaDamage()
+    let source = GetEventDamageSource()
+    let target = GetTriggerUnit()
+    if source.getAbilityLevel('AJ4S') < 1 and source.getAbilityLevel('AJ4U') < 1 or source.getMana() < 60.0
+        return
+    let pos = target.getPos()
+    source.issuePointOrder("breathoffire", pos)
+
+// ============================================================
+// Триггер Just Fight: Pandaren Brewmaster (способность 'AJ4V') — урон
+// ============================================================
+
+@noinline
+function pandarenBrewmasterDamage()
+    let target = GetTriggerUnit()
+    if target.getAbilityLevel('AJ4V') < 1
+        return
+    if target.getHP() < 100.0
+        doAfter(3.5) ->
+            if not target.isType(UNIT_TYPE_DEAD) and target.getHP() > 0.405
+                jfAttackLane(target)
+
+// ============================================================
+// Триггер Just Fight: Dragon Spawn Warrior (способность 'AJ4W'), Dragon Spawn Guardian (способность 'AJ4X') — урон
+// ============================================================
+
+@noinline
+function dragonSpawnWarriorDamage()
+    let target = GetTriggerUnit()
+    if target.getAbilityLevel('AJ4W') < 1 and target.getAbilityLevel('AJ4X') < 1
+        return
+    if target.getAbilityLevel('AJ4W') >= 1 and target.getAbilityLevel('AJ4W') <= 10
+        if jfLLllI[target.getOwner().getId() + 1] >= 1
+            if target.getAbilityLevel('AJ4W') <= 3
+                target.incAbilityLevel('AJ4W')
+        else
+            target.incAbilityLevel('AJ4W')
+    if target.getAbilityLevel('AJ4X') >= 1 and target.getAbilityLevel('AJ4X') <= 10
+        if jfLLllI[target.getOwner().getId() + 1] >= 1
+            if target.getAbilityLevel('AJ4X') <= 5
+                target.incAbilityLevel('AJ4X')
+        else
+            target.incAbilityLevel('AJ4X')
+
+// ============================================================
+// Триггер Just Fight: Broodmother ('nJ4X') — наносит урон
+// ============================================================
+
+@noinline
+function broodmotherDamage()
+    let source = GetEventDamageSource()
+    let target = GetTriggerUnit()
+    if target.isType(UNIT_TYPE_SUMMONED)
+        return
+    if not target.hasAbility('BNpa') and not target.hasAbility('BNpm')
+        source.issueTargetOrder("parasite", target)
+
+// ============================================================
+// Триггер Just Fight: Harpy Queen (способность 'AJ0U') — урон
+// ============================================================
+
+@noinline
+function harpyQueenDamage()
+    let source = GetEventDamageSource()
+    if source.getAbilityLevel('AJ0U') <= 0 or source.getMana() != 60.0
+        return
+    let pos = source.getPos()
+    let g = unitsInRange(700.0, pos, Condition(function harpyQueenDamageFilter))
+    if g.size() >= 1
+        source.issueTargetOrder("healingwave", FirstOfGroup(g))
+    g.destr()
+
+function harpyQueenDamageFilter() returns bool
+    return GetFilterUnit().isAllyOf(GetEventDamageSource().getOwner()) and not GetFilterUnit().isType(UNIT_TYPE_DEAD) and GetFilterUnit().getHP() > 0.405 and GetFilterUnit().getMaxHP() - GetFilterUnit().getHP() >= 130.0
+
+// ============================================================
+// Триггер Just Fight: 'AJ0Y' — атака
+// ============================================================
+
+@noinline
+function jfAttackAJ0Y()
+    let a = GetAttacker()
+    if a.getAbilityLevel('AJ0Y') != 1
+        return
+    a.setAbilityLevel('AJ0Y', 2)
+    doAfter(3.0) ->
+        a.setAbilityLevel('AJ0Y', 1)
+
+// ============================================================
+// Триггер Just Fight: Windows 8 (способность 'AJ9O') — появляется
+// ============================================================
+
+@noinline
+function windows8Enter()
+    let entering = GetTriggerUnit()
+    if entering.getAbilityLevel('AJ9O') <= 0
+        return
+    if jfPveLevel() == 4
+        entering.setAbilityLevel('AJ9O', 2)
+    if jfPveLevel() == 5
+        entering.setAbilityLevel('AJ9O', 3)
+    if jfPveLevel() == 6
+        entering.setAbilityLevel('AJ9O', 4)
+
+function bounty()
+    if bountyUnitType == 'nJ6I'
+        bountyGold = 1
+    else if bountyUnitType == 'nJ78' or bountyUnitType == 'nJ79' or GetUnitPointValueByType(bountyUnitType) == 309 or GetUnitPointValueByType(bountyUnitType) == 171
+        bountyGold = 2
+    else if IsUnitIdType(bountyUnitType, UNIT_TYPE_GIANT) and unitGoldCost(bountyUnitType) == 0 and unitWoodCost(bountyUnitType) == 0 and GetFoodUsed(bountyUnitType) == 0 and GetUnitPointValueByType(bountyUnitType) != 100
+        bountyGold = GetFoodUsed(unitTypeByPointValue[GetUnitPointValueByType(bountyUnitType)])
+        bountyGold = bountyGold * 2
+    else
+        bountyGold = 0
+
+function unitGoldCost(int n) returns int
+    if IsHeroUnitId(n)
+        return 425
+    return GetUnitGoldCost(n)
+
+function bountyOfTarget()
+    bountyUnitType = GetSpellTargetUnit().getTypeId()
+    if unitWoodCost(bountyUnitType) > 0
+        bountyGold = unitWoodCost(bountyUnitType)
+        bountyGold = bountyGold div 20
+    else
+        bountyGold = 0
+
+/** Подписка триггеров Just Fight — при старте режима с копиями (PvE, PvEvP): в PvP их нет вовсе */
+public function jfRegisterTriggers()
+    onDamageBy('oJ5K') ->
+        kingKongDamage()
+    onKillBy('oJ5K') ->
+        kingKongKill()
+    onDamageBy('hJ26') ->
+        paladinDamage()
+    onDamaged('hJ26') ->
+        paladinDamaged()
+    onAttackBy('uJ69') ->
+        soulEaterBansheeAttack()
+    EventListener.onCast('AJ6E') (caster) ->
+        soulEaterBansheeCast(caster)
+    EventListener.onCast('AJ8C') (_caster) ->
+        jfCastAJ8C()
+    onDamageBy('eJ0K') ->
+        priestessOfTheMoonDamage()
+    onUnitEnter(function shrimpQueenEnter)
+    onUnitEnter(function naishaTheHuntressEnter)
+    onUnitEnter(function livingPuppetEnter)
+    onUnitEnter(function eliteRaiderEnter)
+    onUnitEnter(function jfEnternJ3E)
+    onUnitEnter(function chimeraElectricityEnter)
+    onUnitEnter(function seaElementalEnter)
+    onAttackBy('oJ51', 'oJ52') ->
+        trollBerserkerAttack()
+    onDamageBy('oJ51', 'oJ52') ->
+        trollBerserkerDamage()
+    onUnitEnter(function jfEnteruJ5R)
+    onDamageBy('hJ1J') ->
+        sorceressDamage()
+    EventListener.onCast('AJ1P') (caster) ->
+        sorceressCast(caster)
+    onDamageBy('hJ1I') ->
+        cavalrymanDamage()
+    onAttackBy('oJ59', 'oJ5A') ->
+        jfAttackoJ59()
+    onAttacked('oJ5A') ->
+        taurenChieftainAttacked()
+    onAttackBy('oJ4Z') ->
+        orcBruteAttack()
+    EventListener.onCast('AJ52') (caster) ->
+        orcBruteCast(caster)
+    onDamageBy('oJ4Z') ->
+        orcBruteDamage()
+    onAttackBy('hJ19') ->
+        frostArcherAttack()
+    onDamageBy('hJ19') ->
+        frostArcherDamage()
+    onAttackBy('eJ0A', 'eJ0B') ->
+        jfAttackeJ0A()
+    onDamageBy('eJ0A', 'eJ0B') ->
+        jfDamageeJ0A()
+    onDeathOf('nJ2E') ->
+        murlocHunterDeath()
+    onDeathOf('nJ75') ->
+        murlocGuardDeath()
+    onAttackBy('oJ53', 'oJ54') ->
+        jfAttackoJ53()
+    onAttackBy('uJ60', 'uJ5Z', 'uJ7L', 'uJ7K') ->
+        lordOfHellAttack()
+    onAttackBy('uJ7O') ->
+        lordOfHellAttack()
+    EventListener.onCast('AJ62') (caster) ->
+        deathKnightCast(caster)
+    onAttackBy('hJ1B') ->
+        firePhoenixAttack()
+    EventListener.onCast('AJ1F') (caster) ->
+        firePhoenixCast(caster)
+    onDamageBy('hJ12', 'hJ1C', 'hJ72') ->
+        mountainKingDamage()
+    onDamageBy('oJ5D', 'oJ5E', 'oJ7G') ->
+        shadowHunterDamage()
+    onUnitEnter(function marauderEnter)
+    onDeathOf('oJ5F') ->
+        marauderDeath()
+    onUnitEnter(function scorchingArcherEnter)
+    onDamageBy('uJ5W') ->
+        calamityDamage()
+    EventListener.onCast('AJ5W') (caster) ->
+        calamityCast(caster)
+    onAttackBy('eJ0F') ->
+        furionAttack()
+    onAttackBy('eJ07') ->
+        jfAttackeJ07()
+    onDeathOf('hJ6W', 'hJ6X', 'hJ70', 'hJ71') ->
+        iceElementalDeath()
+    EventListener.onCast('AJ2D') (caster) ->
+        jainaCast(caster)
+    EventListener.onCast('AJ2F') (caster) ->
+        jainaCast(caster)
+    onDamaged('HJ6J') ->
+        warGodDamaged()
+    onDamaged('HJ6J') ->
+        warGodDamaged2()
+    onDeathOf('uJ68') ->
+        jfDeathuJ68()
+    onUnitEnter(function avatarEnter)
+    onAttackBy('eJ0J', 'eJ05', 'eJ6R', 'eJ6S') ->
+        greatDevilAttack()
+    onAttackBy('eJ6T') ->
+        greatDevilAttack()
+    EventListener.onCast('AJ06') (caster) ->
+        demonHunterCast(caster)
+    onAttackBy('eJ08', 'eJ0E') ->
+        jfAttackeJ08()
+    onDamageBy('nJ2E') ->
+        murlocHunterDamage()
+    EventListener.add(EVENT_PLAYER_UNIT_SPELL_FINISH) ->
+        sorceressCastEnd()
+    onDamaged('uJ5O') ->
+        ghoulPoltergeistDamaged()
+    EventListener.onCast('AJ5Q') (caster) ->
+        ghoulPoltergeistCast(caster)
+    onDeathOf('uJ5Q') ->
+        hugeAbominationDeath()
+    onDeathOf('uJ5Q') ->
+        hugeAbominationDeath2()
+    onDeathOf('uJ67') ->
+        plagueCarrierDeath()
+    onDamageBy('nJ2M') ->
+        jfDamagenJ2M()
+    onKillBy('uJ61') ->
+        darkCasterKill()
+    onAttacked('eJ0D') ->
+        jfAttackedeJ0D()
+    onUnitEnter(function ancientMedusaEnter)
+    onUnitEnter(function medusaEnter)
+    onAttackBy('nJ2X') ->
+        jfAttacknJ2X()
+    onDamageBy('nJ2G', 'nJ2H') ->
+        snapDragonGreenDamage()
+    onAttackBy('nJ2I', 'nJ2J') ->
+        nagaMyrmidonAttack()
+    onDamageBy('nJ76', 'nJ2M') ->
+        nagaBansheeDamage()
+    EventListener.onCast('AJ6R') (_caster) ->
+        nagaBansheeCast()
+    EventListener.onCast('AJ2V') (_caster) ->
+        nagaBansheeCast()
+    onAttackBy('nJ2N') ->
+        hydraAttack()
+    onAttackBy('nJ2O') ->
+        nineHeadedHydraAttack()
+    onDamageBy('nJ2P', 'nJ2Q') ->
+        jfDamagenJ2P()
+    onAttackBy('nJ2R', 'nJ2S', 'nJ7E') ->
+        medusaAttack()
+    onAttackBy('nJ2R', 'nJ2S') ->
+        medusaAttack2()
+    EventListener.onCast('AJ06') (caster) ->
+        demonHunterCast2(caster)
+    onDamageBy('eJ0L') ->
+        masterDruidDamage()
+    onAttacked('oJ5G') ->
+        axeKingAttacked()
+    onAttacked('nJ2Y', 'nJ1E') ->
+        unknownUndeadAttacked()
+    onAttackBy('nJ2Y', 'nJ1E') ->
+        unknownUndeadAttack()
+    onDamageBy('nJ1G', 'nJ1H') ->
+        voidwalkerDamage()
+    EventListener.add(EVENT_PLAYER_UNIT_SPELL_CAST) ->
+        voidwalkerCastStart()
+    onAttackBy('nJ1K') ->
+        greatVoidwalkerAttack()
+    onAttacked('nJ2Z') ->
+        infernalStoneAttacked()
+    onUnitEnter(function nightStalkerEnter)
+    EventListener.add(EVENT_PLAYER_UNIT_SPELL_EFFECT) ->
+        maidenOfPainCast()
+    onDamageBy('nJ39', 'nJ32') ->
+        maidenOfPainDamage()
+    onDamageBy('nJ3A', 'nJ3B') ->
+        frostRevenantDamage()
+    onAttackBy('nJ3C', 'nJ1L') ->
+        netherDragonAttack()
+    EventListener.onCast('AJ3B') (caster) ->
+        netherDragonCast(caster)
+    EventListener.onCast('AJ1R') (caster) ->
+        netherDragonCast(caster)
+    onDamageBy('nJ3D') ->
+        underworldBlackDragonDamage()
+    EventListener.onCast('AJ3N') (caster) ->
+        jfCastAJ3N(caster)
+    onUnitEnter(function rexxarEnter)
+    onAttacked('nJ3T') ->
+        maievAttacked()
+    onAttackBy('hJ1P') ->
+        dragonHawkRiderAttack()
+    EventListener.onCast('AJ1T') (caster) ->
+        dragonHawkRiderCast(caster)
+    onAttackBy('oJ5H') ->
+        kodoBeastAttack()
+    onDamageBy('oJ5I') ->
+        jfDamageoJ5I()
+    EventListener.add(EVENT_PLAYER_UNIT_SPELL_FINISH) ->
+        jfCastEndAJ5K()
+    onKillBy('nJ3U') ->
+        kingShrimpKill()
+    onDeathOf('eJ6P') ->
+        jfDeatheJ6P()
+    onAttackBy('nJ3V') ->
+        furbolgShamanAttack()
+    onUnitEnter(function bearTribeWarriorEnter)
+    onAttackBy('nJ3Z') ->
+        voidRevenantAttack()
+    onUnitEnter(function voidRevenantEnter)
+    onDamageBy('nJ3I', 'nJ77') ->
+        flameTreeDemonDamage()
+    onAttackBy('uJ64', 'uJ63', 'uJ7M', 'uJ7N') ->
+        pitLordAttack()
+    EventListener.onCast('AJ66') (caster) ->
+        pitLordCast(caster)
+    onAttackBy('hJ20', 'hJ21') ->
+        darkRangerAttack()
+    onKillBy('hJ20', 'hJ21') ->
+        darkRangerKill()
+    onAttackBy('hJ1V', 'hJ1W') ->
+        machineGunnerAttack()
+    onAttackBy('hJ1Z') ->
+        heavyInfantryAttack()
+    EventListener.onCast('AJ25') (caster) ->
+        goblinTinkerCast(caster)
+    onUnitEnter(function goblinZeppelinEnter)
+    onAttackBy('nJ37', 'nJ36') ->
+        goblinZeppelinAttack()
+    onDamageBy('nJ33', 'nJ34') ->
+        goblinEngineerDamage()
+    onAttackBy('nJ2U', 'nJ2W') ->
+        clockwerkGoblinAttack()
+    onUnitEnter(function jfEnterhJ1S)
+    onKillBy('nJ40') ->
+        jfKillnJ40()
+    onKillBy('hJ1N', 'hJ1M') ->
+        mortarBattalionKill()
+    onKillBy('hJ6V', 'hJ1U') ->
+        alchemistKill()
+    onAttackBy('hJ1U') ->
+        masterAlchemistAttack()
+    onUnitEnter(function skeletonGeneralEnter)
+    EventListener.onCast('AJ4E') (caster) ->
+        wanderingSwordsmanCast(caster)
+    onAttackBy('hJ23') ->
+        medicineMakerAttack()
+    onDamageBy('eJ6N') ->
+        jfDamageeJ6N()
+    onAttackBy('hJ27', 'hJ28') ->
+        bloodMageAttack()
+    onAttackBy('oJ5L') ->
+        spiritWalkerAttack()
+    EventListener.onCast('AJ5O') (caster) ->
+        spiritWalkerCast(caster)
+    onDamageBy('eJ0M') ->
+        treeElfGuardianDamage()
+    EventListener.onCast('AJ6C') (_caster) ->
+        jfCastAJ6C()
+    onDamageBy('uJ6A') ->
+        darkBoneDragonDamage()
+    EventListener.add(EVENT_PLAYER_UNIT_SPELL_EFFECT) ->
+        ragingElementCast()
+    onDamageBy('nJ48') ->
+        ragingElementDamage()
+    onAttackBy('nJ4E') ->
+        devilSDaughterAttack()
+    EventListener.add(EVENT_PLAYER_UNIT_SPELL_EFFECT) ->
+        devilSDaughterCast()
+    onUnitEnter(function nanorobotEnter)
+    onDeathOf('nJ4G') ->
+        nineHeadedDemonSnakeDeath()
+    onDamageBy('nJ4J') ->
+        explodingBloatbatDamage()
+    EventListener.onCast('AJ4L') (caster) ->
+        explodingBloatbatCast(caster)
+    onDamageBy('nJ4G') ->
+        nineHeadedDemonSnakeDamage()
+    onDamageBy('nJ4L') ->
+        goblinExperimentalBoatDamage()
+    EventListener.onCast('AJ4Q') (caster) ->
+        gnollLeaderCast(caster)
+    onDeathOf('eJ0R') ->
+        gnollSoulWalkerDeath()
+    onDamageBy('nJ4X') ->
+        broodmotherDamage()
+    onUnitEnter(function windows8Enter)
+    onAnyDamage() ->
+        archimondeDamage()
+        jainaDamage()
+        jfDamageAJ3N()
+        shadowSpiritDamage()
+        nanorobotDamage()
+        selfExplodingGoblinDamage()
+        gnollGuardDamage()
+        gnollGuardDamage2()
+        pandaDamage()
+        pandarenBrewmasterDamage()
+        dragonSpawnWarriorDamage()
+        harpyQueenDamage()
+    onAnyDeath() ->
+        jfDeathBJ0Q()
+        underworldBlackDragonDeath()
+        admiralDeath()
+        wardenDeath()
+        jfDeathAJ8W()
+        jfDeathAJ9B()
+    onAnyAttack() ->
+        jfAttackAJ43()
+        captainAttack()
+        jfAttackeJ072()
+        jfAttackBJ0M()
+        jfAttack()
+        axeKingAttack()
+        jfAttackAJ83()
+        jfAttackAJ3O()
+        rexxarAttack()
+        centaurKhanAttack()
+        spiritWyvernAttack()
+        furbolgFighterAttack()
+        wardenAttack()
+        smallPandaAttack()
+        jfAttackBJ0G()
+        blackRockSwordsmanAttack()
+        blackRockBlademasterAttack()
+        goblinTinkerAttack()
+        jfAttackBJ1B()
+        hellfireAttack()
+        balnazzarAttack()
+        wanderingSwordsmanAttack()
+        jfAttackBJ0J()
+        prophetAttack()
+        jfAttackBJ0K()
+        jfAttackAJ8U()
+        jfAttackBJ11()
+        jfAttackBJ1G()
+        gnollLeaderAttack()
+        jfAttackAJ0Y()
+
+init
+    preloadUnit('eJ6L', 'eJ6M', 'eJ6N', 'eJ6O', 'eJ6P', 'eJ6Q', 'hJ0V', 'hJ6U', 'hJ6W', 'hJ6X', 'hJ70', 'hJ71', 'nJ2V', 'nJ2Z', 'nJ6D', 'nJ74', 'nJ75', 'nJ78', 'nJ79', 'nJ7A')
+    preloadUnit('nJ7B', 'nJ7C', 'nJ7D', 'oJ5F', 'oJ7F', 'uJ7H', 'uJ7I', 'uJ7J')
+    preloadAbility('AJ01', 'AJ03', 'AJ0P', 'AJ1L', 'AJ21', 'AJ2D', 'AJ2F', 'AJ2W', 'AJ2Z', 'AJ32', 'AJ3V', 'AJ4A', 'AJ55', 'AJ5I', 'AJ5J', 'AJ5N', 'AJ5O', 'AJ5R', 'AJ6M', 'AJ6N')
+    preloadAbility('AJ6P', 'AJ6Q', 'AJ6S', 'AJ6T', 'AJ6U', 'AJ6V', 'AJ6W', 'AJ6X', 'AJ6Z', 'AJ70', 'AJ71', 'AJ72', 'AJ73', 'AJ74', 'AJ75', 'AJ76', 'AJ77', 'AJ78', 'AJ79', 'AJ7A')
+    preloadAbility('AJ7B', 'AJ7C', 'AJ7D', 'AJ7E', 'AJ7F', 'AJ7G', 'AJ7H', 'AJ7I', 'AJ7J', 'AJ7K', 'AJ7L', 'AJ7M', 'AJ7N', 'AJ7O', 'AJ7P', 'AJ7Q', 'AJ7R', 'AJ7S', 'AJ7T', 'AJ7U')
+    preloadAbility('AJ7V', 'AJ7W', 'AJ7X', 'AJ7Y', 'AJ7Z', 'AJ80', 'AJ81', 'AJ82', 'AJ84', 'AJ85', 'AJ86', 'AJ87', 'AJ88', 'AJ89', 'AJ8A', 'AJ8B', 'AJ8C', 'AJ8D', 'AJ8F', 'AJ8G')
+    preloadAbility('AJ8H', 'AJ8I', 'AJ8J', 'AJ8K', 'AJ8L', 'AJ8M', 'AJ8N', 'AJ8O', 'AJ8P', 'AJ8Q', 'AJ8R', 'AJ8S', 'AJ8T', 'AJ8U', 'AJ8V', 'AJ8W', 'AJ8X', 'AJ8Y', 'AJ8Z', 'AJ90')
+    preloadAbility('AJ91', 'AJ92', 'AJ93', 'AJ94', 'AJ95', 'AJ96', 'AJ97', 'AJ98', 'AJ99', 'AJ9A', 'AJ9B', 'AJ9C', 'Aloc', 'Amim', 'Avul')
